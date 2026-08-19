@@ -1,0 +1,19 @@
+fastapi>=0.110
+uvicorn[standard]>=0.29
+openpyxl>=3.1,<4
+python-docx>=1.1,<2
+Pillow>=10,<12
+matplotlib>=3.8,<4
+xlrd>=2.0.1,<3
+python-multipart>=0.0.9
+pypdf>=3.17,<4
+PyMuPDF>=1.24,<2
+camelot-py==1.0.9
+# Scanned financial-report tables are intentionally staged behind an optional
+# PP-StructureV3 runtime; do not install PaddleOCR into the base API image yet.
+transformers>=4.51
+accelerate>=1.6
+bitsandbytes>=0.49
+torch>=2.6
+langchain-core>=1.4.9,<2.0
+langgraph>=1.2.9,<2.0

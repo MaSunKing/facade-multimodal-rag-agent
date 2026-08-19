@@ -1,0 +1,13 @@
+{
+  "version": "1.0-public-template",
+  "description": "公开示例仅定义知识域。真实文档白名单和授权状态应在本地维护。",
+  "domains": {
+    "01_standard_specification": "国家、行业或地方标准",
+    "02_product_information": "企业产品手册与参数资料",
+    "03_construction_method": "施工方案与安装工艺",
+    "04_node_atlas": "节点图集与构造做法",
+    "05_project_case": "企业项目案例资料",
+    "06_sales_playbook": "内部销售辅助资料"
+  },
+  "documents": {}
+}

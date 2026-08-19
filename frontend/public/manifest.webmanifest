@@ -1,0 +1,9 @@
+{
+  "name": "外墙建材销售小助手",
+  "short_name": "建材销售助手",
+  "description": "面向外墙建材供应商的销售与售前资料核验小助手",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f6f3ed",
+  "theme_color": "#0c1c27"
+}
