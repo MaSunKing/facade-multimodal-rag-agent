@@ -26,12 +26,23 @@ from tempfile import NamedTemporaryFile
 from typing import Any, Iterable, Iterator, Literal
 from urllib.parse import quote
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 from backend.sales.answer_graph import build_customer_answer_graph
+from backend.auth_router import router as auth_router
+from backend.access_control import (
+    Principal,
+    begin_agent_request,
+    current_access_scopes,
+    finish_agent_request,
+    issue_visual_ticket,
+    optional_principal,
+    principal_for_visual_ticket,
+    request_access,
+)
 from backend.sales.baidu_search import (
     BaiduSearchError,
     SearchQuotaExceeded,
@@ -110,6 +121,7 @@ FACADE_DOMAIN_TERMS = (
 )
 
 app = FastAPI(title="Facade Copilot Local Model Service", version="0.1.0")
+app.include_router(auth_router)
 app.include_router(customer_documents_router)
 app.add_middleware(
     CORSMiddleware,
@@ -118,8 +130,8 @@ app.add_middleware(
     # or user credentials, while request rate limiting protects GPU use.
     allow_origins=ALLOWED_ORIGINS,
     allow_credentials=False,
-    allow_methods=["GET", "POST", "DELETE"],
-    allow_headers=["Content-Type"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
 
@@ -142,6 +154,8 @@ async def limit_anonymous_generation(request: Request, call_next):
         "/api/copilot/draft",
         "/api/copilot/answer",
         "/api/copilot/documents",
+        "/api/auth/login",
+        "/api/auth/bootstrap",
     }:
         client_ip = request.client.host if request.client else "unknown"
         now = time.monotonic()
@@ -168,7 +182,7 @@ _model_idle_shutdown = threading.Event()
 _model_idle_reaper_started = False
 _answer_graph_lock = threading.Lock()
 _answer_graph: Any | None = None
-_retriever: LocalRagRetriever | None = None
+_retrievers_by_scope: dict[tuple[str, ...], LocalRagRetriever] = {}
 _retriever_index_mtime_ns: int | None = None
 _retriever_lock = threading.Lock()
 _visual_identity_index: tuple[Any, list[dict[str, Any]], int] | None = None
@@ -1789,16 +1803,22 @@ def apply_image_identity_guard(result: dict[str, Any], image_identity: dict[str,
 
 def load_retriever() -> LocalRagRetriever:
     """Reload the local index after a completed ingestion batch when needed."""
-    global _retriever, _retriever_index_mtime_ns
+    global _retriever_index_mtime_ns
+    scope_key = tuple(sorted(current_access_scopes()))
     current_mtime_ns = RAG_INDEX_PATH.stat().st_mtime_ns if RAG_INDEX_PATH.exists() else None
-    if _retriever is not None and current_mtime_ns == _retriever_index_mtime_ns:
-        return _retriever
+    cached = _retrievers_by_scope.get(scope_key)
+    if cached is not None and current_mtime_ns == _retriever_index_mtime_ns:
+        return cached
     with _retriever_lock:
         current_mtime_ns = RAG_INDEX_PATH.stat().st_mtime_ns if RAG_INDEX_PATH.exists() else None
-        if _retriever is None or current_mtime_ns != _retriever_index_mtime_ns:
-            _retriever = LocalRagRetriever()
+        if current_mtime_ns != _retriever_index_mtime_ns:
+            _retrievers_by_scope.clear()
             _retriever_index_mtime_ns = current_mtime_ns
-    return _retriever
+        if scope_key not in _retrievers_by_scope:
+            _retrievers_by_scope[scope_key] = LocalRagRetriever(
+                allowed_access_scopes=frozenset(scope_key)
+            )
+        return _retrievers_by_scope[scope_key]
 
 
 def fallback_draft(request: DraftRequest, reason: str) -> dict[str, Any]:
@@ -3905,11 +3925,16 @@ def retrieval_ready() -> dict[str, Any]:
 
 
 @app.post("/api/copilot/retrieve")
-def retrieve_evidence(request: RetrieveRequest) -> dict[str, Any]:
+def retrieve_evidence(
+    request: RetrieveRequest,
+    principal: Principal | None = Depends(optional_principal),
+) -> dict[str, Any]:
     """Return locally retrieved evidence without triggering Qwen3 generation."""
+    principal = principal if isinstance(principal, Principal) else None
     started = time.perf_counter()
     try:
-        result = load_retriever().retrieve(request.customer_question, request.top_k, request.visual_k)
+        with request_access(principal):
+            result = load_retriever().retrieve(request.customer_question, request.top_k, request.visual_k)
         result["meta"]["latency_ms"] = round((time.perf_counter() - started) * 1000, 2)
         result["meta"]["generation_model_loaded"] = _model is not None
         return result
@@ -3918,9 +3943,18 @@ def retrieve_evidence(request: RetrieveRequest) -> dict[str, Any]:
 
 
 @app.get("/api/copilot/visual/{asset_id}")
-def original_visual(asset_id: str):
+def original_visual(
+    asset_id: str,
+    principal: Principal | None = Depends(optional_principal),
+    ticket: str | None = Query(default=None, max_length=1000),
+):
     """Serve only an indexed, customer-shareable original PDF crop."""
-    asset = load_retriever().visual_asset(asset_id)
+    principal = principal if isinstance(principal, Principal) else None
+    ticket = ticket if isinstance(ticket, str) else None
+    if principal is None and ticket:
+        principal = principal_for_visual_ticket(ticket, asset_id)
+    with request_access(principal):
+        asset = load_retriever().visual_asset(asset_id)
     if asset is None:
         return JSONResponse(status_code=404, content={"detail": "未找到可对外返回的图片资料。"})
     image_path = Path(str(asset.get("image_path") or ""))
@@ -5031,25 +5065,63 @@ def customer_answer_graph():
 
 
 @app.post("/api/copilot/answer", response_model=AnswerResponse)
-def grounded_answer(request: DraftRequest) -> AnswerResponse:
+def grounded_answer(
+    request: DraftRequest,
+    principal: Principal | None = Depends(optional_principal),
+) -> AnswerResponse:
     """Run one stateless LangGraph request and preserve the existing API contract."""
 
-    try:
-        state = customer_answer_graph().invoke({"request": request})
-        return AnswerResponse(**state["response"])
-    except Exception:
-        # Do not turn a workflow-library issue into a failed customer request.
-        # The established local paths remain the compatibility fallback.
-        plan = fallback_customer_tool_plan(
-            request,
-            has_documents=bool(request.document_session_id and get_session(request.document_session_id)),
-            has_image=bool(request.image_data_url),
+    trace_enabled = principal is None or isinstance(principal, Principal)
+    principal = principal if isinstance(principal, Principal) else None
+    request_id: str | None = None
+    request_started: float | None = None
+    if trace_enabled:
+        request_id, request_started = begin_agent_request(
+            principal=principal,
+            attachment_session_id=request.document_session_id,
+            query_length=len(request.customer_question),
         )
-        return _CustomerAnswerWorkflowCallbacks.answer_planned(request, plan)
+    with request_access(principal):
+        try:
+            state = customer_answer_graph().invoke({"request": request})
+            response = AnswerResponse(**state["response"])
+        except Exception:
+            plan = fallback_customer_tool_plan(
+                request,
+                has_documents=bool(request.document_session_id and get_session(request.document_session_id)),
+                has_image=bool(request.image_data_url),
+            )
+            response = _CustomerAnswerWorkflowCallbacks.answer_planned(request, plan)
+        response.meta["access_control"] = {
+            "authenticated": principal is not None,
+            "role": principal.role if principal else "anonymous",
+            "access_scopes": sorted(current_access_scopes()),
+        }
+        if principal is not None:
+            for asset in response.visual_assets:
+                asset_id = str(asset.get("asset_id") or "")
+                endpoint = str(asset.get("visual_endpoint") or "")
+                if asset_id and endpoint:
+                    separator = "&" if "?" in endpoint else "?"
+                    asset["visual_endpoint"] = (
+                        f"{endpoint}{separator}ticket={quote(issue_visual_ticket(principal, asset_id), safe='')}"
+                    )
+        if request_id is not None and request_started is not None:
+            response.meta["request_id"] = request_id
+            finish_agent_request(
+                request_id,
+                request_started,
+                response=response.model_dump(mode="json"),
+            )
+        return response
 
 
 @app.post("/api/copilot/draft", response_model=DraftResponse)
-def draft(request: DraftRequest) -> DraftResponse:
+def draft(
+    request: DraftRequest,
+    principal: Principal | None = Depends(optional_principal),
+) -> DraftResponse:
+    principal = principal if isinstance(principal, Principal) else None
     started = time.perf_counter()
     try:
         tokenizer, model = load_model()

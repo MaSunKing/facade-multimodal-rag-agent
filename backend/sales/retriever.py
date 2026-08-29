@@ -319,14 +319,30 @@ def is_product_overview_query(text: str) -> bool:
 class LocalRagRetriever:
     """Read-only RAG index with text evidence and original visual assets."""
 
-    def __init__(self, index_path: Path = RAG_INDEX_PATH) -> None:
+    def __init__(
+        self,
+        index_path: Path = RAG_INDEX_PATH,
+        *,
+        allowed_access_scopes: frozenset[str] | set[str] | None = None,
+    ) -> None:
         self.index_path = index_path
         if not index_path.exists():
             raise FileNotFoundError(
                 "未找到本地 RAG 索引。请先运行 scripts\\build_rag_index.ps1。"
             )
         self.payload = json.loads(index_path.read_text(encoding="utf-8"))
-        self.documents: list[dict[str, Any]] = self.payload.get("documents", [])
+        self.allowed_access_scopes = frozenset(allowed_access_scopes or {"public"})
+        raw_documents: list[dict[str, Any]] = self.payload.get("documents", [])
+        # Semantic taxonomy (for example ``internal_sales_playbook``) is not
+        # an access-control decision. Existing records predate this field and
+        # are public by the business owner's explicit decision; future private
+        # material must opt in with ``access_scope=internal``.
+        self.documents = [
+            document
+            for document in raw_documents
+            if str(document.get("access_scope") or document.get("visibility") or "public")
+            in self.allowed_access_scopes
+        ]
         # The repository was reorganised from data/processed to
         # data/sales/processed.  Older, otherwise valid indexes may still hold
         # absolute paths from before that move.  Resolve those paths at load
@@ -335,8 +351,13 @@ class LocalRagRetriever:
         for document in self.documents:
             if document.get("kind") == "visual" and document.get("image_path"):
                 document["image_path"] = str(self._resolve_visual_path(str(document["image_path"])))
-        self.document_frequency: dict[str, int] = self.payload.get("document_frequency", {})
-        self.avg_doc_length = float(self.payload.get("average_document_length", 1.0)) or 1.0
+        self.document_frequency = Counter()
+        for document in self.documents:
+            self.document_frequency.update(set(document.get("tokens") or []))
+        self.avg_doc_length = (
+            sum(len(document.get("tokens") or []) for document in self.documents)
+            / max(len(self.documents), 1)
+        ) or 1.0
         self.document_count = len(self.documents)
         self.product_alias_groups = load_product_alias_groups()
         self.visual_by_asset_id = {
@@ -429,14 +450,17 @@ class LocalRagRetriever:
             extra = sorted(dense_ids - lexical_ids)
             status["missing_document_count"] = len(missing)
             status["extra_document_count"] = len(extra)
-            if missing or extra:
+            if missing:
                 status["reason"] = "document_id_mismatch"
                 status["missing_document_ids_sample"] = missing[:5]
                 status["extra_document_ids_sample"] = extra[:5]
                 return status
 
-            self._dense_ids = ids
-            self._dense_vectors = vectors
+            # Extra vectors are expected for a public-only view over a mixed
+            # public/internal index. Keep only vectors visible to this view.
+            allowed_positions = [position for position, document_id in enumerate(ids) if document_id in lexical_ids]
+            self._dense_ids = [ids[position] for position in allowed_positions]
+            self._dense_vectors = vectors[allowed_positions]
             status["ready"] = True
             status["reason"] = None
             return status

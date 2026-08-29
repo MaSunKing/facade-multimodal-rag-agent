@@ -138,7 +138,12 @@ def build_index(ready_dir: Path, output_path: Path) -> dict[str, Any]:
 
     documents: list[dict[str, Any]] = []
     for record in read_jsonl(text_path):
-        if not record.get("index_eligible") or not record.get("fact_eligible") or not record.get("customer_shareable", True):
+        access_scope = str(record.get("access_scope") or record.get("visibility") or "public")
+        if access_scope not in {"public", "internal"}:
+            continue
+        if not record.get("index_eligible") or not record.get("fact_eligible"):
+            continue
+        if access_scope == "public" and not record.get("customer_shareable", True):
             continue
         text = str(record.get("text") or "").strip()
         tokens = tokenize(text)
@@ -155,6 +160,7 @@ def build_index(ready_dir: Path, output_path: Path) -> dict[str, Any]:
                     "content_labels": record.get("content_labels") or [],
                     "source_taxonomy": record.get("source_taxonomy") or [],
                     "sales_playbook_use": record.get("sales_playbook_use"),
+                    "access_scope": access_scope,
                 }
             )
 
@@ -188,7 +194,10 @@ def build_index(ready_dir: Path, output_path: Path) -> dict[str, Any]:
         }
     visual_ids_by_document_page: dict[tuple[str, int], list[str]] = {}
     for record in visual_records:
-        if not record.get("retrieval_eligible") or not record.get("customer_shareable"):
+        access_scope = str(record.get("access_scope") or record.get("visibility") or "public")
+        if access_scope not in {"public", "internal"} or not record.get("retrieval_eligible"):
+            continue
+        if access_scope == "public" and not record.get("customer_shareable"):
             continue
         catalog_entry = primary_catalog_entry(str(record.get("asset_id") or ""))
         bundle = bundles_by_asset_id.get(str(record.get("asset_id")))
@@ -245,12 +254,16 @@ def build_index(ready_dir: Path, output_path: Path) -> dict[str, Any]:
                         "bbox": record.get("bbox"),
                     },
                     "image_path": record.get("image_path"),
+                    "access_scope": access_scope,
                 }
             )
 
     if case_path.exists():
         for record in read_jsonl(case_path):
-            if not record.get("customer_shareable") or not record.get("case_id"):
+            access_scope = str(record.get("access_scope") or record.get("visibility") or "public")
+            if access_scope not in {"public", "internal"} or not record.get("case_id"):
+                continue
+            if access_scope == "public" and not record.get("customer_shareable"):
                 continue
             search_text = project_case_search_text(record)
             tokens = tokenize(search_text)
@@ -278,6 +291,7 @@ def build_index(ready_dir: Path, output_path: Path) -> dict[str, Any]:
                     "search_text": search_text,
                     "tokens": tokens,
                     "case": record,
+                    "access_scope": access_scope,
                 }
             )
 
@@ -306,6 +320,11 @@ def build_index(ready_dir: Path, output_path: Path) -> dict[str, Any]:
             "tagged_evidence": text_path.name.endswith("_tagged.jsonl"),
             "index_fingerprint": index_fingerprint(documents),
             "privacy": "local_index_no_cloud_upload",
+            "access_control_version": "knowledge_access_v1",
+            "access_scope_counts": {
+                "public": sum(document.get("access_scope") == "public" for document in documents),
+                "internal": sum(document.get("access_scope") == "internal" for document in documents),
+            },
         },
         "average_document_length": average_document_length,
         "document_frequency": dict(document_frequency),

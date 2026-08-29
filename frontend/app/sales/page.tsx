@@ -12,10 +12,26 @@ import {
 
 // The interface is static and public. Answers and source visuals are served only
 // while the workstation's local RAG service is online.
-const publicModelApiBase = "https://jackyma-desktop.tail435bf7.ts.net";
+const publicModelApiBase = (process.env.NEXT_PUBLIC_MODEL_API_BASE ?? "http://127.0.0.1:8000").replace(/\/$/, "");
 const staticBasePath = (process.env.NEXT_PUBLIC_STATIC_BASE ?? "").replace(/\/$/, "");
 
 type ServiceState = "checking" | "available" | "offline";
+
+type AuthPrincipal = {
+  user_id: string;
+  username: string;
+  display_name: string;
+  role: "admin" | "member";
+  can_access_internal: boolean;
+  access_scopes: string[];
+};
+
+type ManagedUser = AuthPrincipal & {
+  active: number | boolean;
+  created_at: string;
+};
+
+const authSessionStorageKey = "facade-copilot-auth-token-v1";
 
 type SourceCitation = {
   evidence_id: string;
@@ -574,6 +590,18 @@ export default function Home() {
   const [attachedImage, setAttachedImage] = useState<AttachedImage | null>(null);
   const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
   const [useOnlineSearch, setUseOnlineSearch] = useState(false);
+  const [authToken, setAuthToken] = useState<string | null>(() => (
+    typeof window === "undefined" ? null : window.sessionStorage.getItem(authSessionStorageKey)
+  ));
+  const [authPrincipal, setAuthPrincipal] = useState<AuthPrincipal | null>(null);
+  const [bootstrapRequired, setBootstrapRequired] = useState(false);
+  const [authDialogOpen, setAuthDialogOpen] = useState(false);
+  const [adminPanelOpen, setAdminPanelOpen] = useState(false);
+  const [managedUsers, setManagedUsers] = useState<ManagedUser[]>([]);
+  const [authError, setAuthError] = useState("");
+  const [authBusy, setAuthBusy] = useState(false);
+  const [authForm, setAuthForm] = useState({ setupToken: "", username: "", displayName: "", password: "" });
+  const [newUserForm, setNewUserForm] = useState({ username: "", displayName: "", password: "", canAccessInternal: true });
   const activeConversation = conversations.find((conversation) => conversation.id === activeConversationId) ?? null;
   const messages = activeConversation?.messages.length ? activeConversation.messages : defaultConversationMessages;
   const endOfMessagesRef = useRef<HTMLDivElement | null>(null);
@@ -598,6 +626,149 @@ export default function Home() {
       window.clearTimeout(timer);
     };
   }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const headers: HeadersInit = authToken ? { Authorization: `Bearer ${authToken}` } : {};
+    fetch(`${publicModelApiBase}/api/auth/status`, { headers, signal: controller.signal, cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("auth_status_failed");
+        return response.json() as Promise<{
+          bootstrap_required: boolean;
+          authenticated: boolean;
+          principal: AuthPrincipal | null;
+        }>;
+      })
+      .then((status) => {
+        setBootstrapRequired(status.bootstrap_required);
+        setAuthPrincipal(status.authenticated ? status.principal : null);
+        if (!status.authenticated && authToken) {
+          window.sessionStorage.removeItem(authSessionStorageKey);
+          setAuthToken(null);
+        }
+      })
+      .catch(() => {
+        // Authentication is optional for public knowledge. A temporarily
+        // unavailable status endpoint must not disable anonymous RAG.
+      });
+    return () => controller.abort();
+  }, [authToken]);
+
+  function authenticatedFetch(input: string, init: RequestInit = {}) {
+    const headers = new Headers(init.headers);
+    if (authToken) headers.set("Authorization", `Bearer ${authToken}`);
+    return fetch(input, { ...init, headers });
+  }
+
+  async function submitAuthentication(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setAuthBusy(true);
+    setAuthError("");
+    try {
+      const endpoint = bootstrapRequired ? "/api/auth/bootstrap" : "/api/auth/login";
+      const payload = bootstrapRequired
+        ? {
+            setup_token: authForm.setupToken,
+            username: authForm.username,
+            display_name: authForm.displayName || authForm.username,
+            password: authForm.password,
+          }
+        : { username: authForm.username, password: authForm.password };
+      const response = await fetch(`${publicModelApiBase}${endpoint}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const body = await response.json().catch(() => ({})) as {
+        detail?: string;
+        access_token?: string;
+        principal?: AuthPrincipal;
+      };
+      if (!response.ok || !body.access_token || !body.principal) {
+        throw new Error(body.detail || "登录失败");
+      }
+      window.sessionStorage.setItem(authSessionStorageKey, body.access_token);
+      setAuthToken(body.access_token);
+      setAuthPrincipal(body.principal);
+      setBootstrapRequired(false);
+      setAuthDialogOpen(false);
+      setAuthForm({ setupToken: "", username: "", displayName: "", password: "" });
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : "登录失败");
+    } finally {
+      setAuthBusy(false);
+    }
+  }
+
+  async function logout() {
+    if (authToken) {
+      await authenticatedFetch(`${publicModelApiBase}/api/auth/logout`, { method: "POST" }).catch(() => undefined);
+    }
+    window.sessionStorage.removeItem(authSessionStorageKey);
+    setAuthToken(null);
+    setAuthPrincipal(null);
+    setAdminPanelOpen(false);
+  }
+
+  async function loadManagedUsers() {
+    if (!authToken || authPrincipal?.role !== "admin") return;
+    setAuthError("");
+    const response = await authenticatedFetch(`${publicModelApiBase}/api/auth/admin/users`, { cache: "no-store" });
+    const body = await response.json().catch(() => ({})) as { detail?: string; users?: ManagedUser[] };
+    if (!response.ok) throw new Error(body.detail || "无法读取人员列表");
+    setManagedUsers(body.users ?? []);
+  }
+
+  async function openAdminPanel() {
+    setAdminPanelOpen(true);
+    try {
+      await loadManagedUsers();
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : "无法读取人员列表");
+    }
+  }
+
+  async function createManagedUser(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setAuthBusy(true);
+    setAuthError("");
+    try {
+      const response = await authenticatedFetch(`${publicModelApiBase}/api/auth/admin/users`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          username: newUserForm.username,
+          display_name: newUserForm.displayName || newUserForm.username,
+          password: newUserForm.password,
+          role: "member",
+          can_access_internal: newUserForm.canAccessInternal,
+        }),
+      });
+      const body = await response.json().catch(() => ({})) as { detail?: string };
+      if (!response.ok) throw new Error(body.detail || "创建用户失败");
+      setNewUserForm({ username: "", displayName: "", password: "", canAccessInternal: true });
+      await loadManagedUsers();
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : "创建用户失败");
+    } finally {
+      setAuthBusy(false);
+    }
+  }
+
+  async function updateManagedUser(user: ManagedUser, changes: Record<string, boolean | string>) {
+    setAuthError("");
+    const response = await authenticatedFetch(`${publicModelApiBase}/api/auth/admin/users/${encodeURIComponent(user.user_id)}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(changes),
+    });
+    const body = await response.json().catch(() => ({})) as { detail?: string };
+    if (!response.ok) {
+      setAuthError(body.detail || "权限更新失败");
+      return;
+    }
+    await loadManagedUsers();
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -743,7 +914,7 @@ export default function Home() {
         const form = new FormData();
         attachmentsForRequest.forEach((item) => form.append("files", item.file));
         if (persistedSessionId) form.append("session_id", persistedSessionId);
-        const uploadResponse = await fetch(`${publicModelApiBase}/api/copilot/documents`, {
+        const uploadResponse = await authenticatedFetch(`${publicModelApiBase}/api/copilot/documents`, {
           method: "POST",
           body: form,
         });
@@ -772,7 +943,7 @@ export default function Home() {
       } else {
         documentSessionId = persistedSessionId;
         if (documentSessionId) {
-          const sessionResponse = await fetch(
+          const sessionResponse = await authenticatedFetch(
             `${publicModelApiBase}/api/copilot/documents/${encodeURIComponent(documentSessionId)}`,
             { method: "GET", cache: "no-store" },
           );
@@ -782,7 +953,7 @@ export default function Home() {
           }
         }
       }
-      const response = await fetch(`${publicModelApiBase}/api/copilot/answer`, {
+      const response = await authenticatedFetch(`${publicModelApiBase}/api/copilot/answer`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -965,9 +1136,23 @@ export default function Home() {
           {statusLabel}
         </div>
 
-        <button className="reset-button" type="button" onClick={startNewConversation} disabled={isSending}>
-          新建对话
-        </button>
+        <div className="topbar-actions">
+          {authPrincipal ? (
+            <>
+              <button className="access-button" type="button" onClick={() => authPrincipal.role === "admin" ? void openAdminPanel() : undefined}>
+                {authPrincipal.display_name} · {authPrincipal.can_access_internal ? "内部" : "公开"}
+              </button>
+              <button className="reset-button" type="button" onClick={() => void logout()}>退出</button>
+            </>
+          ) : (
+            <button className="access-button" type="button" onClick={() => setAuthDialogOpen(true)}>
+              {bootstrapRequired ? "初始化管理员" : "内部登录"}
+            </button>
+          )}
+          <button className="reset-button" type="button" onClick={startNewConversation} disabled={isSending}>
+            新建对话
+          </button>
+        </div>
       </header>
 
       <section className="conversation" id="top" aria-live="polite">
@@ -1122,6 +1307,56 @@ export default function Home() {
             </div>
             <img src={sourceUrl(activeImage)} alt={activeImage.customer_title} />
           </div>
+        </div>
+      )}
+
+      {authDialogOpen && (
+        <div className="access-modal" role="dialog" aria-modal="true" aria-label={bootstrapRequired ? "初始化管理员" : "内部登录"}>
+          <form className="access-card" onSubmit={submitAuthentication}>
+            <div className="access-card-heading">
+              <div><strong>{bootstrapRequired ? "初始化管理员" : "内部人员登录"}</strong><small>匿名访客始终只能查询公开资料</small></div>
+              <button type="button" onClick={() => setAuthDialogOpen(false)} aria-label="关闭">×</button>
+            </div>
+            {bootstrapRequired && (
+              <>
+                <label>一次性初始化令牌<input value={authForm.setupToken} onChange={(event) => setAuthForm({ ...authForm, setupToken: event.target.value })} required /></label>
+                <p className="access-hint">令牌保存在本机 runtime/admin_bootstrap_token.txt，成功初始化后自动删除。</p>
+                <label>显示名称<input value={authForm.displayName} onChange={(event) => setAuthForm({ ...authForm, displayName: event.target.value })} placeholder="管理员姓名" /></label>
+              </>
+            )}
+            <label>用户名<input value={authForm.username} onChange={(event) => setAuthForm({ ...authForm, username: event.target.value })} autoComplete="username" required /></label>
+            <label>密码<input type="password" value={authForm.password} onChange={(event) => setAuthForm({ ...authForm, password: event.target.value })} autoComplete={bootstrapRequired ? "new-password" : "current-password"} minLength={bootstrapRequired ? 10 : undefined} required /></label>
+            {authError && <p className="access-error">{authError}</p>}
+            <button className="access-primary" type="submit" disabled={authBusy}>{authBusy ? "处理中…" : bootstrapRequired ? "创建管理员" : "登录"}</button>
+          </form>
+        </div>
+      )}
+
+      {adminPanelOpen && authPrincipal?.role === "admin" && (
+        <div className="access-modal" role="dialog" aria-modal="true" aria-label="内部权限管理">
+          <section className="access-card admin-access-card">
+            <div className="access-card-heading">
+              <div><strong>内部权限管理</strong><small>当前内部知识库为空；现有资料均为公开资料</small></div>
+              <button type="button" onClick={() => setAdminPanelOpen(false)} aria-label="关闭">×</button>
+            </div>
+            <form className="new-user-form" onSubmit={createManagedUser}>
+              <input value={newUserForm.username} onChange={(event) => setNewUserForm({ ...newUserForm, username: event.target.value })} placeholder="用户名" required />
+              <input value={newUserForm.displayName} onChange={(event) => setNewUserForm({ ...newUserForm, displayName: event.target.value })} placeholder="姓名" />
+              <input type="password" minLength={10} value={newUserForm.password} onChange={(event) => setNewUserForm({ ...newUserForm, password: event.target.value })} placeholder="初始密码（至少10位）" required />
+              <label className="inline-permission"><input type="checkbox" checked={newUserForm.canAccessInternal} onChange={(event) => setNewUserForm({ ...newUserForm, canAccessInternal: event.target.checked })} />允许内部资料</label>
+              <button className="access-primary" type="submit" disabled={authBusy}>添加人员</button>
+            </form>
+            {authError && <p className="access-error">{authError}</p>}
+            <div className="managed-user-list">
+              {managedUsers.map((user) => (
+                <div className="managed-user-row" key={user.user_id}>
+                  <div><strong>{user.display_name}</strong><small>{user.username} · {user.role === "admin" ? "管理员" : "成员"}</small></div>
+                  <label><input type="checkbox" checked={Boolean(user.can_access_internal)} onChange={(event) => void updateManagedUser(user, { can_access_internal: event.target.checked })} />内部权限</label>
+                  <label><input type="checkbox" checked={Boolean(user.active)} onChange={(event) => void updateManagedUser(user, { active: event.target.checked })} />启用</label>
+                </div>
+              ))}
+            </div>
+          </section>
         </div>
       )}
       </div>

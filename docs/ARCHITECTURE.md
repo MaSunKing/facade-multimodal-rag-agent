@@ -192,7 +192,22 @@ Canonical Evidence 永远保留完整内容；Context Composer 只为当前问�
 
 校验通过后，服务器将引用物化为用户可见的来源卡片和原图接口。
 
-## 9. GPU 状态管理
+## 9. 公开／内部访问控制与审计
+
+知识用途分类和访问权限彼此独立：
+
+```text
+匿名访客       → public
+普通成员       → public
+内部授权成员   → public + internal
+管理员         → public + internal + 人员授权
+```
+
+访问范围由后端认证结果确定，并在构造BM25／Dense／Rerank候选前过滤；前端不能通过请求字段自行声明权限。历史索引中缺少访问字段的记录按业务负责人确认兼容为 `public`，新内部资料必须显式写入 `access_scope=internal`。
+
+SQLite只保存用户、登录会话、Agent Request、Tool Run和Evidence Snapshot元数据。聊天正文仍保存在浏览器IndexedDB；客户附件仍使用临时会话且不进入企业知识库。认证后的图片请求使用短时HMAC票据，避免在图片URL中暴露Bearer Token。
+
+## 10. GPU 状态管理
 
 同一块 16GB GPU 不能长期同时驻留 8B VLM、Embedding 和 Reranker。资源状态机为：
 
@@ -209,7 +224,7 @@ Canonical Evidence 永远保留完整内容；Context Composer 只为当前问�
 
 联网抓取属于网络 I/O，可以与本地检索并行；GPU 模型调用本身保持串行，避免显存峰值叠加。
 
-## 10. 部署拓扑
+## 11. 部署拓扑
 
 ```text
 用户浏览器
