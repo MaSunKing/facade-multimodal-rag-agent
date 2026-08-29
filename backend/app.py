@@ -5098,7 +5098,13 @@ def grounded_answer(
             "access_scopes": sorted(current_access_scopes()),
         }
         if principal is not None:
-            for asset in response.visual_assets:
+            ticket_assets: list[dict[str, Any]] = list(response.visual_assets)
+            image_identity = response.meta.get("image_identity")
+            if isinstance(image_identity, dict):
+                ticket_assets.extend(
+                    item for item in (image_identity.get("matches") or []) if isinstance(item, dict)
+                )
+            for asset in ticket_assets:
                 asset_id = str(asset.get("asset_id") or "")
                 endpoint = str(asset.get("visual_endpoint") or "")
                 if asset_id and endpoint:
