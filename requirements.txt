@@ -9,8 +9,8 @@ python-multipart>=0.0.9
 pypdf>=3.17,<4
 PyMuPDF>=1.24,<2
 camelot-py==1.0.9
-# Scanned financial-report tables are intentionally staged behind an optional
-# PP-StructureV3 runtime; do not install PaddleOCR into the base API image yet.
+# OCR and PP-Structure remain optional document-parsing enhancements and are
+# deliberately not forced into the base API environment.
 transformers>=4.51
 accelerate>=1.6
 bitsandbytes>=0.49

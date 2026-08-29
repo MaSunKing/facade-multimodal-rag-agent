@@ -1,1 +1,1 @@
-"""Deterministic finance-analysis primitives kept separate from the sales RAG."""
+"""Format-specific document parsing primitives used by the public RAG core."""

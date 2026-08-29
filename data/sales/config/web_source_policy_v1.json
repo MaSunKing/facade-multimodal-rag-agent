@@ -1,0 +1,38 @@
+{
+  "version": "1.0",
+  "description": "建材助手公开网页来源的本地可信度重排规则；仅调整百度Top5顺序，不增加搜索API调用。",
+  "default_domain_weight": 0.30,
+  "global_domain_rules": [
+    {"suffix": "gov.cn", "weight": 0.97, "tier": "government"},
+    {"suffix": "edu.cn", "weight": 0.72, "tier": "education"},
+    {"suffix": "org.cn", "weight": 0.62, "tier": "organization"},
+    {"suffix": "zhihu.com", "weight": 0.20, "tier": "community"},
+    {"suffix": "baijiahao.baidu.com", "weight": 0.18, "tier": "self_media"},
+    {"suffix": "sohu.com", "weight": 0.30, "tier": "portal"}
+  ],
+  "profiles": {
+    "construction_standard": {"domain_rules": [
+      {"suffix": "mohurd.gov.cn", "weight": 1.0, "tier": "ministry"},
+      {"suffix": "samr.gov.cn", "weight": 1.0, "tier": "regulator"},
+      {"suffix": "std.samr.gov.cn", "weight": 1.0, "tier": "national_standard_platform"},
+      {"suffix": "gov.cn", "weight": 0.97, "tier": "government"}
+    ]},
+    "public_project": {"domain_rules": [
+      {"suffix": "ggzy.gov.cn", "weight": 1.0, "tier": "public_resource_exchange"},
+      {"suffix": "ccgp.gov.cn", "weight": 1.0, "tier": "government_procurement"},
+      {"suffix": "gov.cn", "weight": 0.96, "tier": "government"}
+    ]},
+    "manufacturer_product": {"domain_rules": [
+      {"suffix": "gov.cn", "weight": 0.90, "tier": "government"}
+    ]},
+    "industry_news": {"domain_rules": [
+      {"suffix": "gov.cn", "weight": 0.95, "tier": "government"},
+      {"suffix": "xinhuanet.com", "weight": 0.86, "tier": "authoritative_media"},
+      {"suffix": "people.com.cn", "weight": 0.84, "tier": "authoritative_media"}
+    ]},
+    "general_public": {"domain_rules": [
+      {"suffix": "gov.cn", "weight": 0.95, "tier": "government"}
+    ]}
+  }
+}
+

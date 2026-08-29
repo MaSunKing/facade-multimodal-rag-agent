@@ -7,6 +7,8 @@ ingestion can use the GPU and then release it before the sales Copilot starts.
 from __future__ import annotations
 
 import os
+import gc
+import threading
 from pathlib import Path
 from typing import Iterable
 
@@ -24,6 +26,25 @@ RETRIEVAL_INSTRUCTION = (
     "directly support an accurate answer about products, construction methods, "
     "standards, drawings, or project cases."
 )
+
+# Transformers model construction repeatedly allocates native CPU/CUDA memory.
+# Re-loading both retrieval models for every question eventually fragments a
+# small workstation GPU and can terminate the process without a Python
+# traceback.  Keep one read-only instance of each model and serialize inference.
+RETRIEVAL_INFERENCE_LOCK = threading.RLock()
+
+# The workstation has one 16 GB GPU.  Retrieval may use it while the large
+# generation model is cold, but the 0.6B embedding/reranking models must never
+# remain resident beside Qwen3-VL-8B.  These references are managed explicitly
+# (instead of functools.lru_cache) so a lifecycle transition can deterministically
+# drop them under the same lock that serialises inference.
+_embedding_model: LocalQwenEmbedding | None = None  # type: ignore[name-defined]
+_reranker_model: LocalQwenReranker | None = None  # type: ignore[name-defined]
+_generation_gpu_reserved = False
+_lifecycle_generation = 0
+_last_lifecycle_transition = "initial"
+_last_lifecycle_error: str | None = None
+_last_cleanup_warnings: list[str] = []
 
 
 def local_device() -> str:
@@ -122,3 +143,162 @@ class LocalQwenReranker:
                 yes_no = torch.stack((logits[:, self.token_false_id], logits[:, self.token_true_id]), dim=1)
                 scores.extend(torch.log_softmax(yes_no, dim=1)[:, 1].exp().float().cpu().tolist())
         return scores
+
+
+def _target_device_locked() -> str:
+    """Return the only device retrieval models may use in the current phase."""
+
+    return "cpu" if _generation_gpu_reserved else local_device()
+
+
+def _cleanup_runtime_memory_locked() -> list[str]:
+    """Return allocator cleanup warnings without making the service unusable."""
+
+    warnings: list[str] = []
+    gc.collect()
+    if torch.cuda.is_available():
+        try:
+            torch.cuda.empty_cache()
+        except Exception as exc:  # allocator cleanup differs between CUDA builds
+            warnings.append(f"cuda_empty_cache:{type(exc).__name__}")
+        try:
+            torch.cuda.ipc_collect()
+        except Exception as exc:  # unsupported by some CUDA/Windows runtimes
+            warnings.append(f"cuda_ipc_collect:{type(exc).__name__}")
+    return warnings
+
+
+def _release_cached_models_locked() -> dict[str, object]:
+    """Drop all cached retrieval models while inference is exclusively locked."""
+
+    global _embedding_model, _reranker_model, _last_cleanup_warnings
+    released_devices = sorted(
+        {
+            str(model.device)
+            for model in (_embedding_model, _reranker_model)
+            if model is not None
+        }
+    )
+    released_count = int(_embedding_model is not None) + int(_reranker_model is not None)
+    released_embedding = _embedding_model
+    released_reranker = _reranker_model
+    _embedding_model = None
+    _reranker_model = None
+    # Remove the final cache-owned references before asking CUDA to return its
+    # free blocks.  A caller cannot still be using either object because every
+    # encode/score operation holds RETRIEVAL_INFERENCE_LOCK.
+    del released_embedding, released_reranker
+    _last_cleanup_warnings = _cleanup_runtime_memory_locked()
+    return {
+        "released_model_count": released_count,
+        "released_devices": released_devices,
+        "cleanup_warnings": list(_last_cleanup_warnings),
+    }
+
+
+def prepare_for_generation_model() -> dict[str, object]:
+    """Reserve the GPU for Qwen3-VL and force subsequent retrieval onto CPU.
+
+    The transition is atomic relative to retrieval inference.  If preparation
+    itself fails, the prior routing mode is restored so a failed generation
+    load cannot strand retrieval on the wrong device.
+    """
+
+    global _generation_gpu_reserved, _lifecycle_generation
+    global _last_lifecycle_transition, _last_lifecycle_error
+    with RETRIEVAL_INFERENCE_LOCK:
+        if _generation_gpu_reserved:
+            return retrieval_runtime_status(_lock_held=True)
+        previous = _generation_gpu_reserved
+        try:
+            _generation_gpu_reserved = True
+            cleanup = _release_cached_models_locked()
+        except Exception as exc:
+            _generation_gpu_reserved = previous
+            _last_lifecycle_transition = "prepare_failed_rolled_back"
+            _last_lifecycle_error = f"{type(exc).__name__}: {exc}"
+            raise
+        _lifecycle_generation += 1
+        _last_lifecycle_transition = "generation_gpu_reserved"
+        _last_lifecycle_error = None
+        return {**retrieval_runtime_status(_lock_held=True), **cleanup}
+
+
+def restore_after_generation_model() -> dict[str, object]:
+    """Clear CPU retrieval caches and restore the configured retrieval device.
+
+    Restoration remains lazy: after the 8B model is unloaded, no retrieval
+    model is loaded until the next query.  This keeps idle GPU/CPU memory low.
+    """
+
+    global _generation_gpu_reserved, _lifecycle_generation
+    global _last_lifecycle_transition, _last_lifecycle_error
+    with RETRIEVAL_INFERENCE_LOCK:
+        if not _generation_gpu_reserved:
+            return retrieval_runtime_status(_lock_held=True)
+        try:
+            cleanup = _release_cached_models_locked()
+        except Exception as exc:
+            # The large model has already gone away, so restore the configured
+            # route even if an allocator-specific cleanup hook failed.  Cached
+            # references are cleared before those hooks run.
+            _generation_gpu_reserved = False
+            _lifecycle_generation += 1
+            _last_lifecycle_transition = "generation_gpu_restore_cleanup_failed"
+            _last_lifecycle_error = f"{type(exc).__name__}: {exc}"
+            raise
+        _generation_gpu_reserved = False
+        _lifecycle_generation += 1
+        _last_lifecycle_transition = "configured_device_restored"
+        _last_lifecycle_error = None
+        return {**retrieval_runtime_status(_lock_held=True), **cleanup}
+
+
+def retrieval_runtime_status(*, _lock_held: bool = False) -> dict[str, object]:
+    """Expose lifecycle state without loading either retrieval model."""
+
+    def snapshot() -> dict[str, object]:
+        return {
+            "configured_device": local_device(),
+            "effective_device": _target_device_locked(),
+            "generation_gpu_reserved": _generation_gpu_reserved,
+            "embedding_model_loaded": _embedding_model is not None,
+            "embedding_model_device": str(_embedding_model.device) if _embedding_model is not None else None,
+            "reranker_model_loaded": _reranker_model is not None,
+            "reranker_model_device": str(_reranker_model.device) if _reranker_model is not None else None,
+            "lifecycle_generation": _lifecycle_generation,
+            "last_transition": _last_lifecycle_transition,
+            "last_error": _last_lifecycle_error,
+            "cleanup_warnings": list(_last_cleanup_warnings),
+        }
+
+    if _lock_held:
+        return snapshot()
+    with RETRIEVAL_INFERENCE_LOCK:
+        return snapshot()
+
+
+def _discard_device_mismatch_locked(target_device: str) -> None:
+    loaded = [model for model in (_embedding_model, _reranker_model) if model is not None]
+    if any(str(model.device) != target_device for model in loaded):
+        _release_cached_models_locked()
+
+
+def get_embedding_model() -> LocalQwenEmbedding:
+    global _embedding_model
+    with RETRIEVAL_INFERENCE_LOCK:
+        target_device = _target_device_locked()
+        _discard_device_mismatch_locked(target_device)
+        if _embedding_model is None:
+            _embedding_model = LocalQwenEmbedding(device=target_device)
+        return _embedding_model
+
+
+def get_reranker_model() -> LocalQwenReranker:
+    global _reranker_model
+    with RETRIEVAL_INFERENCE_LOCK:
+        target_device = _target_device_locked()
+        _discard_device_mismatch_locked(target_device)
+        if _reranker_model is None:
+            _reranker_model = LocalQwenReranker(device=target_device)
+        return _reranker_model
