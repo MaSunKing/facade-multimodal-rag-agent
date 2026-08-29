@@ -1,10 +1,9 @@
 """Evidence Document V2 compatibility projection.
 
-V1 remains the parser-facing contract used by the finance application.  This
-module deterministically projects a V1 ``IntermediateDocument`` into a typed,
-domain-neutral evidence representation for retrieval, dataset adapters and
-future training.  It never mutates V1 and never promotes OCR/VLM candidates to
-canonical evidence.
+V1 remains the format-parser-facing contract. This module deterministically
+projects a V1 ``IntermediateDocument`` into a typed, domain-neutral evidence
+representation for retrieval and evaluation. It never mutates V1 and never
+promotes OCR/VLM candidates to canonical evidence.
 """
 
 from __future__ import annotations

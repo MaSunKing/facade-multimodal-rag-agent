@@ -14,6 +14,10 @@ export type BrowserConversation<Message> = {
   createdAt: number;
   updatedAt: number;
   messages: Message[];
+  // Only an opaque, temporary local-backend handle is persisted. File bytes
+  // remain in backend process memory and are never written to browser history.
+  documentSessionId?: string | null;
+  attachmentNames?: string[];
 };
 
 const DATABASE_NAME = "facade-copilot-browser-history";

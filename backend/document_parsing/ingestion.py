@@ -901,6 +901,33 @@ def _build_model_context_chunks(document: IntermediateDocument) -> list[ModelCon
         f"file={document.file_name or 'text-input'} parser={document.parser}]"
     )
     index_lines: list[tuple[str, str]] = [(document_line, f"document:{document.document_id or 'pending'}")]
+    if document.tables:
+        sheet_names = list(
+            dict.fromkeys(
+                str(table.sheet_name)
+                for table in document.tables
+                if table.sheet_name
+            )
+        )
+        index_lines.append(
+            (
+                "[STRUCTURE_OVERVIEW 工作簿结构 工作表清单 表格总览 "
+                f"sheet_count={len(sheet_names)} sheets={sheet_names} "
+                f"table_count={len(document.tables)}]",
+                f"document:{document.document_id or 'pending'}",
+            )
+        )
+        for table in document.tables:
+            headers = [str(header) for header in table.headers[:20] if str(header).strip()]
+            index_lines.append(
+                (
+                    "[TABLE_OVERVIEW 工作表 表格 数据范围 "
+                    f"id={table.table_id} sheet={table.sheet_name!r} title={table.title!r} "
+                    f"range={table.range!r} row_count={len(table.rows)} "
+                    f"header_row={table.header_row_index} headers={headers}]",
+                    table.table_id,
+                )
+            )
     index_lines.extend((_profile_line(profile), profile.profile_id) for profile in document.structure_profiles)
     chunks = _pack_context_lines(prefix="document-index", kind="document_index", lines=index_lines)
 

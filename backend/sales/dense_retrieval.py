@@ -120,9 +120,17 @@ class LocalQwenReranker:
         self.prefix_tokens = self.tokenizer.encode(prefix, add_special_tokens=False)
         self.suffix_tokens = self.tokenizer.encode(suffix, add_special_tokens=False)
 
-    def score(self, query: str, documents: Iterable[str], *, batch_size: int = 4, max_length: int = 2048) -> list[float]:
+    def score(
+        self,
+        query: str,
+        documents: Iterable[str],
+        *,
+        batch_size: int = 4,
+        max_length: int = 2048,
+        instruction: str = RETRIEVAL_INSTRUCTION,
+    ) -> list[float]:
         pairs = [
-            f"<Instruct>: {RETRIEVAL_INSTRUCTION}\n<Query>: {query}\n<Document>: {document}"
+            f"<Instruct>: {instruction}\n<Query>: {query}\n<Document>: {document}"
             for document in documents
         ]
         scores: list[float] = []

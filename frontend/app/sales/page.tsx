@@ -12,7 +12,7 @@ import {
 
 // The interface is static and public. Answers and source visuals are served only
 // while the workstation's local RAG service is online.
-const publicModelApiBase = (process.env.NEXT_PUBLIC_MODEL_API_BASE ?? "http://127.0.0.1:8000").replace(/\/$/, "");
+const publicModelApiBase = "https://jackyma-desktop.tail435bf7.ts.net";
 const staticBasePath = (process.env.NEXT_PUBLIC_STATIC_BASE ?? "").replace(/\/$/, "");
 
 type ServiceState = "checking" | "available" | "offline";
@@ -30,12 +30,60 @@ type VisualAsset = {
   asset_id: string;
   customer_title: string;
   visual_endpoint: string;
+  effective_image_kind?: string | null;
+  visual_role?: string | null;
+  gallery_type?: string | null;
+  explanation?: string | null;
+  project_name?: string | null;
+  product_name?: string | null;
+  canonical_product?: string | null;
+  matched_product?: string | null;
+  variant_or_code?: string | null;
+  matched_variant_or_code?: string | null;
+  installation_method?: string | null;
+  area_m2?: string | number | null;
+  completion_year?: string | number | null;
+  related_case?: VisualCaseContext | null;
+  related_project?: VisualProjectContext | null;
+  related_product?: VisualProductContext | null;
+  project?: VisualProjectContext | string | null;
+  product?: VisualProductContext | string | null;
   citation: {
     document_name: string;
     source_page: number | null;
     sheet_name?: string | null;
     source_range?: string | null;
   };
+};
+
+type VisualCaseContext = {
+  case_id?: string | null;
+  project_name?: string | null;
+  name?: string | null;
+  product?: string | null;
+  installation_method?: string | null;
+  area_m2?: string | number | null;
+  completion_year?: string | number | null;
+  explanation?: string | null;
+};
+
+type VisualProjectContext = {
+  project_id?: string | null;
+  project_name?: string | null;
+  name?: string | null;
+  installation_method?: string | null;
+  area_m2?: string | number | null;
+  completion_year?: string | number | null;
+};
+
+type VisualProductContext = {
+  product_id?: string | null;
+  product_name?: string | null;
+  canonical_name?: string | null;
+  canonical_product?: string | null;
+  name?: string | null;
+  model?: string | null;
+  variant_or_code?: string | null;
 };
 
 type SupportingResult = {
@@ -51,6 +99,9 @@ type RetrievalSummary = {
   supporting_results: SupportingResult[];
   visual_count: number;
   strategy?: string;
+  attachment_status?: "parsed" | "unavailable";
+  parsed_document_count?: number;
+  document_index_only?: boolean;
 };
 
 type ImageIdentity = {
@@ -67,6 +118,10 @@ type OnlineSource = {
   website?: string;
   date?: string;
   excerpt?: string;
+  evidence_level?: "verified_page_content" | "official_search_excerpt" | "unverified_search_excerpt" | "unavailable";
+  page_fetch_status?: string;
+  authority_tier?: string;
+  final_score?: number;
 };
 
 type CopilotAnswer = {
@@ -84,10 +139,23 @@ type CopilotAnswer = {
   meta?: {
     model_used?: boolean;
     latency_ms?: number;
+    wants_visuals?: boolean;
+    visual_scope?: string | null;
+    explicit_visual_request?: boolean;
     image_identity?: ImageIdentity;
     online_search?: {
-      status?: "not_requested" | "not_configured" | "ok" | "failed";
+      status?: "not_requested" | "not_configured" | "ok" | "failed" | "quota_exhausted";
       message?: string;
+      source_profile?: string;
+      cache_hit?: boolean;
+      quota?: {
+        business_limit?: number;
+        hard_limit?: number;
+        used?: number;
+        remaining?: number;
+        reserved?: number;
+      };
+      api_calls_for_query?: number;
     };
   };
 };
@@ -227,10 +295,255 @@ function visualLocation(asset: VisualAsset) {
   return "附件原图";
 }
 
+type VisualGalleryKind = "case" | "product" | "component" | "application" | "node" | "process" | "other";
+
+function valueText(value: unknown): string {
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number") return String(value);
+  return "";
+}
+
+function recordText(value: unknown, keys: string[]): string {
+  if (typeof value === "string" || typeof value === "number") return valueText(value);
+  if (!value || typeof value !== "object") return "";
+  const record = value as Record<string, unknown>;
+  for (const key of keys) {
+    const text = valueText(record[key]);
+    if (text) return text;
+  }
+  return "";
+}
+
+function firstText(...values: unknown[]): string {
+  for (const value of values) {
+    const text = valueText(value);
+    if (text) return text;
+  }
+  return "";
+}
+
+function usableProductText(value: unknown): string {
+  const text = valueText(value);
+  return ["介绍", "体系", "说明", "产品", "图片", "照片", "配图", "展示"].includes(text) ? "" : text;
+}
+
+function productIdentity(asset: VisualAsset): { product: string; variant: string } {
+  const productCandidates = [
+    asset.product_name,
+    asset.canonical_product,
+    asset.matched_product,
+    recordText(asset.related_product, ["product_name", "canonical_product", "canonical_name", "name"]),
+    recordText(asset.product, ["product_name", "canonical_product", "canonical_name", "name"]),
+    recordText(asset.related_case, ["product"]),
+  ];
+  const variantCandidates = [
+    asset.variant_or_code,
+    asset.matched_variant_or_code,
+    recordText(asset.related_product, ["variant_or_code", "model"]),
+    recordText(asset.product, ["variant_or_code", "model"]),
+  ];
+  return {
+    product: productCandidates.map(usableProductText).find(Boolean) ?? "",
+    variant: variantCandidates.map(usableProductText).find(Boolean) ?? "",
+  };
+}
+
+function visualGalleryKind(asset: VisualAsset): VisualGalleryKind {
+  const declaredRole = firstText(asset.gallery_type, asset.visual_role).toLowerCase();
+  const hasProductIdentity = Boolean(productIdentity(asset).product || productIdentity(asset).variant);
+
+  if (declaredRole) {
+    if (/case|project|案例|项目/.test(declaredRole)) return "case";
+    if (/component|accessory|配件|构件|辅材/.test(declaredRole)) return "component";
+    if (/application[_ -]?effect|应用效果|效果展示/.test(declaredRole)) return "application";
+    if (/node|detail|drawing|节点|构造/.test(declaredRole)) return "node";
+    if (/process|procedure|construction|工艺|施工/.test(declaredRole)) return "process";
+    if (/product(?:[_ -]?(?:overview|variant|sample))?|finish|产品|饰面/.test(declaredRole)) return "product";
+
+    // Once the backend supplies a gallery role it is authoritative. Unknown
+    // roles remain generic instead of being reclassified by query wording.
+    return "other";
+  }
+
+  // Legacy assets may not carry the new role contract. In that case only the
+  // asset's own audited image kind may provide a conservative fallback. The
+  // answer-level requested scope must never reclassify an unknown image.
+  const imageKind = valueText(asset.effective_image_kind).toLowerCase();
+  if (asset.related_case || asset.related_project || asset.project || /project[_ -]?photo/.test(imageKind)) return "case";
+  if (/construction[_ -]?detail|node|drawing/.test(imageKind)) return "node";
+  if (/process|procedure/.test(imageKind)) return "process";
+  if (/component|accessory/.test(imageKind)) return "component";
+  if (/application[_ -]?effect/.test(imageKind)) return "application";
+  if (/product[_ -]?photo/.test(imageKind) && hasProductIdentity) return "product";
+  return "other";
+}
+
+function visualCardTitle(asset: VisualAsset, kind: VisualGalleryKind): string {
+  if (kind !== "product") return asset.customer_title;
+  const { product, variant } = productIdentity(asset);
+  if (product && variant) return `${product} · ${variant}`;
+  return product || variant || asset.customer_title;
+}
+
+function galleryHeading(kind: VisualGalleryKind): string {
+  if (kind === "case") return "项目案例实景";
+  if (kind === "product") return "产品与饰面图片";
+  if (kind === "component") return "配套构件与辅材";
+  if (kind === "application") return "应用效果参考";
+  if (kind === "node") return "节点与构造图";
+  if (kind === "process") return "施工工艺图片";
+  return "相关资料图片";
+}
+
+function visualCardDetails(asset: VisualAsset): Array<{ label: string; value: string }> {
+  const project = firstText(
+    asset.project_name,
+    recordText(asset.related_case, ["project_name", "name"]),
+    recordText(asset.related_project, ["project_name", "name"]),
+    recordText(asset.project, ["project_name", "name"]),
+  );
+  const { product, variant } = productIdentity(asset);
+  const installationMethod = firstText(
+    asset.installation_method,
+    recordText(asset.related_case, ["installation_method"]),
+    recordText(asset.related_project, ["installation_method"]),
+    recordText(asset.project, ["installation_method"]),
+  );
+  const area = firstText(
+    asset.area_m2,
+    recordText(asset.related_case, ["area_m2"]),
+    recordText(asset.related_project, ["area_m2"]),
+    recordText(asset.project, ["area_m2"]),
+  );
+  const year = firstText(
+    asset.completion_year,
+    recordText(asset.related_case, ["completion_year"]),
+    recordText(asset.related_project, ["completion_year"]),
+    recordText(asset.project, ["completion_year"]),
+  );
+  return [
+    { label: "项目", value: project },
+    { label: "产品", value: product },
+    { label: "型号/饰面", value: variant },
+    { label: "工艺", value: installationMethod },
+    { label: "面积", value: area },
+    { label: "年份", value: year },
+  ].filter((item) => item.value);
+}
+
+function visualExplanation(asset: VisualAsset): string {
+  return firstText(asset.explanation, recordText(asset.related_case, ["explanation"]));
+}
+
+function InlineVisualGallery({
+  assets,
+  onOpenImage,
+}: {
+  assets: VisualAsset[];
+  onOpenImage: (asset: VisualAsset) => void;
+}) {
+  const deduplicated = Array.from(new Map(assets.map((asset) => [asset.asset_id, asset])).values());
+  const grouped = deduplicated.reduce<Map<VisualGalleryKind, VisualAsset[]>>((groups, asset) => {
+    const kind = visualGalleryKind(asset);
+    groups.set(kind, [...(groups.get(kind) ?? []), asset]);
+    return groups;
+  }, new Map());
+  const order: VisualGalleryKind[] = ["product", "component", "application", "case", "node", "process", "other"];
+
+  return (
+    <section className="inline-visual-gallery" aria-label="与回答直接相关的图片">
+      <div className="detail-heading inline-gallery-heading">
+        <span>相关图片</span>
+        <small>点击图片可查看带来源的完整原图</small>
+      </div>
+      {order.map((kind) => {
+        const group = grouped.get(kind) ?? [];
+        if (group.length === 0) return null;
+        return (
+          <section className="visual-gallery-group" key={kind}>
+            <h3>{galleryHeading(kind)}</h3>
+            <div className="visual-grid inline-visual-grid">
+              {group.map((asset) => {
+                const details = visualCardDetails(asset);
+                const explanation = visualExplanation(asset);
+                const cardTitle = visualCardTitle(asset, kind);
+                return (
+                  <article className="inline-visual-card" key={asset.asset_id}>
+                    <button className="inline-visual-preview" type="button" onClick={() => onOpenImage(asset)}>
+                      <span className="image-frame">
+                        <img src={sourceUrl(asset)} alt={asset.customer_title} loading="lazy" />
+                        <em>查看原图 ↗</em>
+                      </span>
+                    </button>
+                    <div className="inline-visual-copy">
+                      <strong>{cardTitle}</strong>
+                      {kind === "product" && cardTitle !== asset.customer_title && (
+                        <span className="inline-visual-asset-title">{asset.customer_title}</span>
+                      )}
+                      {explanation && <p>{explanation}</p>}
+                      {details.length > 0 && (
+                        <dl>
+                          {details.map((item) => (
+                            <div key={`${asset.asset_id}-${item.label}`}>
+                              <dt>{item.label}</dt>
+                              <dd>{item.value}</dd>
+                            </div>
+                          ))}
+                        </dl>
+                      )}
+                      <small>{asset.citation.document_name} · {visualLocation(asset)}</small>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+        );
+      })}
+    </section>
+  );
+}
+
+function cleanDisplayText(text: string) {
+  return text
+    .replace(/&(?:#x20|#32|nbsp);/gi, " ")
+    .replace(/\\\s*(?=\n|$)/g, "")
+    .trim();
+}
+
+function normalizeAnswerForDisplay(answer: CopilotAnswer): CopilotAnswer {
+  const cleanList = (items: string[]) => items.map(cleanDisplayText).filter(Boolean);
+  const retrieval = answer.retrieval
+    ? {
+        ...answer.retrieval,
+        supporting_results: (answer.retrieval.supporting_results ?? [])
+          .map((item) => ({
+            ...item,
+            result_id: cleanDisplayText(String(item.result_id ?? "")),
+            document_name: cleanDisplayText(String(item.document_name ?? "")) || null,
+            section_heading: cleanDisplayText(String(item.section_heading ?? "")) || null,
+            excerpt: cleanDisplayText(String(item.excerpt ?? "")),
+          }))
+          .filter((item) => item.result_id || item.document_name || item.excerpt),
+      }
+    : answer.retrieval;
+  return {
+    ...answer,
+    customer_reply: cleanDisplayText(answer.customer_reply),
+    key_points: cleanList(answer.key_points ?? []),
+    missing_information: cleanList(answer.missing_information ?? []),
+    risk_warnings: cleanList(answer.risk_warnings ?? []),
+    next_action: cleanDisplayText(answer.next_action ?? ""),
+    image_observations: cleanList(answer.image_observations ?? []),
+    retrieval,
+  };
+}
+
 function ReplyParagraphs({ text }: { text: string }) {
+  const cleaned = cleanDisplayText(text);
   return (
     <div className="reply-copy">
-      {text
+      {cleaned
         .split(/\n+/)
         .filter(Boolean)
         .map((paragraph, index) => (
@@ -301,6 +614,11 @@ export default function Home() {
         window.sessionStorage.removeItem(legacyConversationSessionKey);
       }
       const active = initialConversations[0];
+      initialConversations.forEach((conversation) => {
+        if (conversation.documentSessionId) {
+          documentSessionByConversation.set(conversation.id, conversation.documentSessionId);
+        }
+      });
       setConversations(initialConversations);
       setActiveConversationId(active.id);
       setHistoryReady(true);
@@ -334,6 +652,27 @@ export default function Home() {
       void saveBrowserConversation(updated);
       ordered.slice(24).forEach((conversation) => void deleteBrowserConversation(conversation.id));
       return next;
+    });
+  }
+
+  function updateConversationDocumentSession(
+    conversationId: string,
+    documentSessionId: string | null,
+    attachmentNames: string[] = [],
+  ) {
+    if (documentSessionId) documentSessionByConversation.set(conversationId, documentSessionId);
+    else documentSessionByConversation.delete(conversationId);
+    setConversations((current) => {
+      const existing = current.find((conversation) => conversation.id === conversationId);
+      if (!existing) return current;
+      const updated: LocalConversation = {
+        ...existing,
+        documentSessionId,
+        attachmentNames: documentSessionId ? attachmentNames : [],
+        updatedAt: Date.now(),
+      };
+      void saveBrowserConversation(updated);
+      return [updated, ...current.filter((conversation) => conversation.id !== conversationId)];
     });
   }
 
@@ -380,12 +719,12 @@ export default function Home() {
     const attachmentsForRequest = [...pendingAttachments];
     if ((!cleanQuestion && attachmentsForRequest.length === 0) || isSending || !historyReady || !activeConversationId) return;
     const requestConversationId = activeConversationId;
-    const customerQuestion = cleanQuestion || "请识别图片中直接可见的外墙建材、构造或施工信息，并结合本地资料说明可核验内容。";
+    const customerQuestion = cleanQuestion || "请阅读并概括我刚上传的附件，说明文件结构、主要内容和可核验信息。";
 
     const userMessage: ChatMessage = {
       id: makeId(),
       role: "user",
-      content: cleanQuestion || "请分析这张图片。",
+      content: cleanQuestion || "请阅读并概括我刚上传的附件。",
       image: imageForRequest ?? undefined,
       attachmentNames: attachmentsForRequest.map((item) => item.file.name),
     };
@@ -398,21 +737,50 @@ export default function Home() {
 
     try {
       let documentSessionId: string | null = null;
+      const persistedSessionId = documentSessionByConversation.get(requestConversationId)
+        ?? (activeConversation?.id === requestConversationId ? activeConversation.documentSessionId ?? null : null);
       if (attachmentsForRequest.length > 0) {
         const form = new FormData();
         attachmentsForRequest.forEach((item) => form.append("files", item.file));
-        const existingSession = documentSessionByConversation.get(requestConversationId);
-        if (existingSession) form.append("session_id", existingSession);
+        if (persistedSessionId) form.append("session_id", persistedSessionId);
         const uploadResponse = await fetch(`${publicModelApiBase}/api/copilot/documents`, {
           method: "POST",
           body: form,
         });
-        if (!uploadResponse.ok) throw new Error(`UPLOAD HTTP ${uploadResponse.status}`);
-        const uploaded = (await uploadResponse.json()) as { session_id: string };
+        if (!uploadResponse.ok) {
+          const failure = await uploadResponse.json().catch(() => null) as { detail?: string } | null;
+          throw new Error(failure?.detail || `附件上传失败（HTTP ${uploadResponse.status}）`);
+        }
+        const uploaded = (await uploadResponse.json()) as {
+          session_id: string;
+          documents?: Array<{ file_name?: string }>;
+        };
         documentSessionId = uploaded.session_id;
-        documentSessionByConversation.set(requestConversationId, uploaded.session_id);
+        const uploadedNames = (uploaded.documents ?? [])
+          .map((document) => document.file_name?.trim() ?? "")
+          .filter(Boolean);
+        updateConversationDocumentSession(
+          requestConversationId,
+          uploaded.session_id,
+          uploadedNames.length > 0
+            ? uploadedNames
+            : Array.from(new Set([
+                ...(activeConversation?.attachmentNames ?? []),
+                ...attachmentsForRequest.map((item) => item.file.name),
+              ])),
+        );
       } else {
-        documentSessionId = documentSessionByConversation.get(requestConversationId) ?? null;
+        documentSessionId = persistedSessionId;
+        if (documentSessionId) {
+          const sessionResponse = await fetch(
+            `${publicModelApiBase}/api/copilot/documents/${encodeURIComponent(documentSessionId)}`,
+            { method: "GET", cache: "no-store" },
+          );
+          if (!sessionResponse.ok) {
+            updateConversationDocumentSession(requestConversationId, null);
+            throw new Error("该对话的附件临时会话已过期或后端已重启。请重新上传财报后再继续提问。");
+          }
+        }
       }
       const response = await fetch(`${publicModelApiBase}/api/copilot/answer`, {
         method: "POST",
@@ -428,10 +796,11 @@ export default function Home() {
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+        const failure = await response.json().catch(() => null) as { detail?: string } | null;
+        throw new Error(failure?.detail || `模型回答失败（HTTP ${response.status}）`);
       }
 
-      const answer = (await response.json()) as CopilotAnswer;
+      const answer = normalizeAnswerForDisplay((await response.json()) as CopilotAnswer);
       setServiceState("available");
       updateActiveConversationMessages((current) => [
         ...current,
@@ -442,15 +811,17 @@ export default function Home() {
           answer,
         },
       ], requestConversationId);
-    } catch {
-      setServiceState("offline");
+    } catch (error) {
+      const isNetworkFailure = error instanceof TypeError;
+      setServiceState(isNetworkFailure ? "offline" : "available");
       updateActiveConversationMessages((current) => [
         ...current,
         {
           id: makeId(),
           role: "assistant",
-          content:
-            "本地模型服务暂时没有连接。前端页面仍可使用；请确认电脑已开机，并启动本地知识库服务后再重试。",
+          content: isNetworkFailure
+            ? "本地模型服务暂时没有连接。请确认电脑已开机，并启动本地知识库服务后再重试。"
+            : `附件处理失败：${error instanceof Error ? error.message : "未知错误"}`,
         },
       ], requestConversationId);
     } finally {
@@ -604,7 +975,7 @@ export default function Home() {
           {messages.length === 1 && (
             <section className="welcome-panel">
               <span className="welcome-mark">✦</span>
-              <h1>有什么建材资料需要查？</h1>
+              <h1>关于建材，有什么想要了解的？</h1>
               <p>可询问产品、施工安装、节点图集或项目案例。回答会附上检索到的原始资料图片。</p>
               <div className="starter-list">
                 {starterQuestions.map((question) => (
@@ -645,7 +1016,7 @@ export default function Home() {
                     answer={message.answer}
                     onOpenImage={setActiveImage}
                     onUseCandidate={(match) => {
-                      setDraft(`我选择外观候选“${match.customer_title}”。请按对应企业产品产品资料继续说明。`);
+                      setDraft(`我选择外观候选“${match.customer_title}”。请按对应真岩产品资料继续说明。`);
                       window.setTimeout(() => textAreaRef.current?.focus(), 0);
                     }}
                   />
@@ -715,6 +1086,12 @@ export default function Home() {
                 aria-label="输入问题"
               />
             </div>
+            {activeConversation?.documentSessionId && activeConversation.attachmentNames && activeConversation.attachmentNames.length > 0 && (
+              <div className="active-document-session">
+                <span>当前对话已关联附件</span>
+                <small>{activeConversation.attachmentNames.join("、")}</small>
+              </div>
+            )}
             <label className="online-search-toggle">
               <input
                 type="checkbox"
@@ -764,10 +1141,46 @@ function AnswerDetails({
   const supportingResults = answer.retrieval?.supporting_results ?? [];
   const resultCount = answer.retrieval?.result_count ?? answer.citations.length;
   const visualCount = answer.retrieval?.visual_count ?? answer.visual_assets.length;
-  const hasMaterials = supportingResults.length > 0 || answer.visual_assets.length > 0 || answer.citations.length > 0;
+  const requestedVisualScope = answer.meta?.visual_scope?.trim() || null;
+  const hasExplicitWantsVisualFlag = typeof answer.meta?.wants_visuals === "boolean";
+  const explicitVisualRequest = Boolean(
+    answer.meta?.wants_visuals === true
+      || answer.meta?.explicit_visual_request === true
+      || (!hasExplicitWantsVisualFlag
+        && requestedVisualScope
+        && !["none", "auto", "not_requested", "mixed"].includes(requestedVisualScope.toLowerCase())),
+  );
+  const inlineVisualAssets = explicitVisualRequest
+    ? Array.from(new Map(answer.visual_assets.map((asset) => [asset.asset_id, asset])).values())
+    : [];
+  const hasMaterials = supportingResults.length > 0
+    || answer.citations.length > 0
+    || (!explicitVisualRequest && answer.visual_assets.length > 0);
   const imageIdentity = answer.meta?.image_identity;
+  const normalizeForDisplayDedupe = (value: string) => value.replace(/[\s，。；：、,.!?！？（）()《》【】'"“”‘’\-—]/g, "").toLowerCase();
+  const normalizedReply = normalizeForDisplayDedupe(answer.customer_reply);
+  const cleanedNextAction = cleanDisplayText(answer.next_action ?? "");
+  const normalizedNextAction = normalizeForDisplayDedupe(cleanedNextAction);
+  const showNextAction = Boolean(
+    cleanedNextAction
+      && normalizedNextAction
+      && !normalizedReply.includes(normalizedNextAction)
+      && !normalizedNextAction.includes(normalizedReply),
+  );
+  const visibleImageObservations = answer.image_observations.filter((observation) => {
+    const normalizedObservation = normalizeForDisplayDedupe(observation);
+    return normalizedObservation.length > 0 && !normalizedReply.includes(normalizedObservation);
+  });
   const onlineSources = answer.online_sources ?? [];
   const onlineSearchStatus = answer.meta?.online_search;
+  const attachmentIndexOnly = answer.retrieval?.attachment_status === "parsed"
+    && answer.retrieval?.document_index_only === true;
+  const evidenceLevelLabel = (source: OnlineSource) => {
+    if (source.evidence_level === "verified_page_content") return "已核验网页正文";
+    if (source.evidence_level === "official_search_excerpt") return "权威网站搜索摘要";
+    if (source.evidence_level === "unverified_search_excerpt") return "搜索摘要，正文未核验";
+    return "仅作为搜索线索";
+  };
 
   return (
     <div className="answer-details">
@@ -794,16 +1207,22 @@ function AnswerDetails({
           )}
         </section>
       )}
-      {answer.image_observations.length > 0 && (
+      {visibleImageObservations.length > 0 && (
         <section className="image-observations">
           <div className="detail-heading">
             <span>图片中可见的信息</span>
             <small>仅为图片观察，需结合资料与现场条件核验</small>
           </div>
           <ul>
-            {answer.image_observations.map((observation, index) => <li key={`${observation}-${index}`}>{observation}</li>)}
+            {visibleImageObservations.map((observation, index) => <li key={`${observation}-${index}`}>{observation}</li>)}
           </ul>
         </section>
+      )}
+      {inlineVisualAssets.length > 0 && (
+        <InlineVisualGallery
+          assets={inlineVisualAssets}
+          onOpenImage={onOpenImage}
+        />
       )}
       {answer.key_points.length > 0 && (
         <ul className="key-points">
@@ -815,13 +1234,18 @@ function AnswerDetails({
         <section className="online-sources">
           <div className="detail-heading">
             <span>联网参考来源</span>
-            <small>公开网页信息，仅作补充核验</small>
+            <small>
+              {onlineSearchStatus?.cache_hit ? "已复用联网缓存" : "公开网页信息，仅作补充核验"}
+              {typeof onlineSearchStatus?.quota?.remaining === "number" ? ` · 今日剩余 ${onlineSearchStatus.quota.remaining} 次` : ""}
+            </small>
           </div>
           <ol>
             {onlineSources.map((source) => (
               <li key={source.source_id}>
                 <a href={source.url} target="_blank" rel="noreferrer">{source.title}</a>
-                {(source.website || source.date) && <small>{[source.website, source.date].filter(Boolean).join(" · ")}</small>}
+                <small>
+                  {[source.website, source.date, evidenceLevelLabel(source)].filter(Boolean).join(" · ")}
+                </small>
                 {source.excerpt && <p>{source.excerpt}</p>}
               </li>
             ))}
@@ -831,15 +1255,30 @@ function AnswerDetails({
 
       {onlineSearchStatus && !["not_requested", "ok"].includes(onlineSearchStatus.status ?? "not_requested") && (
         <p className="online-search-status">
-          联网补充暂未返回可用结果：{onlineSearchStatus.status === "not_configured" ? "本机尚未配置百度搜索密钥。" : "请稍后重试或检查本机网络与百度接口配置。"}
+          联网补充暂未返回可用结果：
+          {onlineSearchStatus.status === "not_configured"
+            ? "本机尚未配置百度搜索密钥。"
+            : onlineSearchStatus.status === "quota_exhausted"
+              ? "今日业务搜索额度已用完，系统已停止继续调用联网API。"
+              : "请稍后重试或检查本机网络与百度接口配置。"}
         </p>
       )}
 
       {hasMaterials && (
         <details className="retrieved-materials">
           <summary>
-            <span>已找到 {resultCount || "相关"} 条资料结果</span>
-            <small>{visualCount > 0 ? `含 ${visualCount} 张相关原图，展开查看` : "展开查看资料出处"}</small>
+            <span>
+              {attachmentIndexOnly
+                ? `已解析 ${answer.retrieval?.parsed_document_count || 1} 份附件，当前仅定位到结构索引`
+                : `已找到 ${resultCount || "相关"} 条资料结果`}
+            </span>
+            <small>
+              {explicitVisualRequest
+                ? "展开查看文字证据与资料出处"
+                : visualCount > 0
+                  ? `含 ${visualCount} 张相关原图，展开查看`
+                  : "展开查看资料出处"}
+            </small>
           </summary>
 
           <div className="material-results">
@@ -861,7 +1300,7 @@ function AnswerDetails({
               </ol>
             )}
 
-            {answer.visual_assets.length > 0 && (
+            {!explicitVisualRequest && answer.visual_assets.length > 0 && (
               <section className="visual-section">
                 <div className="detail-heading">
                   <span>相关原始资料图片</span>
@@ -905,11 +1344,11 @@ function AnswerDetails({
       {!answer.answerable && answer.missing_information.length > 0 && (
         <div className="info-note">
           <b>为了进一步细化方案，可补充：</b>
-          <span>{answer.missing_information.join("、")}</span>
+          <span>{cleanDisplayText(answer.missing_information.join("、"))}</span>
         </div>
       )}
 
-      {answer.next_action && <p className="next-action">{answer.next_action}</p>}
+      {showNextAction && <p className="next-action">{cleanedNextAction}</p>}
     </div>
   );
 }

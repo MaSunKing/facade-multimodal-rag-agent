@@ -49,14 +49,23 @@ def build_customer_answer_graph(callbacks: AnswerWorkflowCallbacks):
         meta = response.get("meta")
         plan = state.get("plan")
         tools = getattr(plan, "tools", None)
+        web_source_profile = getattr(plan, "web_source_profile", None)
+        requires_public_web = getattr(plan, "requires_public_web", None)
+        plan_reason = getattr(plan, "reason", None)
         if tools is None and isinstance(plan, dict):
             tools = plan.get("tools")
+            web_source_profile = plan.get("web_source_profile")
+            requires_public_web = plan.get("requires_public_web")
+            plan_reason = plan.get("reason")
         response["meta"] = {
             **(meta if isinstance(meta, dict) else {}),
             "orchestration": {
                 "engine": "langgraph",
                 "workflow": "bounded_tool_agent_v2",
                 "tools": list(tools or []),
+                "web_source_profile": web_source_profile or "auto",
+                "requires_public_web": bool(requires_public_web),
+                "plan_reason": str(plan_reason or ""),
                 "planning_rounds": 1,
                 "tool_rounds": 1,
                 "persistence": "disabled",

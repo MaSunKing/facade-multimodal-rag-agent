@@ -45,6 +45,7 @@ WebSourceProfile = Literal[
     "industry_news",
     "general_public",
 ]
+DocumentScope = Literal["local_lookup", "whole_document", "cross_document", "unknown"]
 
 
 class CaseFilters(BaseModel):
@@ -66,6 +67,9 @@ class ToolPlan(BaseModel):
     intent: BusinessIntent = "unknown"
     task_type: TaskType = "unknown"
     retrieval_query: str = Field(default="", max_length=300)
+    # Semantic attachment scope chosen by the model.  The retrieval layer
+    # consumes this field directly and never reclassifies it with keywords.
+    document_scope: DocumentScope = "unknown"
     target_terms: list[str] = Field(default_factory=list, max_length=8)
     case_reference: bool = False
     case_filters: CaseFilters = Field(default_factory=CaseFilters)
@@ -86,6 +90,7 @@ def fallback_plan(
     intent: BusinessIntent = "unknown",
     task_type: TaskType = "unknown",
     retrieval_query: str = "",
+    document_scope: DocumentScope = "unknown",
     target_terms: list[str] | None = None,
     case_reference: bool = False,
     case_filters: dict[str, list[str]] | CaseFilters | None = None,
@@ -112,6 +117,7 @@ def fallback_plan(
         intent=intent,
         task_type=task_type,
         retrieval_query=retrieval_query,
+        document_scope=document_scope,
         target_terms=list(target_terms or [])[:8],
         case_reference=case_reference,
         case_filters=case_filters or CaseFilters(),
@@ -175,6 +181,7 @@ def guard_plan(
         intent=proposed.intent,
         task_type=task_type,
         retrieval_query=proposed.retrieval_query,
+        document_scope=proposed.document_scope,
         target_terms=proposed.target_terms,
         case_reference=case_reference,
         case_filters=proposed.case_filters,

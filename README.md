@@ -25,6 +25,21 @@
           → Grounded Generation → 引用回填与可信性校验
 ```
 
+## 核心算法与工程贡献
+
+| 难点 | 实现 | 可验证产物 |
+|---|---|---|
+| 异构文件结构容易在统一切块时丢失 | 为 PDF、Word、Excel、图片分别解析，再投影到保留格式专用位置的 Canonical Evidence V2 | 稳定 Evidence ID、页码／bbox、Sheet／range、段落／表格和 Visual Asset 引用 |
+| 长文档无法完整进入 16GB GPU | Canonical Evidence 与单轮 Input Snapshot 分离；按真实结构切块、问题相关窗口召回、文件配额和 Token／像素预算组装输入 | 每轮记录扫描块、入选窗口、截断数、图片、Token 和覆盖状态，原始证据不因压缩而删除 |
+| 单一向量检索漏掉型号、规范号和精确参数 | BM25 + Qwen3-Embedding 双路召回，RRF 融合前显式保留 Lexical Top-8 与 Dense-only Top-4，再用 Qwen3-Reranker 重排 | Recall@K、MRR、候选来源和共享索引指纹可分别审计 |
+| 表格字段名和值容易被拆开 | Excel 识别一页内多个非连续表格，以完整业务行为候选，绑定紧凑列头；整表问题为每个 Table／Section 保留代表窗口 | 可直接定位到 Sheet、表格范围、数据行与单元格，不依赖只截取工作簿开头 |
+| 图片返回“语义相似但产品不对” | 产品图、案例图、节点图、工艺图分域建立审核图库；指定产品按名称／别名约束，未匹配时返回空集 | 原始图片接口、来源页和视觉召回结果可核对，不用生成图或相似产品替代 |
+| Agent 容易退化为不断增长的关键词路由 | Qwen3-VL Planner 语义输出工具、任务、检索词、视觉范围和联网需求；LangGraph Guard 只执行隐私、权限、额度和工具可用性边界 | Tool Plan、执行轮次、工具集合和 fallback 原因写入响应元数据 |
+| 模型可能引用不存在的来源或生成不可复核数字 | Grounded JSON、Evidence 白名单、数值支持审计、冲突／拒答协议、服务端引用物化；长输出采用引用前置与安全截断恢复 | Citation Precision／Recall、Unsupported Answer Rate、失败原因和最终来源卡片 |
+| 8B VLM、Embedding 和 Reranker 无法同时常驻 16GB GPU | Qwen3-VL-8B 使用 4-bit NF4；检索模型与生成模型错峰驻留，Batch Size 1，限制视觉像素并在空闲后卸载 | 峰值显存、OOM 重试、冷启动和 P50／P95 延迟可独立统计 |
+
+这套设计的重点不是堆叠框架，而是让解析、召回、视觉选择、生成和校验能够分别复现、评测和定位错误。
+
 ## 技术亮点
 
 ### 1. 保留原始结构的多格式解析
@@ -202,7 +217,7 @@ docs/                         # 架构、算法与评测协议
 | 建材知识评测草案 | 100 题 | 70 文字 RAG、20 客户图片直读、10 拒答 |
 | 严格 Evidence Recall@5 | 65/70（92.86%） | 只认同一 Evidence ID；不是最终答案准确率 |
 | 图片题原始资产可用率 | 20/20 | 评测给定图片后的视觉理解，不等同图库召回 |
-| 公开仓库 CPU 回归测试 | 33 项通过，1 项按环境跳过 | 覆盖 Agent、Evidence、混合召回、附件检索及产品图库等核心逻辑 |
+| 公开仓库 CPU 回归测试 | 84 项通过，1 项按环境跳过 | 覆盖 Agent、Evidence、混合召回、附件检索、联网策略、模型生命周期及产品图库等核心逻辑 |
 
 评测集仍处于 `human_review_draft`，上述数字用于工程诊断，不作为未经审核的业务效果宣传。评测协议与指标见 [docs/EVALUATION.md](docs/EVALUATION.md)。
 
