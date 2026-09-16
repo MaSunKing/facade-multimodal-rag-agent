@@ -202,7 +202,7 @@ class VisionDocumentCandidate(BaseModel):
     text_blocks: list[str] = Field(default_factory=list, max_length=24)
     tables: list[VisionTableCandidate] = Field(default_factory=list, max_length=4)
     confidence: float = Field(default=0.0, ge=0, le=1)
-    recognizer: Literal["qwen3_vl", "pp_structure_v3"] = "qwen3_vl"
+    recognizer: Literal["qwen3_vl", "pp_structure_v3", "paddle_text_index"] = "qwen3_vl"
     requires_confirmation: bool = True
     source_of_truth: Literal["vision_candidate_only"] = "vision_candidate_only"
     message: str | None = Field(default=None, max_length=300)
@@ -480,6 +480,31 @@ def evidence_block(
         numeric_candidates=numeric_candidates_for_text(text),
         metadata=metadata or {},
     )
+
+
+def conditional_formatting_evidence(worksheet: Any, source: SourcePointer) -> list[EvidenceBlock]:
+    """Read native rules, including empty-cell ranges; never evaluate formulas."""
+    groups = list(worksheet.conditional_formatting)
+    blocks = [evidence_block(
+        block_id=f"excel:conditional-formatting:{worksheet.title}:inventory",
+        kind='derived_text', source=source,
+        text=f"Sheet {worksheet.title}: conditional formatting rule groups={len(groups)}.",
+        metadata={'conditional_formatting_group_count': len(groups),
+                  'native_rule_inventory_complete': True})]
+    for group_index, group in enumerate(groups, start=1):
+        for rule_index, rule in enumerate(worksheet.conditional_formatting[group], start=1):
+            formulas = [str(value) for value in (getattr(rule, 'formula', None) or [])]
+            blocks.append(evidence_block(
+                block_id=f"excel:conditional-formatting:{worksheet.title}:{group_index}:{rule_index}",
+                kind='derived_text',
+                source=source.model_copy(update={'cell': str(group.sqref),
+                    'section_id': f'conditional-formatting:{group_index}:{rule_index}'}),
+                text=f"Sheet {worksheet.title}: conditional formatting rule exists; range={group.sqref}; type={rule.type}; operator={rule.operator}; formula={formulas}; not evaluated.",
+                metadata={'range': str(group.sqref), 'rule_type': rule.type,
+                          'operator': rule.operator, 'formula': formulas,
+                          'priority': rule.priority, 'stop_if_true': rule.stopIfTrue,
+                          'evaluation_status': 'not_evaluated'}))
+    return blocks
 
 
 def _source_ref(source: SourcePointer) -> str:
@@ -2183,6 +2208,10 @@ def _parse_xlsx_to_intermediate(file_name: str, content: bytes) -> IntermediateD
                 parser="openpyxl-3.1",
                 extraction_confidence=1.0,
             )
+            # Native workbook rules are structural evidence, not raster/OCR
+            # facts. Preserve even rules whose cells currently have no values.
+            # Do not execute their formulas or infer that a rule evaluated true.
+            blocks.extend(conditional_formatting_evidence(worksheet, source))
             section_tables = split_sheet_into_tables(table, source_type="excel", file_name=Path(file_name).name)
             tables.extend(section_tables)
             remaining_visual_capacity = max(0, MAX_EXCEL_VISUAL_ASSETS - len(visual_assets))

@@ -1,0 +1,250 @@
+[
+  {
+    "id": "extra_numeric_01",
+    "category": "numeric",
+    "question": "What was nuclear net generation across all sectors in 2023?",
+    "file": "eia_industry_summary.xlsx",
+    "anchors": [
+      "774873"
+    ],
+    "row_label": "Nuclear",
+    "native_locator": {
+      "sheet": "epa_01_01",
+      "cell": "D12",
+      "value": 774873
+    },
+    "unit": "Thousand Megawatthours",
+    "unit_cell": "A6",
+    "provenance": "project_authored_native_cell_verified"
+  },
+  {
+    "id": "extra_numeric_02",
+    "category": "numeric",
+    "question": "What was wind net generation across all sectors in 2024?",
+    "file": "eia_industry_summary.xlsx",
+    "anchors": [
+      "451904"
+    ],
+    "row_label": "Wind",
+    "native_locator": {
+      "sheet": "epa_01_01",
+      "cell": "C15",
+      "value": 451904
+    },
+    "unit": "Thousand Megawatthours",
+    "unit_cell": "A6",
+    "provenance": "project_authored_native_cell_verified"
+  },
+  {
+    "id": "extra_numeric_03",
+    "category": "numeric",
+    "question": "What was estimated small scale solar photovoltaic generation across all sectors in 2024?",
+    "file": "eia_industry_summary.xlsx",
+    "anchors": [
+      "83918"
+    ],
+    "row_label": "Estimated Small Scale Solar Photovoltaic",
+    "native_locator": {
+      "sheet": "epa_01_01",
+      "cell": "C24",
+      "value": 83918
+    },
+    "unit": "Thousand Megawatthours",
+    "unit_cell": "A6",
+    "provenance": "project_authored_native_cell_verified"
+  },
+  {
+    "id": "extra_numeric_04",
+    "category": "numeric",
+    "question": "How much coal was consumed for electricity generation across all sectors in 2024?",
+    "file": "eia_industry_summary.xlsx",
+    "anchors": [
+      "372931"
+    ],
+    "row_label": "Coal",
+    "native_locator": {
+      "sheet": "epa_01_01",
+      "cell": "C28",
+      "value": 372931
+    },
+    "unit": "1000 tons",
+    "unit_cell": "A28",
+    "provenance": "project_authored_native_cell_verified"
+  },
+  {
+    "id": "extra_numeric_05",
+    "category": "numeric",
+    "question": "What were total sales of electricity to ultimate customers across all sectors in 2024?",
+    "file": "eia_industry_summary.xlsx",
+    "anchors": [
+      "3975382"
+    ],
+    "row_label": "All Sectors",
+    "native_locator": {
+      "sheet": "epa_01_01",
+      "cell": "B52",
+      "value": 3975382
+    },
+    "unit": "million kWh",
+    "unit_cell": "B46",
+    "provenance": "project_authored_native_cell_verified"
+  },
+  {
+    "id": "extra_condition_01",
+    "category": "condition",
+    "question": "Can criterion 1 be used together with criterion 3 in the householder application?",
+    "file": "ofgem_householder_application.docx",
+    "anchors": [
+      "criterion 1",
+      "cannot be used with",
+      "criterion 3"
+    ],
+    "native_locator": {
+      "paragraph": 27
+    },
+    "provenance": "project_authored_native_clause_verified"
+  },
+  {
+    "id": "extra_condition_02",
+    "category": "condition",
+    "question": "Which scheme is Route 4 applicable to, and is its scope restricted?",
+    "file": "ofgem_householder_application.docx",
+    "anchors": [
+      "Route 4",
+      "ECO4 Flex only"
+    ],
+    "native_locator": {
+      "paragraph": 65
+    },
+    "provenance": "project_authored_native_clause_verified"
+  },
+  {
+    "id": "extra_condition_03",
+    "category": "condition",
+    "question": "What approval is needed for a new household identification method before Route 4 can be used?",
+    "file": "ofgem_householder_application.docx",
+    "anchors": [
+      "To use Route 4",
+      "new method",
+      "approved by the Department for Energy Security and Net Zero"
+    ],
+    "native_locator": {
+      "paragraph": 67
+    },
+    "provenance": "project_authored_native_clause_verified"
+  },
+  {
+    "id": "extra_condition_04",
+    "category": "condition",
+    "question": "Under Route 2, what additional eligibility step supplements a medical referral for a reason other than low income?",
+    "file": "ofgem_medical_referral.docx",
+    "anchors": [
+      "Route 2",
+      "other than their low-income",
+      "supplemented by a second eligibility criteria by the local authority"
+    ],
+    "native_locator": {
+      "paragraph": 14
+    },
+    "provenance": "project_authored_native_clause_verified"
+  },
+  {
+    "id": "extra_condition_05",
+    "category": "condition",
+    "question": "What paper and referring organisation information are required for a printed medical referral?",
+    "file": "ofgem_medical_referral.docx",
+    "anchors": [
+      "Printed on headed paper",
+      "practice, clinic or hospital making the referral"
+    ],
+    "native_locator": {
+      "paragraph": 34
+    },
+    "provenance": "project_authored_native_clause_verified"
+  },
+  {
+    "id": "extra_conflict_01",
+    "category": "conflict",
+    "question": "Do the two sources agree on the thickness of MockTile-Q? Report both measurements.",
+    "entity": "MockTile-Q",
+    "metric": "thickness",
+    "values": [
+      "17",
+      "19"
+    ],
+    "unit": "mm",
+    "files": [
+      "MockTile-Q_source_a.txt",
+      "MockTile-Q_source_b.txt"
+    ],
+    "provenance": "project_authored_fictional_same_scope_disagreement_control"
+  },
+  {
+    "id": "extra_conflict_02",
+    "category": "conflict",
+    "question": "Do the two sources agree on the width of MockStrip-R? Report both measurements.",
+    "entity": "MockStrip-R",
+    "metric": "width",
+    "values": [
+      "80",
+      "85"
+    ],
+    "unit": "mm",
+    "files": [
+      "MockStrip-R_source_a.txt",
+      "MockStrip-R_source_b.txt"
+    ],
+    "provenance": "project_authored_fictional_same_scope_disagreement_control"
+  },
+  {
+    "id": "extra_conflict_03",
+    "category": "conflict",
+    "question": "Do the two sources agree on the length of MockBeam-S? Report both measurements.",
+    "entity": "MockBeam-S",
+    "metric": "length",
+    "values": [
+      "2.4",
+      "2.7"
+    ],
+    "unit": "m",
+    "files": [
+      "MockBeam-S_source_a.txt",
+      "MockBeam-S_source_b.txt"
+    ],
+    "provenance": "project_authored_fictional_same_scope_disagreement_control"
+  },
+  {
+    "id": "extra_conflict_04",
+    "category": "conflict",
+    "question": "Do the two sources agree on the weight of MockPanel-T? Report both measurements.",
+    "entity": "MockPanel-T",
+    "metric": "weight",
+    "values": [
+      "4.2",
+      "4.6"
+    ],
+    "unit": "kg",
+    "files": [
+      "MockPanel-T_source_a.txt",
+      "MockPanel-T_source_b.txt"
+    ],
+    "provenance": "project_authored_fictional_same_scope_disagreement_control"
+  },
+  {
+    "id": "extra_conflict_05",
+    "category": "conflict",
+    "question": "Do the two sources agree on the area of MockSheet-U? Report both measurements.",
+    "entity": "MockSheet-U",
+    "metric": "area",
+    "values": [
+      "1.2",
+      "1.4"
+    ],
+    "unit": "m2",
+    "files": [
+      "MockSheet-U_source_a.txt",
+      "MockSheet-U_source_b.txt"
+    ],
+    "provenance": "project_authored_fictional_same_scope_disagreement_control"
+  }
+]

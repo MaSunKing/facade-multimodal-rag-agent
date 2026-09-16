@@ -1,0 +1,2064 @@
+{
+  "version": "public_development_collection_75_v1",
+  "case_count": 75,
+  "collection_not_unified_rerun": true,
+  "model_generation_tested": false,
+  "quotas": {
+    "retrieval": 45,
+    "numeric": 10,
+    "condition": 10,
+    "conflict": 10
+  },
+  "metrics": {
+    "evidence_recall_at_5": {
+      "numerator": 38,
+      "denominator": 45,
+      "rate": 0.8444444444444444
+    },
+    "mrr_all_recalled_windows": 0.6146392496392497,
+    "target_row_value_retention": {
+      "numerator": 8,
+      "denominator": 10,
+      "rate": 0.8
+    },
+    "condition_text_relation_retention": {
+      "numerator": 10,
+      "denominator": 10,
+      "rate": 1.0
+    },
+    "conflict_group_detection": {
+      "numerator": 5,
+      "denominator": 10,
+      "rate": 0.5
+    },
+    "conflict_member_retention": {
+      "numerator": 10,
+      "denominator": 10,
+      "rate": 1.0
+    },
+    "strict_native_numeric_unit_retention": {
+      "numerator": 0,
+      "denominator": 5,
+      "rate": 0.0
+    }
+  },
+  "runs": [
+    {
+      "run_id": "regression_30",
+      "original_result_sha256": "2b89f56a97e2fcca5ef367e453c20712efd4265e609d73388c9a5fe136cc07c0",
+      "cases": 30,
+      "track": "CPU_attachment_retrieval_and_context_regression_not_full_hybrid_RAG",
+      "scoring_version": "native_locator_and_same_row_v2",
+      "prompt_budgets": [
+        650,
+        1800
+      ],
+      "model_generation_tested": false
+    },
+    {
+      "run_id": "fresh_english_30",
+      "original_result_sha256": "27909daa54d426197861d7c1d2096b71fd67443be1d1b2b78739e1b5acddad93",
+      "cases": 30,
+      "track": "CPU_single_file_native_preprocessing_lexical_retrieval_context_not_generation",
+      "scoring_version": "native_source_complete_support_set_v2",
+      "prompt_budgets": [
+        1800
+      ],
+      "model_generation_tested": false
+    },
+    {
+      "run_id": "basic_extra_15",
+      "original_result_sha256": "12cc22ef1a1a5888eeb99535a807cb7ed5b684a1a54bf8b0a800f4ae2db56566",
+      "cases": 15,
+      "track": "native_file_CPU_retrieval_context_exact_tokenizer_packing",
+      "scoring_version": "basic_capabilities_native_v1",
+      "prompt_budgets": [
+        5000
+      ],
+      "model_generation_tested": false
+    }
+  ],
+  "overall_answer_accuracy": null,
+  "limitations": [
+    "Development/regression cases, not a sealed unseen test.",
+    "Only CPU lexical attachment retrieval and context/tokenizer packing were tested.",
+    "Historical per-case prompt budgets and scorer definitions are retained; retention rates are descriptive collection statistics, not a controlled comparison.",
+    "Old conflicts are authored Evidence controls; new conflicts pass through native TXT parsing.",
+    "Strict native unit binding is measured only in the five extra numeric cases; legacy numeric checks are not equivalent.",
+    "Source-grounded questions are project-authored, not official QA annotations.",
+    "No model accuracy, full hybrid-RAG, Planner, OCR or production latency claim."
+  ],
+  "details": [
+    {
+      "id": "retrieval_001",
+      "category": "retrieval",
+      "question": "地球近地面大气中氮气占多少？",
+      "run_id": "regression_30",
+      "input_kind": "native_file",
+      "files": [
+        "earth.pdf",
+        "flexible_working.docx"
+      ],
+      "model_generation_tested": false,
+      "evidence_hit_at_5": true,
+      "reciprocal_rank": 0.25,
+      "packed_gold_covered": false,
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_group_detected": false,
+      "conflict_all_members_retained": true,
+      "passed": true,
+      "elapsed_seconds": 1.63,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 1722,
+      "kept_evidence_ids": [
+        "U2",
+        "U5"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "retrieval_002",
+      "category": "retrieval",
+      "question": "What is the average depth of the global ocean?",
+      "run_id": "regression_30",
+      "input_kind": "native_file",
+      "files": [
+        "earth.pdf",
+        "numeric.csv"
+      ],
+      "model_generation_tested": false,
+      "evidence_hit_at_5": true,
+      "reciprocal_rank": 1.0,
+      "packed_gold_covered": false,
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_group_detected": false,
+      "conflict_all_members_retained": true,
+      "passed": true,
+      "elapsed_seconds": 1.136,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 687,
+      "kept_evidence_ids": [
+        "U3"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "retrieval_003",
+      "category": "retrieval",
+      "question": "地球的公转周期是多少天？",
+      "run_id": "regression_30",
+      "input_kind": "native_file",
+      "files": [
+        "earth.pdf",
+        "sample_spec.xlsx"
+      ],
+      "model_generation_tested": false,
+      "evidence_hit_at_5": false,
+      "reciprocal_rank": 0.09090909090909091,
+      "packed_gold_covered": true,
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_group_detected": false,
+      "conflict_all_members_retained": true,
+      "passed": false,
+      "elapsed_seconds": 1.043,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 1767,
+      "kept_evidence_ids": [
+        "U2",
+        "U5",
+        "U9"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "retrieval_004",
+      "category": "retrieval",
+      "question": "这份申请表用于申请什么工作安排？",
+      "run_id": "regression_30",
+      "input_kind": "native_file",
+      "files": [
+        "flexible_working.docx",
+        "earth.pdf"
+      ],
+      "model_generation_tested": false,
+      "evidence_hit_at_5": false,
+      "reciprocal_rank": 0.1,
+      "packed_gold_covered": false,
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_group_detected": false,
+      "conflict_all_members_retained": true,
+      "passed": false,
+      "elapsed_seconds": 1.147,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 1141,
+      "kept_evidence_ids": [
+        "U1",
+        "U5"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "retrieval_005",
+      "category": "retrieval",
+      "question": "What should the employee read before completing the flexible working form?",
+      "run_id": "regression_30",
+      "input_kind": "native_file",
+      "files": [
+        "flexible_working.docx",
+        "IndoorPanel.txt"
+      ],
+      "model_generation_tested": false,
+      "evidence_hit_at_5": true,
+      "reciprocal_rank": 0.5,
+      "packed_gold_covered": false,
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_group_detected": false,
+      "conflict_all_members_retained": true,
+      "passed": true,
+      "elapsed_seconds": 0.073,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 943,
+      "kept_evidence_ids": [
+        "U2"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "retrieval_006",
+      "category": "retrieval",
+      "question": "How many hours does Earth take to rotate?",
+      "run_id": "regression_30",
+      "input_kind": "native_file",
+      "files": [
+        "earth_facts.html",
+        "numeric.csv"
+      ],
+      "model_generation_tested": false,
+      "evidence_hit_at_5": true,
+      "reciprocal_rank": 0.3333333333333333,
+      "packed_gold_covered": false,
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_group_detected": false,
+      "conflict_all_members_retained": true,
+      "passed": true,
+      "elapsed_seconds": 0.321,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 941,
+      "kept_evidence_ids": [
+        "U1"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "retrieval_007",
+      "category": "retrieval",
+      "question": "地球是距离太阳第几颗行星？",
+      "run_id": "regression_30",
+      "input_kind": "native_file",
+      "files": [
+        "earth_facts.html",
+        "sample_checklist.docx"
+      ],
+      "model_generation_tested": false,
+      "evidence_hit_at_5": false,
+      "reciprocal_rank": 0.14285714285714285,
+      "packed_gold_covered": false,
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_group_detected": false,
+      "conflict_all_members_retained": true,
+      "passed": false,
+      "elapsed_seconds": 0.318,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 1765,
+      "kept_evidence_ids": [
+        "U4",
+        "U1",
+        "U5"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "retrieval_008",
+      "category": "retrieval",
+      "question": "Data - population Scotland 1992 total population",
+      "run_id": "regression_30",
+      "input_kind": "native_file",
+      "files": [
+        "FIRE0101.xlsx",
+        "numeric.csv"
+      ],
+      "model_generation_tested": false,
+      "evidence_hit_at_5": true,
+      "reciprocal_rank": 1.0,
+      "packed_gold_covered": true,
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_group_detected": false,
+      "conflict_all_members_retained": true,
+      "passed": true,
+      "elapsed_seconds": 1.134,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 907,
+      "kept_evidence_ids": [
+        "U1"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "retrieval_009",
+      "category": "retrieval",
+      "question": "What thickness is specified in the synthetic Word checklist?",
+      "run_id": "regression_30",
+      "input_kind": "native_file",
+      "files": [
+        "sample_checklist.docx",
+        "numeric.csv"
+      ],
+      "model_generation_tested": false,
+      "evidence_hit_at_5": true,
+      "reciprocal_rank": 0.5,
+      "packed_gold_covered": true,
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_group_detected": false,
+      "conflict_all_members_retained": true,
+      "passed": true,
+      "elapsed_seconds": 0.029,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 1617,
+      "kept_evidence_ids": [
+        "U1",
+        "U5",
+        "U2"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "retrieval_010",
+      "category": "retrieval",
+      "question": "Current工作表DemoPanel-X的厚度是多少？",
+      "run_id": "regression_30",
+      "input_kind": "native_file",
+      "files": [
+        "sample_spec.xlsx",
+        "numeric.csv"
+      ],
+      "model_generation_tested": false,
+      "evidence_hit_at_5": true,
+      "reciprocal_rank": 0.5,
+      "packed_gold_covered": true,
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_group_detected": false,
+      "conflict_all_members_retained": true,
+      "passed": true,
+      "elapsed_seconds": 0.024,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 1739,
+      "kept_evidence_ids": [
+        "U1",
+        "U5",
+        "U2",
+        "U3",
+        "U4"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "retrieval_011",
+      "category": "retrieval",
+      "question": "Other source sheet DemoPanel-X thickness",
+      "run_id": "regression_30",
+      "input_kind": "native_file",
+      "files": [
+        "sample_spec.xlsx",
+        "sample_checklist.docx"
+      ],
+      "model_generation_tested": false,
+      "evidence_hit_at_5": true,
+      "reciprocal_rank": 1.0,
+      "packed_gold_covered": true,
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_group_detected": false,
+      "conflict_all_members_retained": true,
+      "passed": true,
+      "elapsed_seconds": 0.039,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 1400,
+      "kept_evidence_ids": [
+        "U1",
+        "U5",
+        "U2"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "retrieval_012",
+      "category": "retrieval",
+      "question": "RainPanel的安装限制是什么？",
+      "run_id": "regression_30",
+      "input_kind": "native_file",
+      "files": [
+        "RainPanel.txt",
+        "numeric.csv"
+      ],
+      "model_generation_tested": false,
+      "evidence_hit_at_5": true,
+      "reciprocal_rank": 1.0,
+      "packed_gold_covered": true,
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_group_detected": false,
+      "conflict_all_members_retained": true,
+      "passed": true,
+      "elapsed_seconds": 0.014,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 512,
+      "kept_evidence_ids": [
+        "U2",
+        "U1"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "retrieval_013",
+      "category": "retrieval",
+      "question": "AnchorPanel的安装限制是什么？",
+      "run_id": "regression_30",
+      "input_kind": "native_file",
+      "files": [
+        "AnchorPanel.txt",
+        "numeric.csv"
+      ],
+      "model_generation_tested": false,
+      "evidence_hit_at_5": true,
+      "reciprocal_rank": 1.0,
+      "packed_gold_covered": true,
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_group_detected": false,
+      "conflict_all_members_retained": true,
+      "passed": true,
+      "elapsed_seconds": 0.014,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 518,
+      "kept_evidence_ids": [
+        "U2",
+        "U1"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "retrieval_014",
+      "category": "retrieval",
+      "question": "ColdPanel的安装限制是什么？",
+      "run_id": "regression_30",
+      "input_kind": "native_file",
+      "files": [
+        "ColdPanel.txt",
+        "numeric.csv"
+      ],
+      "model_generation_tested": false,
+      "evidence_hit_at_5": true,
+      "reciprocal_rank": 1.0,
+      "packed_gold_covered": true,
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_group_detected": false,
+      "conflict_all_members_retained": true,
+      "passed": true,
+      "elapsed_seconds": 0.014,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 526,
+      "kept_evidence_ids": [
+        "U2",
+        "U1"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "retrieval_015",
+      "category": "retrieval",
+      "question": "IndoorPanel的安装限制是什么？",
+      "run_id": "regression_30",
+      "input_kind": "native_file",
+      "files": [
+        "IndoorPanel.txt",
+        "numeric.csv"
+      ],
+      "model_generation_tested": false,
+      "evidence_hit_at_5": true,
+      "reciprocal_rank": 1.0,
+      "packed_gold_covered": true,
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_group_detected": false,
+      "conflict_all_members_retained": true,
+      "passed": true,
+      "elapsed_seconds": 0.015,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 523,
+      "kept_evidence_ids": [
+        "U2",
+        "U1"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "numeric_001",
+      "category": "numeric",
+      "question": "BeamY 2025 thickness value and unit",
+      "run_id": "regression_30",
+      "input_kind": "native_file",
+      "files": [
+        "numeric.csv",
+        "sample_spec.xlsx"
+      ],
+      "model_generation_tested": false,
+      "evidence_hit_at_5": true,
+      "reciprocal_rank": 1.0,
+      "packed_gold_covered": true,
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_group_detected": false,
+      "conflict_all_members_retained": true,
+      "passed": true,
+      "elapsed_seconds": 0.025,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 1549,
+      "kept_evidence_ids": [
+        "U1",
+        "U2",
+        "U3"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "numeric_002",
+      "category": "numeric",
+      "question": "MeshZ 2024 weight value and unit",
+      "run_id": "regression_30",
+      "input_kind": "native_file",
+      "files": [
+        "numeric.csv",
+        "sample_spec.xlsx"
+      ],
+      "model_generation_tested": false,
+      "evidence_hit_at_5": true,
+      "reciprocal_rank": 1.0,
+      "packed_gold_covered": true,
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_group_detected": false,
+      "conflict_all_members_retained": true,
+      "passed": true,
+      "elapsed_seconds": 0.004,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 1549,
+      "kept_evidence_ids": [
+        "U1",
+        "U2",
+        "U3"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "numeric_003",
+      "category": "numeric",
+      "question": "TrimK 2023 length value and unit",
+      "run_id": "regression_30",
+      "input_kind": "native_file",
+      "files": [
+        "numeric.csv",
+        "sample_spec.xlsx"
+      ],
+      "model_generation_tested": false,
+      "evidence_hit_at_5": true,
+      "reciprocal_rank": 1.0,
+      "packed_gold_covered": true,
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_group_detected": false,
+      "conflict_all_members_retained": true,
+      "passed": true,
+      "elapsed_seconds": 0.004,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 1549,
+      "kept_evidence_ids": [
+        "U1",
+        "U2",
+        "U3"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "numeric_004",
+      "category": "numeric",
+      "question": "JointM 2022 width value and unit",
+      "run_id": "regression_30",
+      "input_kind": "native_file",
+      "files": [
+        "numeric.csv",
+        "sample_spec.xlsx"
+      ],
+      "model_generation_tested": false,
+      "evidence_hit_at_5": true,
+      "reciprocal_rank": 1.0,
+      "packed_gold_covered": true,
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_group_detected": false,
+      "conflict_all_members_retained": true,
+      "passed": true,
+      "elapsed_seconds": 0.004,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 1549,
+      "kept_evidence_ids": [
+        "U1",
+        "U2",
+        "U3"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "numeric_005",
+      "category": "numeric",
+      "question": "CoatN 2021 cost value and unit",
+      "run_id": "regression_30",
+      "input_kind": "native_file",
+      "files": [
+        "numeric.csv",
+        "sample_spec.xlsx"
+      ],
+      "model_generation_tested": false,
+      "evidence_hit_at_5": true,
+      "reciprocal_rank": 1.0,
+      "packed_gold_covered": true,
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_group_detected": false,
+      "conflict_all_members_retained": true,
+      "passed": true,
+      "elapsed_seconds": 0.004,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 1552,
+      "kept_evidence_ids": [
+        "U1",
+        "U2",
+        "U3"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "conflict_001",
+      "category": "conflict",
+      "question": "Conflict1 thickness是否一致？",
+      "run_id": "regression_30",
+      "input_kind": "authored_evidence_control",
+      "files": [],
+      "model_generation_tested": false,
+      "evidence_hit_at_5": false,
+      "reciprocal_rank": 0,
+      "packed_gold_covered": false,
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_group_detected": true,
+      "conflict_all_members_retained": true,
+      "passed": true,
+      "elapsed_seconds": 0.001,
+      "prompt_budget": 650,
+      "actual_prompt_tokens": 148,
+      "kept_evidence_ids": [
+        "U_conflict_0_a",
+        "T_conflict_0_b"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "conflict_002",
+      "category": "conflict",
+      "question": "Conflict2 length是否一致？",
+      "run_id": "regression_30",
+      "input_kind": "authored_evidence_control",
+      "files": [],
+      "model_generation_tested": false,
+      "evidence_hit_at_5": false,
+      "reciprocal_rank": 0,
+      "packed_gold_covered": false,
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_group_detected": true,
+      "conflict_all_members_retained": true,
+      "passed": true,
+      "elapsed_seconds": 0.0,
+      "prompt_budget": 650,
+      "actual_prompt_tokens": 152,
+      "kept_evidence_ids": [
+        "U_conflict_1_a",
+        "T_conflict_1_b"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "conflict_003",
+      "category": "conflict",
+      "question": "Conflict3 weight是否一致？",
+      "run_id": "regression_30",
+      "input_kind": "authored_evidence_control",
+      "files": [],
+      "model_generation_tested": false,
+      "evidence_hit_at_5": false,
+      "reciprocal_rank": 0,
+      "packed_gold_covered": false,
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_group_detected": true,
+      "conflict_all_members_retained": true,
+      "passed": true,
+      "elapsed_seconds": 0.0,
+      "prompt_budget": 650,
+      "actual_prompt_tokens": 150,
+      "kept_evidence_ids": [
+        "U_conflict_2_a",
+        "T_conflict_2_b"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "conflict_004",
+      "category": "conflict",
+      "question": "Conflict4 width是否一致？",
+      "run_id": "regression_30",
+      "input_kind": "authored_evidence_control",
+      "files": [],
+      "model_generation_tested": false,
+      "evidence_hit_at_5": false,
+      "reciprocal_rank": 0,
+      "packed_gold_covered": false,
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_group_detected": true,
+      "conflict_all_members_retained": true,
+      "passed": true,
+      "elapsed_seconds": 0.0,
+      "prompt_budget": 650,
+      "actual_prompt_tokens": 149,
+      "kept_evidence_ids": [
+        "U_conflict_3_a",
+        "U_conflict_3_b"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "conflict_005",
+      "category": "conflict",
+      "question": "Conflict5 cost是否一致？",
+      "run_id": "regression_30",
+      "input_kind": "authored_evidence_control",
+      "files": [],
+      "model_generation_tested": false,
+      "evidence_hit_at_5": false,
+      "reciprocal_rank": 0,
+      "packed_gold_covered": false,
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_group_detected": true,
+      "conflict_all_members_retained": true,
+      "passed": true,
+      "elapsed_seconds": 0.0,
+      "prompt_budget": 650,
+      "actual_prompt_tokens": 151,
+      "kept_evidence_ids": [
+        "U_conflict_4_a",
+        "U_conflict_4_b"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "context_001",
+      "category": "condition",
+      "question": "RainPanel的使用限制和前提是什么？",
+      "run_id": "regression_30",
+      "input_kind": "native_file",
+      "files": [
+        "RainPanel.txt",
+        "numeric.csv"
+      ],
+      "model_generation_tested": false,
+      "evidence_hit_at_5": true,
+      "reciprocal_rank": 1.0,
+      "packed_gold_covered": true,
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_group_detected": false,
+      "conflict_all_members_retained": true,
+      "passed": true,
+      "elapsed_seconds": 0.002,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 514,
+      "kept_evidence_ids": [
+        "U2",
+        "U1"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "context_002",
+      "category": "condition",
+      "question": "AnchorPanel的使用限制和前提是什么？",
+      "run_id": "regression_30",
+      "input_kind": "native_file",
+      "files": [
+        "AnchorPanel.txt",
+        "numeric.csv"
+      ],
+      "model_generation_tested": false,
+      "evidence_hit_at_5": true,
+      "reciprocal_rank": 1.0,
+      "packed_gold_covered": true,
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_group_detected": false,
+      "conflict_all_members_retained": true,
+      "passed": true,
+      "elapsed_seconds": 0.002,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 520,
+      "kept_evidence_ids": [
+        "U2",
+        "U1"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "context_003",
+      "category": "condition",
+      "question": "ColdPanel的使用限制和前提是什么？",
+      "run_id": "regression_30",
+      "input_kind": "native_file",
+      "files": [
+        "ColdPanel.txt",
+        "numeric.csv"
+      ],
+      "model_generation_tested": false,
+      "evidence_hit_at_5": true,
+      "reciprocal_rank": 1.0,
+      "packed_gold_covered": true,
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_group_detected": false,
+      "conflict_all_members_retained": true,
+      "passed": true,
+      "elapsed_seconds": 0.002,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 528,
+      "kept_evidence_ids": [
+        "U2",
+        "U1"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "context_004",
+      "category": "condition",
+      "question": "IndoorPanel的使用限制和前提是什么？",
+      "run_id": "regression_30",
+      "input_kind": "native_file",
+      "files": [
+        "IndoorPanel.txt",
+        "numeric.csv"
+      ],
+      "model_generation_tested": false,
+      "evidence_hit_at_5": true,
+      "reciprocal_rank": 1.0,
+      "packed_gold_covered": true,
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_group_detected": false,
+      "conflict_all_members_retained": true,
+      "passed": true,
+      "elapsed_seconds": 0.002,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 525,
+      "kept_evidence_ids": [
+        "U2",
+        "U1"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "context_005",
+      "category": "condition",
+      "question": "CurePanel的使用限制和前提是什么？",
+      "run_id": "regression_30",
+      "input_kind": "native_file",
+      "files": [
+        "CurePanel.txt",
+        "numeric.csv"
+      ],
+      "model_generation_tested": false,
+      "evidence_hit_at_5": true,
+      "reciprocal_rank": 1.0,
+      "packed_gold_covered": true,
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_group_detected": false,
+      "conflict_all_members_retained": true,
+      "passed": true,
+      "elapsed_seconds": 0.015,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 535,
+      "kept_evidence_ids": [
+        "U2",
+        "U1"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "fresh_en_001",
+      "category": "retrieval",
+      "question": "In what file format must the declaration notification be submitted?",
+      "run_id": "fresh_english_30",
+      "input_kind": "native_file",
+      "files": [
+        "ofgem_data_dictionary.pdf"
+      ],
+      "model_generation_tested": false,
+      "hit_at_5": true,
+      "reciprocal_rank": 1.0,
+      "packed_support": true,
+      "canonical_support": true,
+      "elapsed_seconds": 2.425,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 1028,
+      "kept_evidence_ids": [
+        "U1"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "fresh_en_002",
+      "category": "retrieval",
+      "question": "What does the first section of the LA unique reference number represent?",
+      "run_id": "fresh_english_30",
+      "input_kind": "native_file",
+      "files": [
+        "ofgem_data_dictionary.pdf"
+      ],
+      "model_generation_tested": false,
+      "hit_at_5": true,
+      "reciprocal_rank": 1.0,
+      "packed_support": true,
+      "canonical_support": true,
+      "elapsed_seconds": 0.114,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 1134,
+      "kept_evidence_ids": [
+        "U1"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "fresh_en_003",
+      "category": "retrieval",
+      "question": "How many digits must an ECO4 Flex Route 4 application number contain?",
+      "run_id": "fresh_english_30",
+      "input_kind": "native_file",
+      "files": [
+        "ofgem_data_dictionary.pdf"
+      ],
+      "model_generation_tested": false,
+      "hit_at_5": true,
+      "reciprocal_rank": 1.0,
+      "packed_support": true,
+      "canonical_support": true,
+      "elapsed_seconds": 0.124,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 1568,
+      "kept_evidence_ids": [
+        "U11",
+        "U1"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "fresh_en_004",
+      "category": "retrieval",
+      "question": "Does an ECO4 or GBIS Flex third-party referral guarantee that measures will be installed?",
+      "run_id": "fresh_english_30",
+      "input_kind": "native_file",
+      "files": [
+        "ofgem_third_party_facts.pdf"
+      ],
+      "model_generation_tested": false,
+      "hit_at_5": true,
+      "reciprocal_rank": 0.3333333333333333,
+      "packed_support": false,
+      "canonical_support": true,
+      "elapsed_seconds": 1.781,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 1396,
+      "kept_evidence_ids": [
+        "U8",
+        "U3"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "fresh_en_005",
+      "category": "retrieval",
+      "question": "What signed document must Citizens Advice produce when referring a household struggling to pay energy bills?",
+      "run_id": "fresh_english_30",
+      "input_kind": "native_file",
+      "files": [
+        "ofgem_third_party_facts.pdf"
+      ],
+      "model_generation_tested": false,
+      "hit_at_5": true,
+      "reciprocal_rank": 0.3333333333333333,
+      "packed_support": true,
+      "canonical_support": true,
+      "elapsed_seconds": 0.067,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 633,
+      "kept_evidence_ids": [
+        "U2"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "fresh_en_006",
+      "category": "retrieval",
+      "question": "For Flex Route 2 Proxy 3, is an NHS referral letter mandatory?",
+      "run_id": "fresh_english_30",
+      "input_kind": "native_file",
+      "files": [
+        "ofgem_third_party_facts.pdf"
+      ],
+      "model_generation_tested": false,
+      "hit_at_5": true,
+      "reciprocal_rank": 0.3333333333333333,
+      "packed_support": false,
+      "canonical_support": true,
+      "elapsed_seconds": 0.103,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 983,
+      "kept_evidence_ids": [
+        "U5",
+        "U11"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "fresh_en_007",
+      "category": "retrieval",
+      "question": "What colours should the lobby sector and fire sector folders be?",
+      "run_id": "fresh_english_30",
+      "input_kind": "native_file",
+      "files": [
+        "gmfrs_information_box.pdf"
+      ],
+      "model_generation_tested": false,
+      "hit_at_5": true,
+      "reciprocal_rank": 0.3333333333333333,
+      "packed_support": false,
+      "canonical_support": true,
+      "elapsed_seconds": 1.21,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 1470,
+      "kept_evidence_ids": [
+        "U2",
+        "U7"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "fresh_en_008",
+      "category": "retrieval",
+      "question": "How many copies of the Building Emergency Evacuation Plan should be kept in the secure information box?",
+      "run_id": "fresh_english_30",
+      "input_kind": "native_file",
+      "files": [
+        "gmfrs_information_box.pdf"
+      ],
+      "model_generation_tested": false,
+      "hit_at_5": true,
+      "reciprocal_rank": 0.5,
+      "packed_support": true,
+      "canonical_support": true,
+      "elapsed_seconds": 0.119,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 1480,
+      "kept_evidence_ids": [
+        "U1",
+        "U10"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "fresh_en_009",
+      "category": "retrieval",
+      "question": "What is the minimum number of riser outlet keys recommended in the fire sector folder?",
+      "run_id": "fresh_english_30",
+      "input_kind": "native_file",
+      "files": [
+        "gmfrs_information_box.pdf"
+      ],
+      "model_generation_tested": false,
+      "hit_at_5": true,
+      "reciprocal_rank": 0.3333333333333333,
+      "packed_support": false,
+      "canonical_support": true,
+      "elapsed_seconds": 0.118,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 1475,
+      "kept_evidence_ids": [
+        "U8",
+        "U9"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "fresh_en_010",
+      "category": "retrieval",
+      "question": "On what date did GBIS Flex end according to this statement of intent template?",
+      "run_id": "fresh_english_30",
+      "input_kind": "native_file",
+      "files": [
+        "ofgem_statement_of_intent.docx"
+      ],
+      "model_generation_tested": false,
+      "hit_at_5": true,
+      "reciprocal_rank": 0.5,
+      "packed_support": false,
+      "canonical_support": true,
+      "elapsed_seconds": 0.029,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 966,
+      "kept_evidence_ids": [
+        "U1"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "fresh_en_011",
+      "category": "retrieval",
+      "question": "What information about qualifying schemes must be included for Route 2 Proxy 5?",
+      "run_id": "fresh_english_30",
+      "input_kind": "native_file",
+      "files": [
+        "ofgem_statement_of_intent.docx"
+      ],
+      "model_generation_tested": false,
+      "hit_at_5": true,
+      "reciprocal_rank": 1.0,
+      "packed_support": true,
+      "canonical_support": true,
+      "elapsed_seconds": 0.015,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 969,
+      "kept_evidence_ids": [
+        "U1"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "fresh_en_012",
+      "category": "retrieval",
+      "question": "What legal obligation does ECO4 place on energy suppliers?",
+      "run_id": "fresh_english_30",
+      "input_kind": "native_file",
+      "files": [
+        "ofgem_statement_of_intent.docx"
+      ],
+      "model_generation_tested": false,
+      "hit_at_5": true,
+      "reciprocal_rank": 1.0,
+      "packed_support": true,
+      "canonical_support": true,
+      "elapsed_seconds": 0.015,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 962,
+      "kept_evidence_ids": [
+        "U1"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "fresh_en_013",
+      "category": "retrieval",
+      "question": "What age threshold is listed for older people vulnerable to cold under Route 2?",
+      "run_id": "fresh_english_30",
+      "input_kind": "native_file",
+      "files": [
+        "ofgem_medical_referral.docx"
+      ],
+      "model_generation_tested": false,
+      "hit_at_5": true,
+      "reciprocal_rank": 0.25,
+      "packed_support": false,
+      "canonical_support": true,
+      "elapsed_seconds": 0.253,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 950,
+      "kept_evidence_ids": [
+        "U1"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "fresh_en_014",
+      "category": "retrieval",
+      "question": "From what kind of email address must a digital medical referral be sent?",
+      "run_id": "fresh_english_30",
+      "input_kind": "native_file",
+      "files": [
+        "ofgem_medical_referral.docx"
+      ],
+      "model_generation_tested": false,
+      "hit_at_5": true,
+      "reciprocal_rank": 0.5,
+      "packed_support": false,
+      "canonical_support": true,
+      "elapsed_seconds": 0.078,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 963,
+      "kept_evidence_ids": [
+        "U1"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "fresh_en_015",
+      "category": "retrieval",
+      "question": "Where applicable, what stamp authenticates a printed medical referral letter?",
+      "run_id": "fresh_english_30",
+      "input_kind": "native_file",
+      "files": [
+        "ofgem_medical_referral.docx"
+      ],
+      "model_generation_tested": false,
+      "hit_at_5": true,
+      "reciprocal_rank": 1.0,
+      "packed_support": true,
+      "canonical_support": true,
+      "elapsed_seconds": 0.049,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 960,
+      "kept_evidence_ids": [
+        "U1"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "fresh_en_016",
+      "category": "retrieval",
+      "question": "What combined gross annual household income threshold applies to Route 1?",
+      "run_id": "fresh_english_30",
+      "input_kind": "native_file",
+      "files": [
+        "ofgem_householder_application.docx"
+      ],
+      "model_generation_tested": false,
+      "hit_at_5": true,
+      "reciprocal_rank": 1.0,
+      "packed_support": true,
+      "canonical_support": true,
+      "elapsed_seconds": 0.157,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 966,
+      "kept_evidence_ids": [
+        "U1"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "fresh_en_017",
+      "category": "retrieval",
+      "question": "How many criteria must a household satisfy for Route 2?",
+      "run_id": "fresh_english_30",
+      "input_kind": "native_file",
+      "files": [
+        "ofgem_householder_application.docx"
+      ],
+      "model_generation_tested": false,
+      "hit_at_5": true,
+      "reciprocal_rank": 1.0,
+      "packed_support": true,
+      "canonical_support": true,
+      "elapsed_seconds": 0.116,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 965,
+      "kept_evidence_ids": [
+        "U1"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "fresh_en_018",
+      "category": "retrieval",
+      "question": "Does completing this householder application form guarantee eligibility for the schemes?",
+      "run_id": "fresh_english_30",
+      "input_kind": "native_file",
+      "files": [
+        "ofgem_householder_application.docx"
+      ],
+      "model_generation_tested": false,
+      "hit_at_5": true,
+      "reciprocal_rank": 1.0,
+      "packed_support": true,
+      "canonical_support": true,
+      "elapsed_seconds": 0.04,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 951,
+      "kept_evidence_ids": [
+        "U1"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "fresh_en_019",
+      "category": "retrieval",
+      "question": "What test does the fire risk assessment ask about for landlord-supplied portable electrical appliances?",
+      "run_id": "fresh_english_30",
+      "input_kind": "native_file",
+      "files": [
+        "canterbury_fire_risk.docx"
+      ],
+      "model_generation_tested": false,
+      "hit_at_5": true,
+      "reciprocal_rank": 0.5,
+      "packed_support": false,
+      "canonical_support": true,
+      "elapsed_seconds": 0.361,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 1626,
+      "kept_evidence_ids": [
+        "U4",
+        "U13"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "fresh_en_020",
+      "category": "retrieval",
+      "question": "Which four groups of occupants are listed as being especially at risk from fire?",
+      "run_id": "fresh_english_30",
+      "input_kind": "native_file",
+      "files": [
+        "canterbury_fire_risk.docx"
+      ],
+      "model_generation_tested": false,
+      "hit_at_5": true,
+      "reciprocal_rank": 0.2,
+      "packed_support": false,
+      "canonical_support": true,
+      "elapsed_seconds": 0.307,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 1588,
+      "kept_evidence_ids": [
+        "U2",
+        "U7"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "fresh_en_021",
+      "category": "retrieval",
+      "question": "Which action-plan columns record the responsible person, deadline and completion sign-off?",
+      "run_id": "fresh_english_30",
+      "input_kind": "native_file",
+      "files": [
+        "canterbury_fire_risk.docx"
+      ],
+      "model_generation_tested": false,
+      "hit_at_5": false,
+      "reciprocal_rank": 0,
+      "packed_support": false,
+      "canonical_support": true,
+      "elapsed_seconds": 0.316,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 1619,
+      "kept_evidence_ids": [
+        "U1",
+        "U6"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "fresh_en_022",
+      "category": "retrieval",
+      "question": "What was the Total Electric Industry residential electricity price in 2024?",
+      "run_id": "fresh_english_30",
+      "input_kind": "native_file",
+      "files": [
+        "eia_electricity_prices.xlsx"
+      ],
+      "model_generation_tested": false,
+      "hit_at_5": true,
+      "reciprocal_rank": 0.5,
+      "packed_support": false,
+      "canonical_support": true,
+      "elapsed_seconds": 0.262,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 1297,
+      "kept_evidence_ids": [
+        "U1"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "fresh_en_023",
+      "category": "retrieval",
+      "question": "What was the Competitive Service Providers industrial electricity price in 2024?",
+      "run_id": "fresh_english_30",
+      "input_kind": "native_file",
+      "files": [
+        "eia_electricity_prices.xlsx"
+      ],
+      "model_generation_tested": false,
+      "hit_at_5": false,
+      "reciprocal_rank": 0,
+      "packed_support": false,
+      "canonical_support": true,
+      "elapsed_seconds": 0.03,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 1297,
+      "kept_evidence_ids": [
+        "U1"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "fresh_en_024",
+      "category": "retrieval",
+      "question": "What was the Delivery-Only Providers transportation electricity price in 2024?",
+      "run_id": "fresh_english_30",
+      "input_kind": "native_file",
+      "files": [
+        "eia_electricity_prices.xlsx"
+      ],
+      "model_generation_tested": false,
+      "hit_at_5": true,
+      "reciprocal_rank": 0.5,
+      "packed_support": false,
+      "canonical_support": true,
+      "elapsed_seconds": 0.031,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 1298,
+      "kept_evidence_ids": [
+        "U1"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "fresh_en_025",
+      "category": "retrieval",
+      "question": "What was total coal net generation across all sectors in 2024?",
+      "run_id": "fresh_english_30",
+      "input_kind": "native_file",
+      "files": [
+        "eia_industry_summary.xlsx"
+      ],
+      "model_generation_tested": false,
+      "hit_at_5": true,
+      "reciprocal_rank": 1.0,
+      "packed_support": true,
+      "canonical_support": true,
+      "elapsed_seconds": 0.434,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 1311,
+      "kept_evidence_ids": [
+        "U1"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "fresh_en_026",
+      "category": "retrieval",
+      "question": "How much natural gas was consumed for electricity generation in 2024 across all sectors?",
+      "run_id": "fresh_english_30",
+      "input_kind": "native_file",
+      "files": [
+        "eia_industry_summary.xlsx"
+      ],
+      "model_generation_tested": false,
+      "hit_at_5": false,
+      "reciprocal_rank": 0,
+      "packed_support": false,
+      "canonical_support": true,
+      "elapsed_seconds": 0.204,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 1228,
+      "kept_evidence_ids": [
+        "U1"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "fresh_en_027",
+      "category": "retrieval",
+      "question": "What was residential electricity sales revenue in 2024?",
+      "run_id": "fresh_english_30",
+      "input_kind": "native_file",
+      "files": [
+        "eia_industry_summary.xlsx"
+      ],
+      "model_generation_tested": false,
+      "hit_at_5": false,
+      "reciprocal_rank": 0.125,
+      "packed_support": false,
+      "canonical_support": true,
+      "elapsed_seconds": 0.114,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 1297,
+      "kept_evidence_ids": [
+        "U1"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "fresh_en_028",
+      "category": "retrieval",
+      "question": "Which Sheet1 column stores the property postcode?",
+      "run_id": "fresh_english_30",
+      "input_kind": "native_file",
+      "files": [
+        "ofgem_declaration_template.xlsx"
+      ],
+      "model_generation_tested": false,
+      "hit_at_5": true,
+      "reciprocal_rank": 1.0,
+      "packed_support": true,
+      "canonical_support": true,
+      "elapsed_seconds": 0.027,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 1277,
+      "kept_evidence_ids": [
+        "U1",
+        "U2",
+        "U3"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "fresh_en_029",
+      "category": "retrieval",
+      "question": "Which Sheet1 field records the Route 4 application number?",
+      "run_id": "fresh_english_30",
+      "input_kind": "native_file",
+      "files": [
+        "ofgem_declaration_template.xlsx"
+      ],
+      "model_generation_tested": false,
+      "hit_at_5": true,
+      "reciprocal_rank": 1.0,
+      "packed_support": true,
+      "canonical_support": true,
+      "elapsed_seconds": 0.11,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 1443,
+      "kept_evidence_ids": [
+        "U1",
+        "U2"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "fresh_en_030",
+      "category": "retrieval",
+      "question": "Which Sheet1 field records the statement of intent publication date?",
+      "run_id": "fresh_english_30",
+      "input_kind": "native_file",
+      "files": [
+        "ofgem_declaration_template.xlsx"
+      ],
+      "model_generation_tested": false,
+      "hit_at_5": true,
+      "reciprocal_rank": 1.0,
+      "packed_support": true,
+      "canonical_support": true,
+      "elapsed_seconds": 0.004,
+      "prompt_budget": 1800,
+      "actual_prompt_tokens": 1280,
+      "kept_evidence_ids": [
+        "U1",
+        "U2",
+        "U3"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "extra_numeric_01",
+      "category": "numeric",
+      "question": "What was nuclear net generation across all sectors in 2023?",
+      "run_id": "basic_extra_15",
+      "input_kind": "native_file",
+      "files": [
+        "eia_industry_summary.xlsx"
+      ],
+      "model_generation_tested": false,
+      "target_row_value_retained": true,
+      "native_unit_retained": false,
+      "row_value_unit_retained": false,
+      "before_packing": {
+        "target_row_value_retained": true,
+        "native_unit_retained": false,
+        "row_value_unit_retained": false
+      },
+      "passed": false,
+      "elapsed_seconds": 0.467,
+      "prompt_budget": 5000,
+      "actual_prompt_tokens": 4974,
+      "kept_evidence_ids": [
+        "U1",
+        "U15",
+        "U2",
+        "U3"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "extra_numeric_02",
+      "category": "numeric",
+      "question": "What was wind net generation across all sectors in 2024?",
+      "run_id": "basic_extra_15",
+      "input_kind": "native_file",
+      "files": [
+        "eia_industry_summary.xlsx"
+      ],
+      "model_generation_tested": false,
+      "target_row_value_retained": true,
+      "native_unit_retained": false,
+      "row_value_unit_retained": false,
+      "before_packing": {
+        "target_row_value_retained": true,
+        "native_unit_retained": false,
+        "row_value_unit_retained": false
+      },
+      "passed": false,
+      "elapsed_seconds": 0.239,
+      "prompt_budget": 5000,
+      "actual_prompt_tokens": 4979,
+      "kept_evidence_ids": [
+        "U1",
+        "U15",
+        "U2",
+        "U3"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "extra_numeric_03",
+      "category": "numeric",
+      "question": "What was estimated small scale solar photovoltaic generation across all sectors in 2024?",
+      "run_id": "basic_extra_15",
+      "input_kind": "native_file",
+      "files": [
+        "eia_industry_summary.xlsx"
+      ],
+      "model_generation_tested": false,
+      "target_row_value_retained": true,
+      "native_unit_retained": false,
+      "row_value_unit_retained": false,
+      "before_packing": {
+        "target_row_value_retained": true,
+        "native_unit_retained": false,
+        "row_value_unit_retained": false
+      },
+      "passed": false,
+      "elapsed_seconds": 0.219,
+      "prompt_budget": 5000,
+      "actual_prompt_tokens": 3907,
+      "kept_evidence_ids": [
+        "U1",
+        "U15",
+        "U2"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "extra_numeric_04",
+      "category": "numeric",
+      "question": "How much coal was consumed for electricity generation across all sectors in 2024?",
+      "run_id": "basic_extra_15",
+      "input_kind": "native_file",
+      "files": [
+        "eia_industry_summary.xlsx"
+      ],
+      "model_generation_tested": false,
+      "target_row_value_retained": false,
+      "native_unit_retained": false,
+      "row_value_unit_retained": false,
+      "before_packing": {
+        "target_row_value_retained": false,
+        "native_unit_retained": false,
+        "row_value_unit_retained": false
+      },
+      "passed": false,
+      "elapsed_seconds": 0.122,
+      "prompt_budget": 5000,
+      "actual_prompt_tokens": 3738,
+      "kept_evidence_ids": [
+        "U2",
+        "U8",
+        "U4"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "extra_numeric_05",
+      "category": "numeric",
+      "question": "What were total sales of electricity to ultimate customers across all sectors in 2024?",
+      "run_id": "basic_extra_15",
+      "input_kind": "native_file",
+      "files": [
+        "eia_industry_summary.xlsx"
+      ],
+      "model_generation_tested": false,
+      "target_row_value_retained": false,
+      "native_unit_retained": false,
+      "row_value_unit_retained": false,
+      "before_packing": {
+        "target_row_value_retained": true,
+        "native_unit_retained": true,
+        "row_value_unit_retained": true
+      },
+      "passed": false,
+      "elapsed_seconds": 0.114,
+      "prompt_budget": 5000,
+      "actual_prompt_tokens": 4591,
+      "kept_evidence_ids": [
+        "U2",
+        "U11",
+        "U1",
+        "U7",
+        "U3"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "extra_condition_01",
+      "category": "condition",
+      "question": "Can criterion 1 be used together with criterion 3 in the householder application?",
+      "run_id": "basic_extra_15",
+      "input_kind": "native_file",
+      "files": [
+        "ofgem_householder_application.docx"
+      ],
+      "model_generation_tested": false,
+      "condition_relation_retained": true,
+      "condition_protection_tagged": true,
+      "before_packing": {
+        "condition_relation_retained": true,
+        "condition_protection_tagged": true
+      },
+      "passed": true,
+      "elapsed_seconds": 0.163,
+      "prompt_budget": 5000,
+      "actual_prompt_tokens": 4669,
+      "kept_evidence_ids": [
+        "U2",
+        "U3",
+        "U5",
+        "U6",
+        "U8"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "extra_condition_02",
+      "category": "condition",
+      "question": "Which scheme is Route 4 applicable to, and is its scope restricted?",
+      "run_id": "basic_extra_15",
+      "input_kind": "native_file",
+      "files": [
+        "ofgem_householder_application.docx"
+      ],
+      "model_generation_tested": false,
+      "condition_relation_retained": true,
+      "condition_protection_tagged": true,
+      "before_packing": {
+        "condition_relation_retained": true,
+        "condition_protection_tagged": true
+      },
+      "passed": true,
+      "elapsed_seconds": 0.085,
+      "prompt_budget": 5000,
+      "actual_prompt_tokens": 4635,
+      "kept_evidence_ids": [
+        "U3",
+        "U2",
+        "U1",
+        "U5",
+        "U6"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "extra_condition_03",
+      "category": "condition",
+      "question": "What approval is needed for a new household identification method before Route 4 can be used?",
+      "run_id": "basic_extra_15",
+      "input_kind": "native_file",
+      "files": [
+        "ofgem_householder_application.docx"
+      ],
+      "model_generation_tested": false,
+      "condition_relation_retained": true,
+      "condition_protection_tagged": true,
+      "before_packing": {
+        "condition_relation_retained": true,
+        "condition_protection_tagged": true
+      },
+      "passed": true,
+      "elapsed_seconds": 0.102,
+      "prompt_budget": 5000,
+      "actual_prompt_tokens": 4658,
+      "kept_evidence_ids": [
+        "U2",
+        "U1",
+        "U3",
+        "U7",
+        "U8"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "extra_condition_04",
+      "category": "condition",
+      "question": "Under Route 2, what additional eligibility step supplements a medical referral for a reason other than low income?",
+      "run_id": "basic_extra_15",
+      "input_kind": "native_file",
+      "files": [
+        "ofgem_medical_referral.docx"
+      ],
+      "model_generation_tested": false,
+      "condition_relation_retained": true,
+      "condition_protection_tagged": false,
+      "before_packing": {
+        "condition_relation_retained": true,
+        "condition_protection_tagged": false
+      },
+      "passed": true,
+      "elapsed_seconds": 0.321,
+      "prompt_budget": 5000,
+      "actual_prompt_tokens": 4600,
+      "kept_evidence_ids": [
+        "U1",
+        "U15",
+        "U2",
+        "U3",
+        "U4"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "extra_condition_05",
+      "category": "condition",
+      "question": "What paper and referring organisation information are required for a printed medical referral?",
+      "run_id": "basic_extra_15",
+      "input_kind": "native_file",
+      "files": [
+        "ofgem_medical_referral.docx"
+      ],
+      "model_generation_tested": false,
+      "condition_relation_retained": true,
+      "condition_protection_tagged": false,
+      "before_packing": {
+        "condition_relation_retained": true,
+        "condition_protection_tagged": false
+      },
+      "passed": true,
+      "elapsed_seconds": 0.044,
+      "prompt_budget": 5000,
+      "actual_prompt_tokens": 4643,
+      "kept_evidence_ids": [
+        "U3",
+        "U1",
+        "U2",
+        "U5",
+        "U6"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "extra_conflict_01",
+      "category": "conflict",
+      "question": "Do the two sources agree on the thickness of MockTile-Q? Report both measurements.",
+      "run_id": "basic_extra_15",
+      "input_kind": "native_file",
+      "files": [
+        "MockTile-Q_source_a.txt",
+        "MockTile-Q_source_b.txt"
+      ],
+      "model_generation_tested": false,
+      "conflict_detected": false,
+      "both_sources_retained": true,
+      "before_packing": {
+        "both_sources_retained": true
+      },
+      "passed": false,
+      "elapsed_seconds": 0.006,
+      "prompt_budget": 5000,
+      "actual_prompt_tokens": 1455,
+      "kept_evidence_ids": [
+        "U1",
+        "U3",
+        "U2",
+        "U4"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "extra_conflict_02",
+      "category": "conflict",
+      "question": "Do the two sources agree on the width of MockStrip-R? Report both measurements.",
+      "run_id": "basic_extra_15",
+      "input_kind": "native_file",
+      "files": [
+        "MockStrip-R_source_a.txt",
+        "MockStrip-R_source_b.txt"
+      ],
+      "model_generation_tested": false,
+      "conflict_detected": false,
+      "both_sources_retained": true,
+      "before_packing": {
+        "both_sources_retained": true
+      },
+      "passed": false,
+      "elapsed_seconds": 0.006,
+      "prompt_budget": 5000,
+      "actual_prompt_tokens": 1453,
+      "kept_evidence_ids": [
+        "U1",
+        "U3",
+        "U2",
+        "U4"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "extra_conflict_03",
+      "category": "conflict",
+      "question": "Do the two sources agree on the length of MockBeam-S? Report both measurements.",
+      "run_id": "basic_extra_15",
+      "input_kind": "native_file",
+      "files": [
+        "MockBeam-S_source_a.txt",
+        "MockBeam-S_source_b.txt"
+      ],
+      "model_generation_tested": false,
+      "conflict_detected": false,
+      "both_sources_retained": true,
+      "before_packing": {
+        "both_sources_retained": true
+      },
+      "passed": false,
+      "elapsed_seconds": 0.006,
+      "prompt_budget": 5000,
+      "actual_prompt_tokens": 1455,
+      "kept_evidence_ids": [
+        "U1",
+        "U3",
+        "U2",
+        "U4"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "extra_conflict_04",
+      "category": "conflict",
+      "question": "Do the two sources agree on the weight of MockPanel-T? Report both measurements.",
+      "run_id": "basic_extra_15",
+      "input_kind": "native_file",
+      "files": [
+        "MockPanel-T_source_a.txt",
+        "MockPanel-T_source_b.txt"
+      ],
+      "model_generation_tested": false,
+      "conflict_detected": false,
+      "both_sources_retained": true,
+      "before_packing": {
+        "both_sources_retained": true
+      },
+      "passed": false,
+      "elapsed_seconds": 0.006,
+      "prompt_budget": 5000,
+      "actual_prompt_tokens": 1451,
+      "kept_evidence_ids": [
+        "U1",
+        "U3",
+        "U2",
+        "U4"
+      ],
+      "packing_integrity_valid": true
+    },
+    {
+      "id": "extra_conflict_05",
+      "category": "conflict",
+      "question": "Do the two sources agree on the area of MockSheet-U? Report both measurements.",
+      "run_id": "basic_extra_15",
+      "input_kind": "native_file",
+      "files": [
+        "MockSheet-U_source_a.txt",
+        "MockSheet-U_source_b.txt"
+      ],
+      "model_generation_tested": false,
+      "conflict_detected": false,
+      "both_sources_retained": true,
+      "before_packing": {
+        "both_sources_retained": true
+      },
+      "passed": false,
+      "elapsed_seconds": 0.007,
+      "prompt_budget": 5000,
+      "actual_prompt_tokens": 1471,
+      "kept_evidence_ids": [
+        "U1",
+        "U3",
+        "U2",
+        "U4"
+      ],
+      "packing_integrity_valid": true
+    }
+  ]
+}

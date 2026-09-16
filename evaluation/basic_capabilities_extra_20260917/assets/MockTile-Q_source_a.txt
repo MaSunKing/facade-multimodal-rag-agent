@@ -1,0 +1,3 @@
+Synthetic evaluation data, not a real product specification.
+Measurement scope: same laboratory sample and same batch.
+MockTile-Q thickness: 17 mm.

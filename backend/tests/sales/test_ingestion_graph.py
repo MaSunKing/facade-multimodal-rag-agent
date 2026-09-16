@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import tempfile
-import unittest
 import json
+import unittest
 from pathlib import Path
 
 from backend.sales.ingestion_graph import IntakeOptions, LocalIntakeOperations, build_knowledge_intake_graph
@@ -57,8 +57,7 @@ class KnowledgeIntakeGraphTests(unittest.TestCase):
             source = Path(temporary) / "真岩®无机仿石材粘锚工艺2026年.pdf"
             source.write_bytes(b"placeholder")
             taxonomy = Path(temporary) / "taxonomy.json"
-            taxonomy.write_text(json.dumps({"documents": {source.stem: {
-                "knowledge_domain": "03_construction_method"}}}), encoding="utf-8")
+            taxonomy.write_text(json.dumps({"documents": {source.stem: {"knowledge_domain": "03_construction_method"}}}), encoding="utf-8")
             options = IntakeOptions(source_path=source, taxonomy_path=taxonomy)
             run = LocalIntakeOperations().validate_source(options)
             classification = LocalIntakeOperations().classify_document(options, run)

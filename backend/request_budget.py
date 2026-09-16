@@ -31,13 +31,22 @@ def check_budget() -> None:
 
 
 def reserve_recovery(stage: str, action: str, minimum_seconds: float = 20) -> bool:
-    """One recovery per stage, two across the request; never extend deadline."""
+    """One execution recovery plus one bounded query normalization.
+
+    Query normalization does not steal the evidence recovery slot. Everything
+    shares the original deadline; source supplementation, answer repair and
+    OOM repacking still compete for one execution recovery.
+    """
     budget = current_budget.get()
     if budget is None:
         return True  # Non-HTTP callers retain their own bounded loop limits.
     with budget.recovery_lock:
+        planning = stage == 'plan_request' and action == 'repair_query_language'
+        same_category = [item for item in budget.recoveries
+                         if (item['stage'] == 'plan_request'
+                             and item['action'] == 'repair_query_language') == planning]
         if (budget.expired() or budget.deadline-time.monotonic() < minimum_seconds
-                or len(budget.recoveries) >= 2
+                or len(same_category) >= 1
                 or any(item['stage'] == stage for item in budget.recoveries)):
             return False
         budget.recoveries.append({'stage':stage,'action':action})

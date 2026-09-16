@@ -1,1 +1,1 @@
-"""Format-specific parsers shared by the building-materials document Agent."""
+"""Deterministic finance-analysis primitives kept separate from the sales RAG."""

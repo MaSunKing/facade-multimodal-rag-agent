@@ -14,6 +14,8 @@ from pydantic import BaseModel, Field
 from backend.sales.task_memory import MemoryUpdate
 
 
+MAX_RETRIEVAL_QUERY_CHARACTERS = 300
+
 ToolName = Literal["general_chat", "customer_documents", "company_rag", "visual_inspection", "public_web_search"]
 BusinessIntent = Literal[
     "product_parameter",
@@ -69,11 +71,16 @@ class ToolPlan(BaseModel):
     # execution layer does not run another keyword router over the same turn.
     intent: BusinessIntent = "unknown"
     task_type: TaskType = "unknown"
-    retrieval_query: str = Field(default="", max_length=300)
+    retrieval_query: str = Field(default="", max_length=MAX_RETRIEVAL_QUERY_CHARACTERS)
+    retrieval_queries: list[str] = Field(default_factory=list, max_length=3)
     # Semantic attachment scope chosen by the model.  The retrieval layer
     # consumes this field directly and never reclassifies it with keywords.
     document_scope: DocumentScope = "unknown"
     target_terms: list[str] = Field(default_factory=list, max_length=8)
+    # Source-language retrieval goals are separate from user-language targets.
+    search_targets: list[str] = Field(default_factory=list, max_length=8)
+    answer_goals: list[str] = Field(default_factory=list, max_length=8)
+    answer_aspects: list[str] = Field(default_factory=list, max_length=8)
     case_reference: bool = False
     case_filters: CaseFilters = Field(default_factory=CaseFilters)
     product_overview: bool = False
@@ -92,6 +99,33 @@ class ToolPlan(BaseModel):
     planner_cache_hit: bool = Field(default=False, exclude=True)
     planner_input_tokens: int = Field(default=0, exclude=True)
     planner_output_tokens: int = Field(default=0, exclude=True)
+    # Application-authored repair directive; never accepted as source evidence.
+    recovery_directive: dict[str, Any] = Field(default_factory=dict, exclude=True)
+
+
+def bounded_fallback_retrieval_query(query: str, target_terms: list[str] | None = None) -> str:
+    """Bound a *fallback* search field, never truncate the user's question.
+
+    Normal plans obtain a concise query from the semantic planner. If that
+    planner is unavailable, keep complete existing anchors when they fit.
+    With no usable anchors, leave the optional query empty: downstream local
+    retrieval uses the original question, which remains on DraftRequest.
+    A prefix cut would silently discard late conditions, entities or negations.
+    This helper neither selects tools nor adds permissions.
+    """
+    normalised = ' '.join(query.split())
+    if len(normalised) <= MAX_RETRIEVAL_QUERY_CHARACTERS:
+        return normalised
+    anchors: list[str] = []
+    seen: set[str] = set()
+    for term in target_terms or []:
+        anchor = ' '.join(term.split())
+        if not anchor or anchor.casefold() in seen:
+            continue
+        if len(' '.join([*anchors, anchor])) <= MAX_RETRIEVAL_QUERY_CHARACTERS:
+            anchors.append(anchor)
+            seen.add(anchor.casefold())
+    return ' '.join(anchors)
 
 
 def fallback_plan(
@@ -147,7 +181,7 @@ def fallback_plan(
         requires_public_web=web_requested,
         intent=intent,
         task_type=task_type,
-        retrieval_query=retrieval_query,
+        retrieval_query=bounded_fallback_retrieval_query(retrieval_query, target_terms),
         document_scope=document_scope,
         target_terms=list(target_terms or [])[:8],
         case_reference=case_reference,
@@ -226,8 +260,12 @@ def guard_plan(
         intent=proposed.intent,
         task_type=task_type,
         retrieval_query=proposed.retrieval_query,
+        retrieval_queries=list(dict.fromkeys(q.strip() for q in proposed.retrieval_queries if q.strip()))[:3],
         document_scope=proposed.document_scope,
         target_terms=proposed.target_terms,
+        search_targets=proposed.search_targets,
+        answer_goals=proposed.answer_goals or proposed.answer_aspects,
+        answer_aspects=proposed.answer_aspects,
         case_reference=case_reference,
         case_filters=proposed.case_filters,
         product_overview=proposed.product_overview,

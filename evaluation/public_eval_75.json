@@ -1,0 +1,1626 @@
+{
+  "version": "public_development_collection_75_v1",
+  "case_count": 75,
+  "groups": {
+    "regression_30": [
+      {
+        "id": "retrieval_001",
+        "category": "retrieval",
+        "question": "地球近地面大气中氮气占多少？",
+        "files": [
+          "earth.pdf",
+          "flexible_working.docx"
+        ],
+        "gold_provenance": "project_authored_source_grounded_not_official_QA",
+        "gold": [
+          {
+            "file": "earth.pdf",
+            "document_id": "doc-490df77963cc8ff1",
+            "canonical_chunk_id": "evidence:1",
+            "anchors": [
+              "78 percent",
+              "nitrogen"
+            ],
+            "stable_id": "doc-490df77963cc8ff1/evidence:1"
+          },
+          {
+            "file": "earth.pdf",
+            "document_id": "doc-490df77963cc8ff1",
+            "canonical_chunk_id": "table-1:1",
+            "anchors": [
+              "78 percent",
+              "nitrogen"
+            ],
+            "stable_id": "doc-490df77963cc8ff1/table-1:1"
+          },
+          {
+            "file": "earth.pdf",
+            "document_id": "doc-490df77963cc8ff1",
+            "canonical_chunk_id": "table-2:1",
+            "anchors": [
+              "78 percent",
+              "nitrogen"
+            ],
+            "stable_id": "doc-490df77963cc8ff1/table-2:1"
+          }
+        ]
+      },
+      {
+        "id": "retrieval_002",
+        "category": "retrieval",
+        "question": "What is the average depth of the global ocean?",
+        "files": [
+          "earth.pdf",
+          "numeric.csv"
+        ],
+        "gold_provenance": "project_authored_source_grounded_not_official_QA",
+        "gold": [
+          {
+            "file": "earth.pdf",
+            "document_id": "doc-490df77963cc8ff1",
+            "canonical_chunk_id": "evidence:1",
+            "anchors": [
+              "4 kilometers"
+            ],
+            "stable_id": "doc-490df77963cc8ff1/evidence:1"
+          },
+          {
+            "file": "earth.pdf",
+            "document_id": "doc-490df77963cc8ff1",
+            "canonical_chunk_id": "table-1:1",
+            "anchors": [
+              "4 kilometers"
+            ],
+            "stable_id": "doc-490df77963cc8ff1/table-1:1"
+          },
+          {
+            "file": "earth.pdf",
+            "document_id": "doc-490df77963cc8ff1",
+            "canonical_chunk_id": "table-2:1",
+            "anchors": [
+              "4 kilometers"
+            ],
+            "stable_id": "doc-490df77963cc8ff1/table-2:1"
+          }
+        ]
+      },
+      {
+        "id": "retrieval_003",
+        "category": "retrieval",
+        "question": "地球的公转周期是多少天？",
+        "files": [
+          "earth.pdf",
+          "sample_spec.xlsx"
+        ],
+        "gold_provenance": "project_authored_source_grounded_not_official_QA",
+        "gold": [
+          {
+            "file": "earth.pdf",
+            "document_id": "doc-490df77963cc8ff1",
+            "canonical_chunk_id": "evidence:1",
+            "anchors": [
+              "365.26 days"
+            ],
+            "stable_id": "doc-490df77963cc8ff1/evidence:1"
+          },
+          {
+            "file": "earth.pdf",
+            "document_id": "doc-490df77963cc8ff1",
+            "canonical_chunk_id": "table-1:1",
+            "anchors": [
+              "365.26 days"
+            ],
+            "stable_id": "doc-490df77963cc8ff1/table-1:1"
+          },
+          {
+            "file": "earth.pdf",
+            "document_id": "doc-490df77963cc8ff1",
+            "canonical_chunk_id": "table-2:1",
+            "anchors": [
+              "365.26 days"
+            ],
+            "stable_id": "doc-490df77963cc8ff1/table-2:1"
+          }
+        ]
+      },
+      {
+        "id": "retrieval_004",
+        "category": "retrieval",
+        "question": "这份申请表用于申请什么工作安排？",
+        "files": [
+          "flexible_working.docx",
+          "earth.pdf"
+        ],
+        "gold_provenance": "project_authored_source_grounded_not_official_QA",
+        "gold": [
+          {
+            "file": "flexible_working.docx",
+            "document_id": "doc-055fe6227daa62d6",
+            "canonical_chunk_id": "evidence:1",
+            "anchors": [
+              "Flexible working application form"
+            ],
+            "stable_id": "doc-055fe6227daa62d6/evidence:1"
+          }
+        ]
+      },
+      {
+        "id": "retrieval_005",
+        "category": "retrieval",
+        "question": "What should the employee read before completing the flexible working form?",
+        "files": [
+          "flexible_working.docx",
+          "IndoorPanel.txt"
+        ],
+        "gold_provenance": "project_authored_source_grounded_not_official_QA",
+        "gold": [
+          {
+            "file": "flexible_working.docx",
+            "document_id": "doc-055fe6227daa62d6",
+            "canonical_chunk_id": "evidence:1",
+            "anchors": [
+              "Before completing this form",
+              "guidance"
+            ],
+            "stable_id": "doc-055fe6227daa62d6/evidence:1"
+          }
+        ]
+      },
+      {
+        "id": "retrieval_006",
+        "category": "retrieval",
+        "question": "How many hours does Earth take to rotate?",
+        "files": [
+          "earth_facts.html",
+          "numeric.csv"
+        ],
+        "gold_provenance": "project_authored_source_grounded_not_official_QA",
+        "gold": [
+          {
+            "file": "earth_facts.html",
+            "document_id": "doc-7059a8f0b7ca121a",
+            "canonical_chunk_id": "evidence:3",
+            "anchors": [
+              "23.9 hours"
+            ],
+            "stable_id": "doc-7059a8f0b7ca121a/evidence:3"
+          }
+        ]
+      },
+      {
+        "id": "retrieval_007",
+        "category": "retrieval",
+        "question": "地球是距离太阳第几颗行星？",
+        "files": [
+          "earth_facts.html",
+          "sample_checklist.docx"
+        ],
+        "gold_provenance": "project_authored_source_grounded_not_official_QA",
+        "gold": [
+          {
+            "file": "earth_facts.html",
+            "document_id": "doc-7059a8f0b7ca121a",
+            "canonical_chunk_id": "evidence:3",
+            "anchors": [
+              "third planet"
+            ],
+            "stable_id": "doc-7059a8f0b7ca121a/evidence:3"
+          },
+          {
+            "file": "earth_facts.html",
+            "document_id": "doc-7059a8f0b7ca121a",
+            "canonical_chunk_id": "evidence:4",
+            "anchors": [
+              "third planet"
+            ],
+            "stable_id": "doc-7059a8f0b7ca121a/evidence:4"
+          }
+        ]
+      },
+      {
+        "id": "retrieval_008",
+        "category": "retrieval",
+        "question": "Data - population Scotland 1992 total population",
+        "files": [
+          "FIRE0101.xlsx",
+          "numeric.csv"
+        ],
+        "gold_provenance": "project_authored_source_grounded_not_official_QA",
+        "gold": [
+          {
+            "file": "FIRE0101.xlsx",
+            "document_id": "doc-d6fbd83d0244a2fa",
+            "canonical_chunk_id": "table-4:2",
+            "anchors": [
+              "1992",
+              "Scotland",
+              "5085600"
+            ],
+            "stable_id": "doc-d6fbd83d0244a2fa/table-4:2"
+          }
+        ]
+      },
+      {
+        "id": "retrieval_009",
+        "category": "retrieval",
+        "question": "What thickness is specified in the synthetic Word checklist?",
+        "files": [
+          "sample_checklist.docx",
+          "numeric.csv"
+        ],
+        "gold_provenance": "project_authored_source_grounded_not_official_QA",
+        "gold": [
+          {
+            "file": "sample_checklist.docx",
+            "document_id": "doc-9463887c81766699",
+            "canonical_chunk_id": "table-1:1",
+            "anchors": [
+              "Thickness",
+              "20 mm"
+            ],
+            "stable_id": "doc-9463887c81766699/table-1:1"
+          }
+        ]
+      },
+      {
+        "id": "retrieval_010",
+        "category": "retrieval",
+        "question": "Current工作表DemoPanel-X的厚度是多少？",
+        "files": [
+          "sample_spec.xlsx",
+          "numeric.csv"
+        ],
+        "gold_provenance": "project_authored_source_grounded_not_official_QA",
+        "gold": [
+          {
+            "file": "sample_spec.xlsx",
+            "document_id": "doc-072944edc7ef8992",
+            "canonical_chunk_id": "table-1:1",
+            "anchors": [
+              "sheet=Current",
+              "20"
+            ],
+            "stable_id": "doc-072944edc7ef8992/table-1:1"
+          }
+        ]
+      },
+      {
+        "id": "retrieval_011",
+        "category": "retrieval",
+        "question": "Other source sheet DemoPanel-X thickness",
+        "files": [
+          "sample_spec.xlsx",
+          "sample_checklist.docx"
+        ],
+        "gold_provenance": "project_authored_source_grounded_not_official_QA",
+        "gold": [
+          {
+            "file": "sample_spec.xlsx",
+            "document_id": "doc-072944edc7ef8992",
+            "canonical_chunk_id": "table-2:1",
+            "anchors": [
+              "sheet=Other source",
+              "18"
+            ],
+            "stable_id": "doc-072944edc7ef8992/table-2:1"
+          }
+        ]
+      },
+      {
+        "id": "retrieval_012",
+        "category": "retrieval",
+        "question": "RainPanel的安装限制是什么？",
+        "files": [
+          "RainPanel.txt",
+          "numeric.csv"
+        ],
+        "gold_provenance": "project_authored_source_grounded_not_official_QA",
+        "gold": [
+          {
+            "file": "RainPanel.txt",
+            "document_id": "doc-88068298dedfcb7c",
+            "canonical_chunk_id": "evidence:1",
+            "anchors": [
+              "RainPanel installation: rain must not install; dry substrate required."
+            ],
+            "stable_id": "doc-88068298dedfcb7c/evidence:1"
+          },
+          {
+            "file": "RainPanel.txt",
+            "document_id": "doc-88068298dedfcb7c",
+            "canonical_chunk_id": "table-1:1",
+            "anchors": [
+              "RainPanel installation: rain must not install; dry substrate required."
+            ],
+            "stable_id": "doc-88068298dedfcb7c/table-1:1"
+          }
+        ]
+      },
+      {
+        "id": "retrieval_013",
+        "category": "retrieval",
+        "question": "AnchorPanel的安装限制是什么？",
+        "files": [
+          "AnchorPanel.txt",
+          "numeric.csv"
+        ],
+        "gold_provenance": "project_authored_source_grounded_not_official_QA",
+        "gold": [
+          {
+            "file": "AnchorPanel.txt",
+            "document_id": "doc-b3507fd3420357ea",
+            "canonical_chunk_id": "evidence:1",
+            "anchors": [
+              "AnchorPanel fixing: only approved anchors; plastic fasteners must not be used."
+            ],
+            "stable_id": "doc-b3507fd3420357ea/evidence:1"
+          },
+          {
+            "file": "AnchorPanel.txt",
+            "document_id": "doc-b3507fd3420357ea",
+            "canonical_chunk_id": "table-1:1",
+            "anchors": [
+              "AnchorPanel fixing: only approved anchors; plastic fasteners must not be used."
+            ],
+            "stable_id": "doc-b3507fd3420357ea/table-1:1"
+          }
+        ]
+      },
+      {
+        "id": "retrieval_014",
+        "category": "retrieval",
+        "question": "ColdPanel的安装限制是什么？",
+        "files": [
+          "ColdPanel.txt",
+          "numeric.csv"
+        ],
+        "gold_provenance": "project_authored_source_grounded_not_official_QA",
+        "gold": [
+          {
+            "file": "ColdPanel.txt",
+            "document_id": "doc-6c4a86889b94bd33",
+            "canonical_chunk_id": "evidence:1",
+            "anchors": [
+              "ColdPanel施工：低于5℃不得施工；基层必须干燥。"
+            ],
+            "stable_id": "doc-6c4a86889b94bd33/evidence:1"
+          },
+          {
+            "file": "ColdPanel.txt",
+            "document_id": "doc-6c4a86889b94bd33",
+            "canonical_chunk_id": "table-1:1",
+            "anchors": [
+              "ColdPanel施工：低于5℃不得施工；基层必须干燥。"
+            ],
+            "stable_id": "doc-6c4a86889b94bd33/table-1:1"
+          }
+        ]
+      },
+      {
+        "id": "retrieval_015",
+        "category": "retrieval",
+        "question": "IndoorPanel的安装限制是什么？",
+        "files": [
+          "IndoorPanel.txt",
+          "numeric.csv"
+        ],
+        "gold_provenance": "project_authored_source_grounded_not_official_QA",
+        "gold": [
+          {
+            "file": "IndoorPanel.txt",
+            "document_id": "doc-16f9e72ca7e8d5fc",
+            "canonical_chunk_id": "evidence:1",
+            "anchors": [
+              "IndoorPanel: only indoor use; must not use on exterior walls."
+            ],
+            "stable_id": "doc-16f9e72ca7e8d5fc/evidence:1"
+          },
+          {
+            "file": "IndoorPanel.txt",
+            "document_id": "doc-16f9e72ca7e8d5fc",
+            "canonical_chunk_id": "table-1:1",
+            "anchors": [
+              "IndoorPanel: only indoor use; must not use on exterior walls."
+            ],
+            "stable_id": "doc-16f9e72ca7e8d5fc/table-1:1"
+          }
+        ]
+      },
+      {
+        "id": "numeric_001",
+        "category": "numeric",
+        "question": "BeamY 2025 thickness value and unit",
+        "files": [
+          "numeric.csv",
+          "sample_spec.xlsx"
+        ],
+        "gold_provenance": "project_authored_source_grounded_not_official_QA",
+        "gold": [
+          {
+            "file": "numeric.csv",
+            "document_id": "doc-ebbc6df3e8153578",
+            "canonical_chunk_id": "table-1:1",
+            "anchors": [
+              "BeamY",
+              "12",
+              "mm",
+              "2025"
+            ],
+            "stable_id": "doc-ebbc6df3e8153578/table-1:1"
+          }
+        ],
+        "expected_values": [
+          "12",
+          "mm"
+        ],
+        "target_terms": [
+          "BeamY",
+          "2025"
+        ]
+      },
+      {
+        "id": "numeric_002",
+        "category": "numeric",
+        "question": "MeshZ 2024 weight value and unit",
+        "files": [
+          "numeric.csv",
+          "sample_spec.xlsx"
+        ],
+        "gold_provenance": "project_authored_source_grounded_not_official_QA",
+        "gold": [
+          {
+            "file": "numeric.csv",
+            "document_id": "doc-ebbc6df3e8153578",
+            "canonical_chunk_id": "table-1:1",
+            "anchors": [
+              "MeshZ",
+              "7",
+              "kg",
+              "2024"
+            ],
+            "stable_id": "doc-ebbc6df3e8153578/table-1:1"
+          }
+        ],
+        "expected_values": [
+          "7",
+          "kg"
+        ],
+        "target_terms": [
+          "MeshZ",
+          "2024"
+        ]
+      },
+      {
+        "id": "numeric_003",
+        "category": "numeric",
+        "question": "TrimK 2023 length value and unit",
+        "files": [
+          "numeric.csv",
+          "sample_spec.xlsx"
+        ],
+        "gold_provenance": "project_authored_source_grounded_not_official_QA",
+        "gold": [
+          {
+            "file": "numeric.csv",
+            "document_id": "doc-ebbc6df3e8153578",
+            "canonical_chunk_id": "table-1:1",
+            "anchors": [
+              "TrimK",
+              "3",
+              "m",
+              "2023"
+            ],
+            "stable_id": "doc-ebbc6df3e8153578/table-1:1"
+          }
+        ],
+        "expected_values": [
+          "3",
+          "m"
+        ],
+        "target_terms": [
+          "TrimK",
+          "2023"
+        ]
+      },
+      {
+        "id": "numeric_004",
+        "category": "numeric",
+        "question": "JointM 2022 width value and unit",
+        "files": [
+          "numeric.csv",
+          "sample_spec.xlsx"
+        ],
+        "gold_provenance": "project_authored_source_grounded_not_official_QA",
+        "gold": [
+          {
+            "file": "numeric.csv",
+            "document_id": "doc-ebbc6df3e8153578",
+            "canonical_chunk_id": "table-1:1",
+            "anchors": [
+              "JointM",
+              "6",
+              "mm",
+              "2022"
+            ],
+            "stable_id": "doc-ebbc6df3e8153578/table-1:1"
+          }
+        ],
+        "expected_values": [
+          "6",
+          "mm"
+        ],
+        "target_terms": [
+          "JointM",
+          "2022"
+        ]
+      },
+      {
+        "id": "numeric_005",
+        "category": "numeric",
+        "question": "CoatN 2021 cost value and unit",
+        "files": [
+          "numeric.csv",
+          "sample_spec.xlsx"
+        ],
+        "gold_provenance": "project_authored_source_grounded_not_official_QA",
+        "gold": [
+          {
+            "file": "numeric.csv",
+            "document_id": "doc-ebbc6df3e8153578",
+            "canonical_chunk_id": "table-1:1",
+            "anchors": [
+              "CoatN",
+              "80",
+              "元",
+              "2021"
+            ],
+            "stable_id": "doc-ebbc6df3e8153578/table-1:1"
+          }
+        ],
+        "expected_values": [
+          "80",
+          "元"
+        ],
+        "target_terms": [
+          "CoatN",
+          "2021"
+        ]
+      },
+      {
+        "id": "conflict_001",
+        "category": "conflict",
+        "question": "Conflict1 thickness是否一致？",
+        "files": [],
+        "gold_provenance": "project_authored_source_grounded_not_official_QA",
+        "gold": [],
+        "evidence": [
+          {
+            "evidence_id": "U_conflict_0_a",
+            "source_type": "customer_document",
+            "text": "Conflict1 thickness: 18mm"
+          },
+          {
+            "evidence_id": "T_conflict_0_b",
+            "source_type": "company_rag",
+            "text": "Conflict1 thickness: 20mm"
+          }
+        ],
+        "required_ids": [
+          "U_conflict_0_a",
+          "T_conflict_0_b"
+        ],
+        "expected_values": [
+          "18mm",
+          "20mm"
+        ],
+        "expected_conflict": true,
+        "same_source_type": false,
+        "packed_token_budget": 650
+      },
+      {
+        "id": "conflict_002",
+        "category": "conflict",
+        "question": "Conflict2 length是否一致？",
+        "files": [],
+        "gold_provenance": "project_authored_source_grounded_not_official_QA",
+        "gold": [],
+        "evidence": [
+          {
+            "evidence_id": "U_conflict_1_a",
+            "source_type": "customer_document",
+            "text": "Conflict2 length: 3m"
+          },
+          {
+            "evidence_id": "T_conflict_1_b",
+            "source_type": "company_rag",
+            "text": "Conflict2 length: 4m"
+          }
+        ],
+        "required_ids": [
+          "U_conflict_1_a",
+          "T_conflict_1_b"
+        ],
+        "expected_values": [
+          "3m",
+          "4m"
+        ],
+        "expected_conflict": true,
+        "same_source_type": false,
+        "packed_token_budget": 650
+      },
+      {
+        "id": "conflict_003",
+        "category": "conflict",
+        "question": "Conflict3 weight是否一致？",
+        "files": [],
+        "gold_provenance": "project_authored_source_grounded_not_official_QA",
+        "gold": [],
+        "evidence": [
+          {
+            "evidence_id": "U_conflict_2_a",
+            "source_type": "customer_document",
+            "text": "Conflict3 weight: 7kg"
+          },
+          {
+            "evidence_id": "T_conflict_2_b",
+            "source_type": "company_rag",
+            "text": "Conflict3 weight: 9kg"
+          }
+        ],
+        "required_ids": [
+          "U_conflict_2_a",
+          "T_conflict_2_b"
+        ],
+        "expected_values": [
+          "7kg",
+          "9kg"
+        ],
+        "expected_conflict": true,
+        "same_source_type": false,
+        "packed_token_budget": 650
+      },
+      {
+        "id": "conflict_004",
+        "category": "conflict",
+        "question": "Conflict4 width是否一致？",
+        "files": [],
+        "gold_provenance": "project_authored_source_grounded_not_official_QA",
+        "gold": [],
+        "evidence": [
+          {
+            "evidence_id": "U_conflict_3_a",
+            "source_type": "customer_document",
+            "text": "Conflict4 width: 6mm"
+          },
+          {
+            "evidence_id": "U_conflict_3_b",
+            "source_type": "customer_document",
+            "text": "Conflict4 width: 8mm"
+          }
+        ],
+        "required_ids": [
+          "U_conflict_3_a",
+          "U_conflict_3_b"
+        ],
+        "expected_values": [
+          "6mm",
+          "8mm"
+        ],
+        "expected_conflict": true,
+        "same_source_type": true,
+        "packed_token_budget": 650
+      },
+      {
+        "id": "conflict_005",
+        "category": "conflict",
+        "question": "Conflict5 cost是否一致？",
+        "files": [],
+        "gold_provenance": "project_authored_source_grounded_not_official_QA",
+        "gold": [],
+        "evidence": [
+          {
+            "evidence_id": "U_conflict_4_a",
+            "source_type": "customer_document",
+            "text": "Conflict5 cost: 80元"
+          },
+          {
+            "evidence_id": "U_conflict_4_b",
+            "source_type": "customer_document",
+            "text": "Conflict5 cost: 90元"
+          }
+        ],
+        "required_ids": [
+          "U_conflict_4_a",
+          "U_conflict_4_b"
+        ],
+        "expected_values": [
+          "80元",
+          "90元"
+        ],
+        "expected_conflict": true,
+        "same_source_type": true,
+        "packed_token_budget": 650
+      },
+      {
+        "id": "context_001",
+        "category": "context",
+        "question": "RainPanel的使用限制和前提是什么？",
+        "files": [
+          "RainPanel.txt",
+          "numeric.csv"
+        ],
+        "gold_provenance": "project_authored_source_grounded_not_official_QA",
+        "gold": [
+          {
+            "file": "RainPanel.txt",
+            "document_id": "doc-88068298dedfcb7c",
+            "canonical_chunk_id": "evidence:1",
+            "anchors": [
+              "RainPanel installation: rain must not install; dry substrate required."
+            ],
+            "stable_id": "doc-88068298dedfcb7c/evidence:1"
+          },
+          {
+            "file": "RainPanel.txt",
+            "document_id": "doc-88068298dedfcb7c",
+            "canonical_chunk_id": "table-1:1",
+            "anchors": [
+              "RainPanel installation: rain must not install; dry substrate required."
+            ],
+            "stable_id": "doc-88068298dedfcb7c/table-1:1"
+          }
+        ],
+        "protected_text": [
+          "RainPanel installation: rain must not install; dry substrate required."
+        ],
+        "target_terms": [
+          "RainPanel"
+        ],
+        "expected_relation": "condition"
+      },
+      {
+        "id": "context_002",
+        "category": "context",
+        "question": "AnchorPanel的使用限制和前提是什么？",
+        "files": [
+          "AnchorPanel.txt",
+          "numeric.csv"
+        ],
+        "gold_provenance": "project_authored_source_grounded_not_official_QA",
+        "gold": [
+          {
+            "file": "AnchorPanel.txt",
+            "document_id": "doc-b3507fd3420357ea",
+            "canonical_chunk_id": "evidence:1",
+            "anchors": [
+              "AnchorPanel fixing: only approved anchors; plastic fasteners must not be used."
+            ],
+            "stable_id": "doc-b3507fd3420357ea/evidence:1"
+          },
+          {
+            "file": "AnchorPanel.txt",
+            "document_id": "doc-b3507fd3420357ea",
+            "canonical_chunk_id": "table-1:1",
+            "anchors": [
+              "AnchorPanel fixing: only approved anchors; plastic fasteners must not be used."
+            ],
+            "stable_id": "doc-b3507fd3420357ea/table-1:1"
+          }
+        ],
+        "protected_text": [
+          "AnchorPanel fixing: only approved anchors; plastic fasteners must not be used."
+        ],
+        "target_terms": [
+          "AnchorPanel"
+        ],
+        "expected_relation": "condition"
+      },
+      {
+        "id": "context_003",
+        "category": "context",
+        "question": "ColdPanel的使用限制和前提是什么？",
+        "files": [
+          "ColdPanel.txt",
+          "numeric.csv"
+        ],
+        "gold_provenance": "project_authored_source_grounded_not_official_QA",
+        "gold": [
+          {
+            "file": "ColdPanel.txt",
+            "document_id": "doc-6c4a86889b94bd33",
+            "canonical_chunk_id": "evidence:1",
+            "anchors": [
+              "ColdPanel施工：低于5℃不得施工；基层必须干燥。"
+            ],
+            "stable_id": "doc-6c4a86889b94bd33/evidence:1"
+          },
+          {
+            "file": "ColdPanel.txt",
+            "document_id": "doc-6c4a86889b94bd33",
+            "canonical_chunk_id": "table-1:1",
+            "anchors": [
+              "ColdPanel施工：低于5℃不得施工；基层必须干燥。"
+            ],
+            "stable_id": "doc-6c4a86889b94bd33/table-1:1"
+          }
+        ],
+        "protected_text": [
+          "ColdPanel施工：低于5℃不得施工；基层必须干燥。"
+        ],
+        "target_terms": [
+          "ColdPanel"
+        ],
+        "expected_relation": "condition"
+      },
+      {
+        "id": "context_004",
+        "category": "context",
+        "question": "IndoorPanel的使用限制和前提是什么？",
+        "files": [
+          "IndoorPanel.txt",
+          "numeric.csv"
+        ],
+        "gold_provenance": "project_authored_source_grounded_not_official_QA",
+        "gold": [
+          {
+            "file": "IndoorPanel.txt",
+            "document_id": "doc-16f9e72ca7e8d5fc",
+            "canonical_chunk_id": "evidence:1",
+            "anchors": [
+              "IndoorPanel: only indoor use; must not use on exterior walls."
+            ],
+            "stable_id": "doc-16f9e72ca7e8d5fc/evidence:1"
+          },
+          {
+            "file": "IndoorPanel.txt",
+            "document_id": "doc-16f9e72ca7e8d5fc",
+            "canonical_chunk_id": "table-1:1",
+            "anchors": [
+              "IndoorPanel: only indoor use; must not use on exterior walls."
+            ],
+            "stable_id": "doc-16f9e72ca7e8d5fc/table-1:1"
+          }
+        ],
+        "protected_text": [
+          "IndoorPanel: only indoor use; must not use on exterior walls."
+        ],
+        "target_terms": [
+          "IndoorPanel"
+        ],
+        "expected_relation": "condition"
+      },
+      {
+        "id": "context_005",
+        "category": "context",
+        "question": "CurePanel的使用限制和前提是什么？",
+        "files": [
+          "CurePanel.txt",
+          "numeric.csv"
+        ],
+        "gold_provenance": "project_authored_source_grounded_not_official_QA",
+        "gold": [
+          {
+            "file": "CurePanel.txt",
+            "document_id": "doc-9fe8abf097a43bb0",
+            "canonical_chunk_id": "evidence:1",
+            "anchors": [
+              "CurePanel养护：必须等待24小时；养护完成前不得加载。"
+            ],
+            "stable_id": "doc-9fe8abf097a43bb0/evidence:1"
+          },
+          {
+            "file": "CurePanel.txt",
+            "document_id": "doc-9fe8abf097a43bb0",
+            "canonical_chunk_id": "table-1:1",
+            "anchors": [
+              "CurePanel养护：必须等待24小时；养护完成前不得加载。"
+            ],
+            "stable_id": "doc-9fe8abf097a43bb0/table-1:1"
+          }
+        ],
+        "protected_text": [
+          "CurePanel养护：必须等待24小时；养护完成前不得加载。"
+        ],
+        "target_terms": [
+          "CurePanel"
+        ],
+        "expected_relation": "condition"
+      }
+    ],
+    "fresh_english_30": [
+      {
+        "id": "fresh_en_001",
+        "file": "ofgem_data_dictionary.pdf",
+        "question": "In what file format must the declaration notification be submitted?",
+        "expected_answer": ".csv",
+        "anchors": [
+          "file is submitted",
+          ".csv"
+        ],
+        "native_locator": {
+          "page": 2
+        },
+        "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+      },
+      {
+        "id": "fresh_en_002",
+        "file": "ofgem_data_dictionary.pdf",
+        "question": "What does the first section of the LA unique reference number represent?",
+        "expected_answer": "The 9-digit ONS code assigned to the local authority.",
+        "anchors": [
+          "9-digit",
+          "Statistics (ONS)",
+          "assigned"
+        ],
+        "native_locator": {
+          "page": 3
+        },
+        "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+      },
+      {
+        "id": "fresh_en_003",
+        "file": "ofgem_data_dictionary.pdf",
+        "question": "How many digits must an ECO4 Flex Route 4 application number contain?",
+        "expected_answer": "5 digits",
+        "anchors": [
+          "unique 5-digit",
+          "application"
+        ],
+        "native_locator": {
+          "page": 6
+        },
+        "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+      },
+      {
+        "id": "fresh_en_004",
+        "file": "ofgem_third_party_facts.pdf",
+        "question": "Does an ECO4 or GBIS Flex third-party referral guarantee that measures will be installed?",
+        "expected_answer": "No.",
+        "anchors": [
+          "does not guarantee",
+          "measures will be installed"
+        ],
+        "native_locator": {
+          "page": 2
+        },
+        "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+      },
+      {
+        "id": "fresh_en_005",
+        "file": "ofgem_third_party_facts.pdf",
+        "question": "What signed document must Citizens Advice produce when referring a household struggling to pay energy bills?",
+        "expected_answer": "A signed referral letter to the local authority confirming the evidence of difficulty paying gas or electricity bills.",
+        "anchors": [
+          "signed referral letter",
+          "struggling to pay"
+        ],
+        "native_locator": {
+          "page": 2
+        },
+        "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+      },
+      {
+        "id": "fresh_en_006",
+        "file": "ofgem_third_party_facts.pdf",
+        "question": "For Flex Route 2 Proxy 3, is an NHS referral letter mandatory?",
+        "expected_answer": "No; alternative evidence such as hospital diagnosis letters or prescriptions can be used.",
+        "anchors": [
+          "NHS referral",
+          "not mandatory",
+          "alternative evidence"
+        ],
+        "native_locator": {
+          "page": 4
+        },
+        "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+      },
+      {
+        "id": "fresh_en_007",
+        "file": "gmfrs_information_box.pdf",
+        "question": "What colours should the lobby sector and fire sector folders be?",
+        "expected_answer": "Lobby: yellow; fire: red.",
+        "anchors": [
+          "yellow in colour",
+          "red in colour"
+        ],
+        "native_locator": {
+          "page": 3
+        },
+        "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+      },
+      {
+        "id": "fresh_en_008",
+        "file": "gmfrs_information_box.pdf",
+        "question": "How many copies of the Building Emergency Evacuation Plan should be kept in the secure information box?",
+        "expected_answer": "Three copies.",
+        "anchors": [
+          "Three copies of the Building Emergency Evacuation Plan"
+        ],
+        "native_locator": {
+          "page": 4
+        },
+        "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+      },
+      {
+        "id": "fresh_en_009",
+        "file": "gmfrs_information_box.pdf",
+        "question": "What is the minimum number of riser outlet keys recommended in the fire sector folder?",
+        "expected_answer": "At least 2, ideally 4.",
+        "anchors": [
+          "Riser Outlet Keys",
+          "ideally 4",
+          "least 2"
+        ],
+        "native_locator": {
+          "page": 11
+        },
+        "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+      },
+      {
+        "id": "fresh_en_010",
+        "file": "ofgem_statement_of_intent.docx",
+        "question": "On what date did GBIS Flex end according to this statement of intent template?",
+        "expected_answer": "31 March 2026",
+        "anchors": [
+          "GBIS Flex",
+          "31 March 2026"
+        ],
+        "native_locator": {
+          "paragraph": 16
+        },
+        "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+      },
+      {
+        "id": "fresh_en_011",
+        "file": "ofgem_statement_of_intent.docx",
+        "question": "What information about qualifying schemes must be included for Route 2 Proxy 5?",
+        "expected_answer": "The names and a brief description of the relevant schemes.",
+        "anchors": [
+          "Proxy 5",
+          "names",
+          "brief description"
+        ],
+        "native_locator": {
+          "paragraph": 10
+        },
+        "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+      },
+      {
+        "id": "fresh_en_012",
+        "file": "ofgem_statement_of_intent.docx",
+        "question": "What legal obligation does ECO4 place on energy suppliers?",
+        "expected_answer": "Deliver energy efficiency measures to homes, including insulation and heating measures.",
+        "anchors": [
+          "legal obligations",
+          "energy suppliers",
+          "insulation",
+          "heating"
+        ],
+        "native_locator": {
+          "paragraph": 3
+        },
+        "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+      },
+      {
+        "id": "fresh_en_013",
+        "file": "ofgem_medical_referral.docx",
+        "question": "What age threshold is listed for older people vulnerable to cold under Route 2?",
+        "expected_answer": "65 years or older",
+        "anchors": [
+          "65",
+          "older"
+        ],
+        "native_locator": {
+          "paragraph": 19
+        },
+        "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+      },
+      {
+        "id": "fresh_en_014",
+        "file": "ofgem_medical_referral.docx",
+        "question": "From what kind of email address must a digital medical referral be sent?",
+        "expected_answer": "A valid NHS email address.",
+        "anchors": [
+          "valid NHS email address"
+        ],
+        "native_locator": {
+          "paragraph": 31
+        },
+        "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+      },
+      {
+        "id": "fresh_en_015",
+        "file": "ofgem_medical_referral.docx",
+        "question": "Where applicable, what stamp authenticates a printed medical referral letter?",
+        "expected_answer": "The GP surgery stamp.",
+        "anchors": [
+          "GP surgery stamp"
+        ],
+        "native_locator": {
+          "paragraph": 35
+        },
+        "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+      },
+      {
+        "id": "fresh_en_016",
+        "file": "ofgem_householder_application.docx",
+        "question": "What combined gross annual household income threshold applies to Route 1?",
+        "expected_answer": "Less than 31,000 pounds.",
+        "anchors": [
+          "gross annual",
+          "31,000"
+        ],
+        "native_locator": {
+          "paragraph": 24
+        },
+        "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+      },
+      {
+        "id": "fresh_en_017",
+        "file": "ofgem_householder_application.docx",
+        "question": "How many criteria must a household satisfy for Route 2?",
+        "expected_answer": "At least two.",
+        "anchors": [
+          "Route 2",
+          "at least two"
+        ],
+        "native_locator": {
+          "paragraph": 21
+        },
+        "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+      },
+      {
+        "id": "fresh_en_018",
+        "file": "ofgem_householder_application.docx",
+        "question": "Does completing this householder application form guarantee eligibility for the schemes?",
+        "expected_answer": "No; further assessments by the local authority and energy supplier are required.",
+        "anchors": [
+          "does not guarantee eligibility",
+          "energy supplier"
+        ],
+        "native_locator": {
+          "paragraph": 3
+        },
+        "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+      },
+      {
+        "id": "fresh_en_019",
+        "file": "canterbury_fire_risk.docx",
+        "question": "What test does the fire risk assessment ask about for landlord-supplied portable electrical appliances?",
+        "expected_answer": "Portable appliance testing (PAT).",
+        "anchors": [
+          "Landlord supplied portable appliances",
+          "PAT"
+        ],
+        "native_locator": {
+          "table": 5,
+          "row": 3
+        },
+        "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+      },
+      {
+        "id": "fresh_en_020",
+        "file": "canterbury_fire_risk.docx",
+        "question": "Which four groups of occupants are listed as being especially at risk from fire?",
+        "expected_answer": "Disabled occupants, children, elderly occupants and other vulnerable adults.",
+        "anchors": [
+          "Physically Disabled occupants",
+          "Children",
+          "Elderly",
+          "Other vulnerable adults"
+        ],
+        "native_locator": {
+          "table": 3
+        },
+        "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+      },
+      {
+        "id": "fresh_en_021",
+        "file": "canterbury_fire_risk.docx",
+        "question": "Which action-plan columns record the responsible person, deadline and completion sign-off?",
+        "expected_answer": "Who; When; Sign/date when completed.",
+        "anchors": [
+          "Who",
+          "When",
+          "Sign/date when completed"
+        ],
+        "native_locator": {
+          "table": 19,
+          "row": 0
+        },
+        "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+      },
+      {
+        "id": "fresh_en_022",
+        "file": "eia_electricity_prices.xlsx",
+        "question": "What was the Total Electric Industry residential electricity price in 2024?",
+        "expected_answer": "16.48 cents per kilowatthour",
+        "anchors": [
+          "16.48"
+        ],
+        "native_locator": {
+          "sheet": "epa_02_04",
+          "cell": "B15",
+          "value": 16.48,
+          "unit": "Cents per kilowatthour"
+        },
+        "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+      },
+      {
+        "id": "fresh_en_023",
+        "file": "eia_electricity_prices.xlsx",
+        "question": "What was the Competitive Service Providers industrial electricity price in 2024?",
+        "expected_answer": "9.84 cents per kilowatthour",
+        "anchors": [
+          "9.84"
+        ],
+        "native_locator": {
+          "sheet": "epa_02_04",
+          "cell": "D39",
+          "value": 9.84,
+          "unit": "Cents per kilowatthour"
+        },
+        "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+      },
+      {
+        "id": "fresh_en_024",
+        "file": "eia_electricity_prices.xlsx",
+        "question": "What was the Delivery-Only Providers transportation electricity price in 2024?",
+        "expected_answer": "4.43 cents per kilowatthour",
+        "anchors": [
+          "4.43"
+        ],
+        "native_locator": {
+          "sheet": "epa_02_04",
+          "cell": "E63",
+          "value": 4.43,
+          "unit": "Cents per kilowatthour"
+        },
+        "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+      },
+      {
+        "id": "fresh_en_025",
+        "file": "eia_industry_summary.xlsx",
+        "question": "What was total coal net generation across all sectors in 2024?",
+        "expected_answer": "652,156 thousand megawatthours",
+        "anchors": [
+          "652156"
+        ],
+        "native_locator": {
+          "sheet": "epa_01_01",
+          "cell": "C7",
+          "value": 652156,
+          "unit": "Thousand Megawatthours"
+        },
+        "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+      },
+      {
+        "id": "fresh_en_026",
+        "file": "eia_industry_summary.xlsx",
+        "question": "How much natural gas was consumed for electricity generation in 2024 across all sectors?",
+        "expected_answer": "13,754,749 thousand Mcf",
+        "anchors": [
+          "13754749"
+        ],
+        "native_locator": {
+          "sheet": "epa_01_01",
+          "cell": "C31",
+          "value": 13754749,
+          "unit": "Thousand Mcf"
+        },
+        "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+      },
+      {
+        "id": "fresh_en_027",
+        "file": "eia_industry_summary.xlsx",
+        "question": "What was residential electricity sales revenue in 2024?",
+        "expected_answer": "244,367 million dollars",
+        "anchors": [
+          "244367"
+        ],
+        "native_locator": {
+          "sheet": "epa_01_01",
+          "cell": "E48",
+          "value": 244367,
+          "unit": "Million Dollars"
+        },
+        "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+      },
+      {
+        "id": "fresh_en_028",
+        "file": "ofgem_declaration_template.xlsx",
+        "question": "Which Sheet1 column stores the property postcode?",
+        "expected_answer": "Column I, Post_Code.",
+        "anchors": [
+          "Post_Code"
+        ],
+        "native_locator": {
+          "sheet": "Sheet1",
+          "cell": "I1",
+          "value": "Post_Code"
+        },
+        "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+      },
+      {
+        "id": "fresh_en_029",
+        "file": "ofgem_declaration_template.xlsx",
+        "question": "Which Sheet1 field records the Route 4 application number?",
+        "expected_answer": "Column F, Route_4_Application_Number.",
+        "anchors": [
+          "Route_4_Application_Number"
+        ],
+        "native_locator": {
+          "sheet": "Sheet1",
+          "cell": "F1",
+          "value": "Route_4_Application_Number"
+        },
+        "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+      },
+      {
+        "id": "fresh_en_030",
+        "file": "ofgem_declaration_template.xlsx",
+        "question": "Which Sheet1 field records the statement of intent publication date?",
+        "expected_answer": "Column M, Date_Of_Statement_Of_Intent_Publication.",
+        "anchors": [
+          "Date_Of_Statement_Of_Intent_Publication"
+        ],
+        "native_locator": {
+          "sheet": "Sheet1",
+          "cell": "M1",
+          "value": "Date_Of_Statement_Of_Intent_Publication"
+        },
+        "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+      }
+    ],
+    "basic_extra_15": [
+      {
+        "id": "extra_numeric_01",
+        "category": "numeric",
+        "question": "What was nuclear net generation across all sectors in 2023?",
+        "file": "eia_industry_summary.xlsx",
+        "anchors": [
+          "774873"
+        ],
+        "row_label": "Nuclear",
+        "native_locator": {
+          "sheet": "epa_01_01",
+          "cell": "D12",
+          "value": 774873
+        },
+        "unit": "Thousand Megawatthours",
+        "unit_cell": "A6",
+        "provenance": "project_authored_native_cell_verified"
+      },
+      {
+        "id": "extra_numeric_02",
+        "category": "numeric",
+        "question": "What was wind net generation across all sectors in 2024?",
+        "file": "eia_industry_summary.xlsx",
+        "anchors": [
+          "451904"
+        ],
+        "row_label": "Wind",
+        "native_locator": {
+          "sheet": "epa_01_01",
+          "cell": "C15",
+          "value": 451904
+        },
+        "unit": "Thousand Megawatthours",
+        "unit_cell": "A6",
+        "provenance": "project_authored_native_cell_verified"
+      },
+      {
+        "id": "extra_numeric_03",
+        "category": "numeric",
+        "question": "What was estimated small scale solar photovoltaic generation across all sectors in 2024?",
+        "file": "eia_industry_summary.xlsx",
+        "anchors": [
+          "83918"
+        ],
+        "row_label": "Estimated Small Scale Solar Photovoltaic",
+        "native_locator": {
+          "sheet": "epa_01_01",
+          "cell": "C24",
+          "value": 83918
+        },
+        "unit": "Thousand Megawatthours",
+        "unit_cell": "A6",
+        "provenance": "project_authored_native_cell_verified"
+      },
+      {
+        "id": "extra_numeric_04",
+        "category": "numeric",
+        "question": "How much coal was consumed for electricity generation across all sectors in 2024?",
+        "file": "eia_industry_summary.xlsx",
+        "anchors": [
+          "372931"
+        ],
+        "row_label": "Coal",
+        "native_locator": {
+          "sheet": "epa_01_01",
+          "cell": "C28",
+          "value": 372931
+        },
+        "unit": "1000 tons",
+        "unit_cell": "A28",
+        "provenance": "project_authored_native_cell_verified"
+      },
+      {
+        "id": "extra_numeric_05",
+        "category": "numeric",
+        "question": "What were total sales of electricity to ultimate customers across all sectors in 2024?",
+        "file": "eia_industry_summary.xlsx",
+        "anchors": [
+          "3975382"
+        ],
+        "row_label": "All Sectors",
+        "native_locator": {
+          "sheet": "epa_01_01",
+          "cell": "B52",
+          "value": 3975382
+        },
+        "unit": "million kWh",
+        "unit_cell": "B46",
+        "provenance": "project_authored_native_cell_verified"
+      },
+      {
+        "id": "extra_condition_01",
+        "category": "condition",
+        "question": "Can criterion 1 be used together with criterion 3 in the householder application?",
+        "file": "ofgem_householder_application.docx",
+        "anchors": [
+          "criterion 1",
+          "cannot be used with",
+          "criterion 3"
+        ],
+        "native_locator": {
+          "paragraph": 27
+        },
+        "provenance": "project_authored_native_clause_verified"
+      },
+      {
+        "id": "extra_condition_02",
+        "category": "condition",
+        "question": "Which scheme is Route 4 applicable to, and is its scope restricted?",
+        "file": "ofgem_householder_application.docx",
+        "anchors": [
+          "Route 4",
+          "ECO4 Flex only"
+        ],
+        "native_locator": {
+          "paragraph": 65
+        },
+        "provenance": "project_authored_native_clause_verified"
+      },
+      {
+        "id": "extra_condition_03",
+        "category": "condition",
+        "question": "What approval is needed for a new household identification method before Route 4 can be used?",
+        "file": "ofgem_householder_application.docx",
+        "anchors": [
+          "To use Route 4",
+          "new method",
+          "approved by the Department for Energy Security and Net Zero"
+        ],
+        "native_locator": {
+          "paragraph": 67
+        },
+        "provenance": "project_authored_native_clause_verified"
+      },
+      {
+        "id": "extra_condition_04",
+        "category": "condition",
+        "question": "Under Route 2, what additional eligibility step supplements a medical referral for a reason other than low income?",
+        "file": "ofgem_medical_referral.docx",
+        "anchors": [
+          "Route 2",
+          "other than their low-income",
+          "supplemented by a second eligibility criteria by the local authority"
+        ],
+        "native_locator": {
+          "paragraph": 14
+        },
+        "provenance": "project_authored_native_clause_verified"
+      },
+      {
+        "id": "extra_condition_05",
+        "category": "condition",
+        "question": "What paper and referring organisation information are required for a printed medical referral?",
+        "file": "ofgem_medical_referral.docx",
+        "anchors": [
+          "Printed on headed paper",
+          "practice, clinic or hospital making the referral"
+        ],
+        "native_locator": {
+          "paragraph": 34
+        },
+        "provenance": "project_authored_native_clause_verified"
+      },
+      {
+        "id": "extra_conflict_01",
+        "category": "conflict",
+        "question": "Do the two sources agree on the thickness of MockTile-Q? Report both measurements.",
+        "entity": "MockTile-Q",
+        "metric": "thickness",
+        "values": [
+          "17",
+          "19"
+        ],
+        "unit": "mm",
+        "files": [
+          "MockTile-Q_source_a.txt",
+          "MockTile-Q_source_b.txt"
+        ],
+        "provenance": "project_authored_fictional_same_scope_disagreement_control"
+      },
+      {
+        "id": "extra_conflict_02",
+        "category": "conflict",
+        "question": "Do the two sources agree on the width of MockStrip-R? Report both measurements.",
+        "entity": "MockStrip-R",
+        "metric": "width",
+        "values": [
+          "80",
+          "85"
+        ],
+        "unit": "mm",
+        "files": [
+          "MockStrip-R_source_a.txt",
+          "MockStrip-R_source_b.txt"
+        ],
+        "provenance": "project_authored_fictional_same_scope_disagreement_control"
+      },
+      {
+        "id": "extra_conflict_03",
+        "category": "conflict",
+        "question": "Do the two sources agree on the length of MockBeam-S? Report both measurements.",
+        "entity": "MockBeam-S",
+        "metric": "length",
+        "values": [
+          "2.4",
+          "2.7"
+        ],
+        "unit": "m",
+        "files": [
+          "MockBeam-S_source_a.txt",
+          "MockBeam-S_source_b.txt"
+        ],
+        "provenance": "project_authored_fictional_same_scope_disagreement_control"
+      },
+      {
+        "id": "extra_conflict_04",
+        "category": "conflict",
+        "question": "Do the two sources agree on the weight of MockPanel-T? Report both measurements.",
+        "entity": "MockPanel-T",
+        "metric": "weight",
+        "values": [
+          "4.2",
+          "4.6"
+        ],
+        "unit": "kg",
+        "files": [
+          "MockPanel-T_source_a.txt",
+          "MockPanel-T_source_b.txt"
+        ],
+        "provenance": "project_authored_fictional_same_scope_disagreement_control"
+      },
+      {
+        "id": "extra_conflict_05",
+        "category": "conflict",
+        "question": "Do the two sources agree on the area of MockSheet-U? Report both measurements.",
+        "entity": "MockSheet-U",
+        "metric": "area",
+        "values": [
+          "1.2",
+          "1.4"
+        ],
+        "unit": "m2",
+        "files": [
+          "MockSheet-U_source_a.txt",
+          "MockSheet-U_source_b.txt"
+        ],
+        "provenance": "project_authored_fictional_same_scope_disagreement_control"
+      }
+    ]
+  }
+}

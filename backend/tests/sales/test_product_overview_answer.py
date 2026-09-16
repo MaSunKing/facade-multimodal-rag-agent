@@ -22,7 +22,7 @@ from backend.app import (
 from backend.sales.retriever import LocalRagRetriever, is_product_overview_query
 
 
-@unittest.skipUnless(os.getenv("RUN_ENTERPRISE_DATA_TESTS") == "1", "Requires separately authorised enterprise index and product profile; not included in public fixtures")
+@unittest.skipUnless(os.getenv("RUN_ENTERPRISE_DATA_TESTS") == "1", "Requires separately authorised enterprise index; not included in public fixtures")
 class ProductOverviewAnswerTests(unittest.TestCase):
     def test_company_product_discovery_phrasing_is_an_overview(self) -> None:
         questions = (

@@ -3,7 +3,9 @@
 
 def compact_visual_metadata(metadata, *, include_layout=False):
     metadata = dict(metadata or {})
-    clean={k:v for k,v in metadata.items() if not k.startswith('raster_')}
+    # Literal OCR is supplied separately as an explicitly unverified
+    # candidate. Repeating it inside the metadata repr wastes image budget.
+    clean={k:v for k,v in metadata.items() if not k.startswith('raster_') and k != 'ocr_literal_text'}
     if include_layout and metadata.get('raster_layout_groups'):
         layout=metadata['raster_layout_groups']
         clean['native_layout_hint']={'groups':layout['groups_left_to_right'],

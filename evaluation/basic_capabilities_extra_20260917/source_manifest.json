@@ -1,0 +1,67 @@
+[
+  {
+    "file": "eia_industry_summary.xlsx",
+    "sha256": "3a1cadef9d13e3031feeb3fc269502d9c20cfc3ef1bb53c736b12a7f97da3842",
+    "source_kind": "official_document_reused_new_fact"
+  },
+  {
+    "file": "MockBeam-S_source_a.txt",
+    "sha256": "1b64f3c53c4792ecab6281746157571f2b180015f8dfaf61861df01cc08e4ecd",
+    "source_kind": "synthetic"
+  },
+  {
+    "file": "MockBeam-S_source_b.txt",
+    "sha256": "a198546820fdca30c2763bea5dc9b6e3eb0390a34fd0e85fe8e98adfc3aaaeba",
+    "source_kind": "synthetic"
+  },
+  {
+    "file": "MockPanel-T_source_a.txt",
+    "sha256": "8e08ed2004dafbe6a9f88bfbd876d253e49154745058bfa309e039f8c7028ab0",
+    "source_kind": "synthetic"
+  },
+  {
+    "file": "MockPanel-T_source_b.txt",
+    "sha256": "e045f0ff7f05302f296e4fbed697b0e57674860123922c84ff7d193ae568a016",
+    "source_kind": "synthetic"
+  },
+  {
+    "file": "MockSheet-U_source_a.txt",
+    "sha256": "120149e6a6b7d0268755bbee4c13f9300b61f6ebb188dd30d7e0616d548a6c85",
+    "source_kind": "synthetic"
+  },
+  {
+    "file": "MockSheet-U_source_b.txt",
+    "sha256": "06fd842769f040b1cf98e946b2727d9662eb0af3e1827e3134fbca62f2204b63",
+    "source_kind": "synthetic"
+  },
+  {
+    "file": "MockStrip-R_source_a.txt",
+    "sha256": "ff8b227e1a47a1e486f156485f2e6d7a648b684479ca4491608b50e266a2b345",
+    "source_kind": "synthetic"
+  },
+  {
+    "file": "MockStrip-R_source_b.txt",
+    "sha256": "0b4c428f1acec937b6aa1f7b6188de0dd44d4043b598f52c91b3412abb003570",
+    "source_kind": "synthetic"
+  },
+  {
+    "file": "MockTile-Q_source_a.txt",
+    "sha256": "329c850e367940d530fded845140d8163690881ea6cb414c271aaf98cd3fef2f",
+    "source_kind": "synthetic"
+  },
+  {
+    "file": "MockTile-Q_source_b.txt",
+    "sha256": "e253b99783ea55f40d17498f2ef1f7b6fddd2d446c793b72e328cb77c4ab0622",
+    "source_kind": "synthetic"
+  },
+  {
+    "file": "ofgem_householder_application.docx",
+    "sha256": "b72741fd177ab4c028dc8a1edecf76d0f7090d43f4a2b25a50140b65163060ce",
+    "source_kind": "official_document_reused_new_fact"
+  },
+  {
+    "file": "ofgem_medical_referral.docx",
+    "sha256": "d47fa0e22c62163902f8bca768b2ab7d99526606603ce5dc6f1ec3782aa8fe27",
+    "source_kind": "official_document_reused_new_fact"
+  }
+]

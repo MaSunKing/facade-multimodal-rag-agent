@@ -1,0 +1,3 @@
+Synthetic evaluation data, not a real product specification.
+Measurement scope: same laboratory sample and same batch.
+MockBeam-S length: 2.7 m.

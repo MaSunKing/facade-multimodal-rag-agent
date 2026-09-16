@@ -1,0 +1,87 @@
+{
+  "dataset_sha256": "2e3f2c43ee41407a0518a9eb3355cd6902b8ae4939ffd9146b44c81c5390a0ea",
+  "canonical_snapshot_sha256": "83ee104ea3705c534981df31cc769623a32cd935a89e6eaf3e33f4d4d07cae91",
+  "files": {
+    "earth.pdf": {
+      "path": "assets/earth.pdf",
+      "sha256": "490df77963cc8ff14dfa5cb4f446fa033db99eecdef5e02fddf27d51c0c7aa1b",
+      "provenance": "official_public_source_previously_used_for_development",
+      "source_url": "https://www.jpl.nasa.gov/edu/pdfs/ss_earth.pdf",
+      "redistribution_license_verified": false
+    },
+    "flexible_working.docx": {
+      "path": "assets/flexible_working.docx",
+      "sha256": "055fe6227daa62d63d0764158214c9a7bdac55427b37cd27229118efa65bc673",
+      "provenance": "official_public_source_previously_used_for_development",
+      "source_url": "https://assets.publishing.service.gov.uk/media/65f1a247981227a772f6136e/request-flexible-working-docx-form.docx",
+      "redistribution_license_verified": false
+    },
+    "FIRE0101.xlsx": {
+      "path": "assets/FIRE0101.xlsx",
+      "sha256": "d6fbd83d0244a2faef3aeb07d1fe07a3ae7fe3093261053e5eaeb0f4300b1203",
+      "provenance": "official_public_source_previously_used_for_development",
+      "source_url": "https://assets.publishing.service.gov.uk/media/6a5092b52467584757371cc1/FIRE0101.xlsx",
+      "redistribution_license_verified": false
+    },
+    "earth_facts.html": {
+      "path": "assets/earth_facts.html",
+      "sha256": "7059a8f0b7ca121a9e905fd4b55dbcae7d27e53cf5a76b34aa4b272d4e9c3de8",
+      "provenance": "official_public_source_previously_used_for_development",
+      "source_url": "https://science.nasa.gov/earth/facts/",
+      "redistribution_license_verified": false
+    },
+    "sample_product.pdf": {
+      "path": "assets/sample_product.pdf",
+      "sha256": "a7c4c138c638579b02f8a3efdb643c71415f251b1aa78a4ba4e6c752ffd881f3",
+      "provenance": "project_authored_synthetic"
+    },
+    "sample_checklist.docx": {
+      "path": "assets/sample_checklist.docx",
+      "sha256": "9463887c8176669964473b4226bf375a869330131b7eae64dcf3c2371ec5dfdf",
+      "provenance": "project_authored_synthetic"
+    },
+    "sample_spec.xlsx": {
+      "path": "assets/sample_spec.xlsx",
+      "sha256": "072944edc7ef89926189c5ed4993af190f1a59cda9bcef68e8a6b27409ad6983",
+      "provenance": "project_authored_synthetic"
+    },
+    "sample_drawing.png": {
+      "path": "assets/sample_drawing.png",
+      "sha256": "c778cf1c04b58d60de2849d919d7d18738a1e8f58fd144b90dbad23e9b20cf13",
+      "provenance": "project_authored_synthetic"
+    },
+    "RainPanel.txt": {
+      "path": "assets/RainPanel.txt",
+      "sha256": "88068298dedfcb7c4f7eee22734dd6c18c862a705bbf0592933a9a3c9165a4f4",
+      "provenance": "project_authored_synthetic"
+    },
+    "AnchorPanel.txt": {
+      "path": "assets/AnchorPanel.txt",
+      "sha256": "b3507fd3420357ea255e60c03c534276b467bb5461dfce2d7332051b1cee380a",
+      "provenance": "project_authored_synthetic"
+    },
+    "ColdPanel.txt": {
+      "path": "assets/ColdPanel.txt",
+      "sha256": "6c4a86889b94bd3356a716f6387b1adcc42efe1cbd7f086207de28974a5e944a",
+      "provenance": "project_authored_synthetic"
+    },
+    "IndoorPanel.txt": {
+      "path": "assets/IndoorPanel.txt",
+      "sha256": "16f9e72ca7e8d5fc2af1dbc7a62028232b9b9face82eabef6fe12421dfb7e19d",
+      "provenance": "project_authored_synthetic"
+    },
+    "CurePanel.txt": {
+      "path": "assets/CurePanel.txt",
+      "sha256": "9fe8abf097a43bb0fd3e3b44d656f58982974b73f86f54dffd24bb76c77fe72b",
+      "provenance": "project_authored_synthetic"
+    },
+    "numeric.csv": {
+      "path": "assets/numeric.csv",
+      "sha256": "ebbc6df3e81535780460c4dea789d3d99d343523c8bf67ff7476c2790f0f8877",
+      "provenance": "project_authored_synthetic"
+    }
+  },
+  "offline_count": 30,
+  "generation_count": 10,
+  "sealed_holdout_accessed": false
+}

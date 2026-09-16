@@ -1,12 +1,14 @@
 # 评测协议
 
-公开版区分代码/接口校验与模型业务评测，不发布未经本版复核的历史准确率。
+公开版区分代码/接口校验、离线检索与输入保留、模型业务评测。已发布[75题开发回归集合](EVALUATION_RESULTS.md)，题目和逐题结果在[evaluation](../evaluation/README.md)。该集合不是密封测试，不发布一个混合总体答案准确率。
 
 ## 可复现的小规模校验
 
 - `scripts/verify_public_release.py`：语法、CPU回归；显式列出跳过/失败，不加载8B生成模型。
 - `scripts/public_smoke.py`：虚构PDF、Word、Excel、PNG；真实上传/健康/权限/原图/删除接口和解析结构。
 - `scripts/run_sales_rag_eval.py`：提供授权问题集后顺序评测，结果保存本地；公司问题和金标不包含在仓库中。
+- `scripts/verify_evaluation_results.py`：无需模型/下载，按75条已发布结果复核指标和标签对应。
+- `scripts/prepare_public_eval.py --download`与`rerun_public_eval_collection.py`：SHA固定的原生来源与虚构文件复现；新增运行不覆盖历史结果。
 
 测试mock隔离外部服务/模型；没有私有索引的业务数据回归显式跳过。可选OCR性能与真实生成不因CPU测试通过而自动合格。
 

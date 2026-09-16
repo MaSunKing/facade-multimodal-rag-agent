@@ -118,6 +118,11 @@ def choose_context_budget(
         output_tokens = 620
     if document_scope in {"cross_document", "whole_document"}:
         output_tokens += 90 * max(0, min(4, source_document_count) - 2)
+    aspects = list(_plan_value(plan, 'answer_aspects', []) or _plan_value(plan, 'answer_goals', []) or [])
+    if len(aspects) > 3:
+        # More requested dimensions need answer space, not additional images
+        # or larger source prompts. Remain bounded on the 16 GB GPU.
+        output_tokens = min(1040, max(output_tokens, 520 + 70 * len(aspects)))
     return ContextBudget(
         candidate_text_tokens=candidate_tokens,
         max_prompt_tokens=prompt_tokens,
@@ -206,6 +211,19 @@ def _structured_authority_bonus(item: dict[str, Any]) -> float:
     return 0.0
 
 
+def _target_anchor_present(target: str, text: str) -> bool:
+    """Normalised lexical anchor coverage; never used as semantic gold."""
+    from backend.sales.recovery_policy import normalise_anchor
+    if normalise_anchor(target) in normalise_anchor(text):
+        return True
+    terms = _terms(target)
+    # Word-separated English labels can appear across PDF line breaks. Han
+    # synonyms require semantic planning; do not equate arbitrary characters.
+    hits = terms & _terms(text)
+    return bool(terms and re.fullmatch(r'[\x00-\x7f]+', target)
+                and len(hits) >= max(1, math.ceil(len(terms)*2/3)))
+
+
 def optimise_evidence_context(
     question: str,
     evidence: Iterable[dict[str, Any]],
@@ -221,12 +239,18 @@ def optimise_evidence_context(
     """
 
     query_terms = _terms(question)
-    explicit_targets = [str(term).strip() for term in target_terms if str(term).strip()]
+    from backend.sales.recovery_policy import content_search_anchor
+    explicit_targets = list(dict.fromkeys(content_search_anchor(str(term)) for term in target_terms
+                                         if content_search_anchor(str(term))))
     source_ranks: dict[str, int] = {}
     candidates: list[dict[str, Any]] = []
+    navigation_ids: list[str] = []
     for ordinal, raw in enumerate(evidence, start=1):
         item = dict(raw)
         evidence_id = str(item.get("evidence_id") or f"E{ordinal}")
+        if item.get('evidence_role') == 'navigation' or item.get('evidence_scope') == 'document_index':
+            navigation_ids.append(evidence_id)
+            continue
         item["evidence_id"] = evidence_id
         source = _source_type(item)
         source_ranks[source] = source_ranks.get(source, 0) + 1
@@ -235,7 +259,7 @@ def optimise_evidence_context(
         text_terms = _terms(text)
         overlap = query_terms & text_terms
         relation_types = _protected_relations(item, query_terms)
-        exact_target_hits = sum(1 for term in explicit_targets if term.casefold() in text.casefold())
+        exact_target_hits = sum(1 for term in explicit_targets if _target_anchor_present(term, text))
         retrieval_aspect = str(item.get("retrieval_aspect") or "").strip()
         # Scaled reciprocal rank stays source-comparable without pretending
         # that heterogeneous raw retrieval scores share one probability scale.
@@ -247,6 +271,8 @@ def optimise_evidence_context(
             + (0.55 if retrieval_aspect and retrieval_aspect in explicit_targets else 0.0),
         )
         relation_bonus = min(0.35, len(relation_types) * 0.08)
+        semantic_goals = dict(item.get('goal_support_scores') or {})
+        semantic_goal_bonus = 4.0 * max(semantic_goals.values(), default=0.0)
         # Preserve explicit table/period constraints through the SECOND ranker;
         # otherwise lexical header noise can evict correctly retrieved rows.
         period_bonus = min(1.0, sum(0.5 for period in re.findall(r'\b\d{4}[/\-]\d{2,4}\b', question) if period in text))
@@ -260,6 +286,7 @@ def optimise_evidence_context(
                 "semantic_context_score": round(
                     rrf
                     + semantic_bonus
+                    + semantic_goal_bonus
                     + target_bonus
                     + relation_bonus
                     + period_bonus
@@ -282,13 +309,19 @@ def optimise_evidence_context(
     deduplicated: list[dict[str, Any]] = []
     seen_text: set[str] = set()
     removed_duplicates: list[str] = []
+    fingerprint_items: dict[str, dict] = {}
     for item in candidates:
         fingerprint = _normalised_text(str(item.get("text") or ""))
         if len(fingerprint) >= 32 and fingerprint in seen_text:
+            previous = fingerprint_items[fingerprint]
+            previous['retrieval_aspects'] = list(dict.fromkeys([
+                *previous.get('retrieval_aspects', []), *item.get('retrieval_aspects', []),
+                *([item['retrieval_aspect']] if item.get('retrieval_aspect') else [])]))
             removed_duplicates.append(str(item["evidence_id"]))
             continue
         if fingerprint:
             seen_text.add(fingerprint)
+            fingerprint_items[fingerprint] = item
         deduplicated.append(item)
 
     # Aspect recovery deliberately retrieves one small candidate set per
@@ -299,10 +332,11 @@ def optimise_evidence_context(
     aspect_representatives: list[dict[str, Any]] = []
     represented_aspects: set[str] = set()
     for item in deduplicated:
-        aspect = str(item.get("retrieval_aspect") or "").strip()
-        if not aspect or aspect in represented_aspects:
+        aspects = set(item.get('retrieval_aspects') or []) | {str(item.get("retrieval_aspect") or "").strip()}
+        aspects.discard('')
+        if not aspects - represented_aspects:
             continue
-        represented_aspects.add(aspect)
+        represented_aspects.update(aspects)
         aspect_representatives.append(item)
     if aspect_representatives:
         representative_ids = {str(item["evidence_id"]) for item in aspect_representatives}
@@ -311,21 +345,50 @@ def optimise_evidence_context(
             *(item for item in deduplicated if str(item["evidence_id"]) not in representative_ids),
         ]
 
-    # Conservatively group only exact metric+unit matches with differing
-    # values.  Group packing then retains all conflicting sources or none.
-    facts: dict[tuple[str, str], list[tuple[str, str]]] = {}
-    by_id = {str(item["evidence_id"]): item for item in deduplicated}
+    # Reserve a compact representative of each planned fact goal per source
+    # document. This is retrieval coverage, NOT proof that the answer is there.
+    # Publisher/navigation matches must not evict a metric-bearing window.
+    goal_representatives = []
+    seen_goal_ids = set()
+    semantic_goal_winners = {}
     for item in deduplicated:
-        for metric, value, unit in _fact_triples(str(item.get("text") or "")):
-            facts.setdefault((metric, unit), []).append((str(item["evidence_id"]), value))
-    conflict_groups: list[dict[str, Any]] = []
-    for (metric, unit), members in facts.items():
-        unique_members = list(dict.fromkeys(evidence_id for evidence_id, _ in members))
-        values = {value for _, value in members}
-        sources = {_source_type(by_id[evidence_id]) for evidence_id in unique_members}
-        if len(unique_members) < 2 or len(values) < 2 or len(sources) < 2:
+        for goal, score in (item.get('goal_support_scores') or {}).items():
+            key = (str(item.get('document_name') or ''), goal)
+            previous = semantic_goal_winners.get(key)
+            if float(score) >= 0.1 and (previous is None or float(score) > previous[0]):
+                semantic_goal_winners[key] = (float(score), str(item['evidence_id']))
+    semantic_mode = any(item.get('goal_rerank_applied') for item in deduplicated)
+    for item in deduplicated:
+        document = str(item.get('document_name') or '')
+        if not document or item.get('evidence_scope') == 'document_index':
             continue
-        group_id = "conflict_" + hashlib.sha1(f"{metric}|{unit}".encode()).hexdigest()[:12]
+        terms_for_item = ([goal for (doc, goal), (_, winner) in semantic_goal_winners.items()
+                           if doc == document and winner == str(item['evidence_id'])]
+                          if semantic_mode else [target for target in explicit_targets
+                          if _target_anchor_present(target, str(item.get('text') or ''))])
+        goal_ids = [f'{document}:{target}' for target in terms_for_item]
+        new_ids = set(goal_ids)-seen_goal_ids
+        if not new_ids:
+            continue
+        item['protected_goal_ids'] = goal_ids
+        item['protected_goal_terms'] = terms_for_item
+        item['goal_coverage_method'] = 'semantic_relevance_not_verified_fact' if semantic_mode else 'lexical'
+        seen_goal_ids.update(new_ids)
+        goal_representatives.append(item)
+    if goal_representatives:
+        reserved_ids = {str(item['evidence_id']) for item in goal_representatives}
+        deduplicated = [*goal_representatives,
+                        *(item for item in deduplicated if str(item['evidence_id']) not in reserved_ids)]
+
+    # Bind entity + canonical metric + scope/version before comparing
+    # normalised values. Preserve a potential disagreement atomically;
+    # this does not assert which source is correct or applicable.
+    from backend.sales.fact_normalization import disagreement_groups
+    by_id = {str(item["evidence_id"]): item for item in deduplicated}
+    conflict_groups: list[dict[str, Any]] = []
+    for group in disagreement_groups(deduplicated):
+        unique_members = group['evidence_ids']
+        group_id = 'conflict_' + hashlib.sha1(repr(group).encode()).hexdigest()[:12]
         for evidence_id in unique_members:
             item = by_id[evidence_id]
             relations = list(item.get("protected_relation_types") or [])
@@ -334,15 +397,34 @@ def optimise_evidence_context(
             item["protected_relation_types"] = relations
             item["packing_group_id"] = group_id
         conflict_groups.append(
-            {"group_id": group_id, "metric": metric, "unit": unit, "evidence_ids": unique_members}
+            {**group, "group_id": group_id}
         )
 
+    # An evidence block may support several fact keys. Merge overlapping
+    # groups for atomic packing instead of overwriting its last group ID.
+    components: list[set[str]] = []
+    for group in conflict_groups:
+        members = set(group['evidence_ids'])
+        touching = [part for part in components if part & members]
+        for part in touching:
+            members |= part
+            components.remove(part)
+        components.append(members)
+    for members in components:
+        packing_id = 'conflict_pack_' + hashlib.sha1('|'.join(sorted(members)).encode()).hexdigest()[:12]
+        for evidence_id in members:
+            by_id[evidence_id]['packing_group_id'] = packing_id
+
     selected_text = "\n".join(str(item.get("text") or "") for item in deduplicated)
-    missing_targets = [term for term in explicit_targets if term.casefold() not in selected_text.casefold()]
+    missing_targets = [term for term in explicit_targets if not _target_anchor_present(term, selected_text)]
+    scored_goals = {goal for item in deduplicated for goal in (item.get('goal_support_scores') or {})}
+    missing_answer_goals = [goal for goal in sorted(scored_goals)
+                            if not any(g == goal for _, g in semantic_goal_winners)]
     visual_present = any(_source_type(item) == "visual" for item in deduplicated)
     audit = {
         "engine": "query_aware_multimodal_evidence_context_v1",
         "candidate_count": len(candidates),
+        "excluded_navigation_evidence_ids": navigation_ids,
         "after_dedup_count": len(deduplicated),
         "removed_duplicate_evidence_ids": removed_duplicates,
         "source_candidate_counts": {
@@ -358,10 +440,13 @@ def optimise_evidence_context(
         "conflict_groups": conflict_groups,
         "target_terms": explicit_targets,
         "reserved_retrieval_aspects": sorted(represented_aspects),
+        "reserved_goal_ids": sorted(seen_goal_ids),
+        "goal_coverage_method": "semantic_relevance_not_verified_fact" if semantic_mode else "lexical",
         "missing_target_terms": missing_targets,
+        "missing_answer_goals": missing_answer_goals,
         "visual_requested": wants_visuals,
         "visual_candidate_present": visual_present,
-        "coverage_sufficient_before_generation": not missing_targets and (not wants_visuals or visual_present),
+        "coverage_sufficient_before_generation": (not missing_answer_goals if semantic_mode else not missing_targets) and (not wants_visuals or visual_present),
         "ranking_policy": "source_local_rrf_plus_query_authority_relation_boost",
         "raw_scores_compared_across_sources": False,
     }

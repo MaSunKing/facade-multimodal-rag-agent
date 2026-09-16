@@ -30,6 +30,15 @@ enterprise_private_docs/
 checkpoints/
 .pytest_cache/
 runtime/
+evaluation/**/canonical_snapshot.json
+# Third-party originals are fetched locally; licensing not verified for redistribution.
+evaluation/public_v1/assets/earth.pdf
+evaluation/public_v1/assets/earth_facts.html
+evaluation/public_v1/assets/flexible_working.docx
+evaluation/public_v1/assets/FIRE0101.xlsx
+evaluation/fresh_english_native_20260917/assets/
+evaluation/basic_capabilities_extra_20260917/assets/*.docx
+evaluation/basic_capabilities_extra_20260917/assets/*.xlsx
 tmp/
 logs/
 

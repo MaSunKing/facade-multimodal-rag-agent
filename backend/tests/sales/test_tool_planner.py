@@ -25,7 +25,7 @@ from backend.app import (
 
 
 class ToolPlannerPolicyTests(unittest.TestCase):
-    def test_global_multi_image_question_keeps_all_four_selected_visuals(self) -> None:
+    def test_global_multi_image_question_respects_configured_two_image_limit(self) -> None:
         budget = ContextBudget(
             candidate_text_tokens=6000,
             max_prompt_tokens=4650,
@@ -41,7 +41,7 @@ class ToolPlannerPolicyTests(unittest.TestCase):
             },
             budget,
         )
-        self.assertEqual([item["visual_id"] for item in selected], [f"image:{index}" for index in range(1, 5)])
+        self.assertEqual([item["visual_id"] for item in selected], ['image:1', 'image:2'])
 
     def test_local_visual_lookup_keeps_normal_gpu_image_budget(self) -> None:
         budget = ContextBudget(

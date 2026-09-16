@@ -1,0 +1,3 @@
+Synthetic evaluation data, not a real product specification.
+Measurement scope: same laboratory sample and same batch.
+MockSheet-U area: 1.4 m2.

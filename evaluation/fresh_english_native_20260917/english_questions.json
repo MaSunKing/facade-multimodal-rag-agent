@@ -1,0 +1,445 @@
+[
+  {
+    "id": "fresh_en_001",
+    "file": "ofgem_data_dictionary.pdf",
+    "question": "In what file format must the declaration notification be submitted?",
+    "expected_answer": ".csv",
+    "anchors": [
+      "file is submitted",
+      ".csv"
+    ],
+    "native_locator": {
+      "page": 2
+    },
+    "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+  },
+  {
+    "id": "fresh_en_002",
+    "file": "ofgem_data_dictionary.pdf",
+    "question": "What does the first section of the LA unique reference number represent?",
+    "expected_answer": "The 9-digit ONS code assigned to the local authority.",
+    "anchors": [
+      "9-digit",
+      "Statistics (ONS)",
+      "assigned"
+    ],
+    "native_locator": {
+      "page": 3
+    },
+    "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+  },
+  {
+    "id": "fresh_en_003",
+    "file": "ofgem_data_dictionary.pdf",
+    "question": "How many digits must an ECO4 Flex Route 4 application number contain?",
+    "expected_answer": "5 digits",
+    "anchors": [
+      "unique 5-digit",
+      "application"
+    ],
+    "native_locator": {
+      "page": 6
+    },
+    "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+  },
+  {
+    "id": "fresh_en_004",
+    "file": "ofgem_third_party_facts.pdf",
+    "question": "Does an ECO4 or GBIS Flex third-party referral guarantee that measures will be installed?",
+    "expected_answer": "No.",
+    "anchors": [
+      "does not guarantee",
+      "measures will be installed"
+    ],
+    "native_locator": {
+      "page": 2
+    },
+    "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+  },
+  {
+    "id": "fresh_en_005",
+    "file": "ofgem_third_party_facts.pdf",
+    "question": "What signed document must Citizens Advice produce when referring a household struggling to pay energy bills?",
+    "expected_answer": "A signed referral letter to the local authority confirming the evidence of difficulty paying gas or electricity bills.",
+    "anchors": [
+      "signed referral letter",
+      "struggling to pay"
+    ],
+    "native_locator": {
+      "page": 2
+    },
+    "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+  },
+  {
+    "id": "fresh_en_006",
+    "file": "ofgem_third_party_facts.pdf",
+    "question": "For Flex Route 2 Proxy 3, is an NHS referral letter mandatory?",
+    "expected_answer": "No; alternative evidence such as hospital diagnosis letters or prescriptions can be used.",
+    "anchors": [
+      "NHS referral",
+      "not mandatory",
+      "alternative evidence"
+    ],
+    "native_locator": {
+      "page": 4
+    },
+    "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+  },
+  {
+    "id": "fresh_en_007",
+    "file": "gmfrs_information_box.pdf",
+    "question": "What colours should the lobby sector and fire sector folders be?",
+    "expected_answer": "Lobby: yellow; fire: red.",
+    "anchors": [
+      "yellow in colour",
+      "red in colour"
+    ],
+    "native_locator": {
+      "page": 3
+    },
+    "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+  },
+  {
+    "id": "fresh_en_008",
+    "file": "gmfrs_information_box.pdf",
+    "question": "How many copies of the Building Emergency Evacuation Plan should be kept in the secure information box?",
+    "expected_answer": "Three copies.",
+    "anchors": [
+      "Three copies of the Building Emergency Evacuation Plan"
+    ],
+    "native_locator": {
+      "page": 4
+    },
+    "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+  },
+  {
+    "id": "fresh_en_009",
+    "file": "gmfrs_information_box.pdf",
+    "question": "What is the minimum number of riser outlet keys recommended in the fire sector folder?",
+    "expected_answer": "At least 2, ideally 4.",
+    "anchors": [
+      "Riser Outlet Keys",
+      "ideally 4",
+      "least 2"
+    ],
+    "native_locator": {
+      "page": 11
+    },
+    "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+  },
+  {
+    "id": "fresh_en_010",
+    "file": "ofgem_statement_of_intent.docx",
+    "question": "On what date did GBIS Flex end according to this statement of intent template?",
+    "expected_answer": "31 March 2026",
+    "anchors": [
+      "GBIS Flex",
+      "31 March 2026"
+    ],
+    "native_locator": {
+      "paragraph": 16
+    },
+    "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+  },
+  {
+    "id": "fresh_en_011",
+    "file": "ofgem_statement_of_intent.docx",
+    "question": "What information about qualifying schemes must be included for Route 2 Proxy 5?",
+    "expected_answer": "The names and a brief description of the relevant schemes.",
+    "anchors": [
+      "Proxy 5",
+      "names",
+      "brief description"
+    ],
+    "native_locator": {
+      "paragraph": 10
+    },
+    "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+  },
+  {
+    "id": "fresh_en_012",
+    "file": "ofgem_statement_of_intent.docx",
+    "question": "What legal obligation does ECO4 place on energy suppliers?",
+    "expected_answer": "Deliver energy efficiency measures to homes, including insulation and heating measures.",
+    "anchors": [
+      "legal obligations",
+      "energy suppliers",
+      "insulation",
+      "heating"
+    ],
+    "native_locator": {
+      "paragraph": 3
+    },
+    "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+  },
+  {
+    "id": "fresh_en_013",
+    "file": "ofgem_medical_referral.docx",
+    "question": "What age threshold is listed for older people vulnerable to cold under Route 2?",
+    "expected_answer": "65 years or older",
+    "anchors": [
+      "65",
+      "older"
+    ],
+    "native_locator": {
+      "paragraph": 19
+    },
+    "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+  },
+  {
+    "id": "fresh_en_014",
+    "file": "ofgem_medical_referral.docx",
+    "question": "From what kind of email address must a digital medical referral be sent?",
+    "expected_answer": "A valid NHS email address.",
+    "anchors": [
+      "valid NHS email address"
+    ],
+    "native_locator": {
+      "paragraph": 31
+    },
+    "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+  },
+  {
+    "id": "fresh_en_015",
+    "file": "ofgem_medical_referral.docx",
+    "question": "Where applicable, what stamp authenticates a printed medical referral letter?",
+    "expected_answer": "The GP surgery stamp.",
+    "anchors": [
+      "GP surgery stamp"
+    ],
+    "native_locator": {
+      "paragraph": 35
+    },
+    "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+  },
+  {
+    "id": "fresh_en_016",
+    "file": "ofgem_householder_application.docx",
+    "question": "What combined gross annual household income threshold applies to Route 1?",
+    "expected_answer": "Less than 31,000 pounds.",
+    "anchors": [
+      "gross annual",
+      "31,000"
+    ],
+    "native_locator": {
+      "paragraph": 24
+    },
+    "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+  },
+  {
+    "id": "fresh_en_017",
+    "file": "ofgem_householder_application.docx",
+    "question": "How many criteria must a household satisfy for Route 2?",
+    "expected_answer": "At least two.",
+    "anchors": [
+      "Route 2",
+      "at least two"
+    ],
+    "native_locator": {
+      "paragraph": 21
+    },
+    "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+  },
+  {
+    "id": "fresh_en_018",
+    "file": "ofgem_householder_application.docx",
+    "question": "Does completing this householder application form guarantee eligibility for the schemes?",
+    "expected_answer": "No; further assessments by the local authority and energy supplier are required.",
+    "anchors": [
+      "does not guarantee eligibility",
+      "energy supplier"
+    ],
+    "native_locator": {
+      "paragraph": 3
+    },
+    "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+  },
+  {
+    "id": "fresh_en_019",
+    "file": "canterbury_fire_risk.docx",
+    "question": "What test does the fire risk assessment ask about for landlord-supplied portable electrical appliances?",
+    "expected_answer": "Portable appliance testing (PAT).",
+    "anchors": [
+      "Landlord supplied portable appliances",
+      "PAT"
+    ],
+    "native_locator": {
+      "table": 5,
+      "row": 3
+    },
+    "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+  },
+  {
+    "id": "fresh_en_020",
+    "file": "canterbury_fire_risk.docx",
+    "question": "Which four groups of occupants are listed as being especially at risk from fire?",
+    "expected_answer": "Disabled occupants, children, elderly occupants and other vulnerable adults.",
+    "anchors": [
+      "Physically Disabled occupants",
+      "Children",
+      "Elderly",
+      "Other vulnerable adults"
+    ],
+    "native_locator": {
+      "table": 3
+    },
+    "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+  },
+  {
+    "id": "fresh_en_021",
+    "file": "canterbury_fire_risk.docx",
+    "question": "Which action-plan columns record the responsible person, deadline and completion sign-off?",
+    "expected_answer": "Who; When; Sign/date when completed.",
+    "anchors": [
+      "Who",
+      "When",
+      "Sign/date when completed"
+    ],
+    "native_locator": {
+      "table": 19,
+      "row": 0
+    },
+    "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+  },
+  {
+    "id": "fresh_en_022",
+    "file": "eia_electricity_prices.xlsx",
+    "question": "What was the Total Electric Industry residential electricity price in 2024?",
+    "expected_answer": "16.48 cents per kilowatthour",
+    "anchors": [
+      "16.48"
+    ],
+    "native_locator": {
+      "sheet": "epa_02_04",
+      "cell": "B15",
+      "value": 16.48,
+      "unit": "Cents per kilowatthour"
+    },
+    "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+  },
+  {
+    "id": "fresh_en_023",
+    "file": "eia_electricity_prices.xlsx",
+    "question": "What was the Competitive Service Providers industrial electricity price in 2024?",
+    "expected_answer": "9.84 cents per kilowatthour",
+    "anchors": [
+      "9.84"
+    ],
+    "native_locator": {
+      "sheet": "epa_02_04",
+      "cell": "D39",
+      "value": 9.84,
+      "unit": "Cents per kilowatthour"
+    },
+    "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+  },
+  {
+    "id": "fresh_en_024",
+    "file": "eia_electricity_prices.xlsx",
+    "question": "What was the Delivery-Only Providers transportation electricity price in 2024?",
+    "expected_answer": "4.43 cents per kilowatthour",
+    "anchors": [
+      "4.43"
+    ],
+    "native_locator": {
+      "sheet": "epa_02_04",
+      "cell": "E63",
+      "value": 4.43,
+      "unit": "Cents per kilowatthour"
+    },
+    "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+  },
+  {
+    "id": "fresh_en_025",
+    "file": "eia_industry_summary.xlsx",
+    "question": "What was total coal net generation across all sectors in 2024?",
+    "expected_answer": "652,156 thousand megawatthours",
+    "anchors": [
+      "652156"
+    ],
+    "native_locator": {
+      "sheet": "epa_01_01",
+      "cell": "C7",
+      "value": 652156,
+      "unit": "Thousand Megawatthours"
+    },
+    "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+  },
+  {
+    "id": "fresh_en_026",
+    "file": "eia_industry_summary.xlsx",
+    "question": "How much natural gas was consumed for electricity generation in 2024 across all sectors?",
+    "expected_answer": "13,754,749 thousand Mcf",
+    "anchors": [
+      "13754749"
+    ],
+    "native_locator": {
+      "sheet": "epa_01_01",
+      "cell": "C31",
+      "value": 13754749,
+      "unit": "Thousand Mcf"
+    },
+    "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+  },
+  {
+    "id": "fresh_en_027",
+    "file": "eia_industry_summary.xlsx",
+    "question": "What was residential electricity sales revenue in 2024?",
+    "expected_answer": "244,367 million dollars",
+    "anchors": [
+      "244367"
+    ],
+    "native_locator": {
+      "sheet": "epa_01_01",
+      "cell": "E48",
+      "value": 244367,
+      "unit": "Million Dollars"
+    },
+    "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+  },
+  {
+    "id": "fresh_en_028",
+    "file": "ofgem_declaration_template.xlsx",
+    "question": "Which Sheet1 column stores the property postcode?",
+    "expected_answer": "Column I, Post_Code.",
+    "anchors": [
+      "Post_Code"
+    ],
+    "native_locator": {
+      "sheet": "Sheet1",
+      "cell": "I1",
+      "value": "Post_Code"
+    },
+    "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+  },
+  {
+    "id": "fresh_en_029",
+    "file": "ofgem_declaration_template.xlsx",
+    "question": "Which Sheet1 field records the Route 4 application number?",
+    "expected_answer": "Column F, Route_4_Application_Number.",
+    "anchors": [
+      "Route_4_Application_Number"
+    ],
+    "native_locator": {
+      "sheet": "Sheet1",
+      "cell": "F1",
+      "value": "Route_4_Application_Number"
+    },
+    "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+  },
+  {
+    "id": "fresh_en_030",
+    "file": "ofgem_declaration_template.xlsx",
+    "question": "Which Sheet1 field records the statement of intent publication date?",
+    "expected_answer": "Column M, Date_Of_Statement_Of_Intent_Publication.",
+    "anchors": [
+      "Date_Of_Statement_Of_Intent_Publication"
+    ],
+    "native_locator": {
+      "sheet": "Sheet1",
+      "cell": "M1",
+      "value": "Date_Of_Statement_Of_Intent_Publication"
+    },
+    "label_provenance": "project_authored_independently_source_verified_not_official_QA"
+  }
+]

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from typing import Any, Protocol, TypedDict
 import time
+import json
 from backend.sales.staged_execution import WorkflowCursor
 from backend.sales.runtime_status import enter_stage, report_error
 from backend.request_budget import reserve_recovery, current_budget
@@ -42,6 +43,7 @@ class CustomerAnswerState(TypedDict, total=False):
     cursor: Any
     node_trace: list[dict[str, Any]]
     web_results: dict[str, Any]
+    tool_results: dict[str, Any]
 
 
 MAX_TOOL_RETRIES = 1
@@ -73,6 +75,8 @@ def _plan_signature(plan: Any) -> tuple[Any, ...]:
         str(_plan_value(plan, "document_scope", "unknown") or "unknown"),
         bool(_plan_value(plan, "requires_public_web", False)),
         str(_plan_value(plan, "web_source_profile", "auto") or "auto"),
+        json.dumps(_plan_value(plan, 'recovery_directive', {}) or {}, sort_keys=True),
+        _plan_value(plan, 'document_visual_required', None),
     )
 
 
@@ -81,7 +85,7 @@ def build_customer_answer_graph(callbacks: AnswerWorkflowCallbacks):
 
     staged = callable(getattr(callbacks, "open_steps", None))
     stage_nodes = ("customer_documents", "company_rag", "public_web_search", "visual_inspection",
-                   "compose_evidence", "generate_answer", "validate_answer")
+                   "assess_coverage", "rerank_evidence", "compose_evidence", "generate_answer", "validate_answer")
 
     def plan_request(state: CustomerAnswerState, config: RunnableConfig) -> dict[str, Any]:
         enter_stage('plan_request')
@@ -94,6 +98,7 @@ def build_customer_answer_graph(callbacks: AnswerWorkflowCallbacks):
             "plan_history": [plan],
             "node_trace": [],
             "web_results": {},
+            "tool_results": {},
         }
 
     def prepare_workflow(state, config):
@@ -125,6 +130,7 @@ def build_customer_answer_graph(callbacks: AnswerWorkflowCallbacks):
         cached = False
         cursor.operation_error = None
         web_results = dict(state.get("web_results", {}))
+        tool_results = dict(state.get('tool_results', {}))
         try:
             check = getattr(callbacks, "check_step", None)
             if callable(check):
@@ -146,6 +152,17 @@ def build_customer_answer_graph(callbacks: AnswerWorkflowCallbacks):
                     else:
                         web_results[cache_key] = value
                         cursor.advance(value)
+            elif step.node in {'customer_documents', 'company_rag'} and step.operation:
+                # Reuse successful unchanged CPU tool results during a repair.
+                # GPU tensors, visual calls and writes are never cached here.
+                cache_key = repr((step.node, step.args, step.kwargs))
+                if cache_key in tool_results:
+                    cached = True
+                    cursor.advance(tool_results[cache_key])
+                else:
+                    cursor.execute()
+                    if cursor.operation_error is None and getattr(cursor, 'last_value', None) is not None:
+                        tool_results[cache_key] = cursor.last_value
             else:
                 cursor.execute()
         except BaseException as exc:
@@ -155,7 +172,8 @@ def build_customer_answer_graph(callbacks: AnswerWorkflowCallbacks):
         trace = {"node": step.node, "round": state.get("tool_rounds", 1),
                  "elapsed_ms": round((time.perf_counter()-started)*1000, 2), "reused": cached,
                  "operation_error": cursor.operation_error}
-        return {"cursor": cursor, "node_trace": [*state.get("node_trace", []), trace], "web_results": web_results}
+        return {"cursor": cursor, "node_trace": [*state.get("node_trace", []), trace],
+                "web_results": web_results, 'tool_results': tool_results}
 
     def collect_response(state, config):
         cursor = state["cursor"]
@@ -187,7 +205,11 @@ def build_customer_answer_graph(callbacks: AnswerWorkflowCallbacks):
             return {"retry_plan": None, "retry_reason": "retry_policy_failed_closed"}
         if revised is None or _plan_signature(revised) == _plan_signature(state["plan"]):
             return {"retry_plan": None}
-        if not reserve_recovery('customer_documents','broaden_empty_retrieval',minimum_seconds=30):
+        directive = _plan_value(revised, 'recovery_directive', {}) or {}
+        stage = str(directive.get('stage') or 'assess_retry')
+        action = str(directive.get('action') or 'repair_evidence_gaps')
+        minimum = 45 if _as_response_dict(state['response']).get('meta', {}).get('model_used') else 30
+        if not reserve_recovery(stage, action, minimum_seconds=minimum):
             return {'retry_plan':None,'retry_reason':'shared_recovery_budget_exhausted'}
         return {
             "retry_plan": revised,
@@ -232,6 +254,10 @@ def build_customer_answer_graph(callbacks: AnswerWorkflowCallbacks):
                 "intent": str(_plan_value(plan, "intent", "unknown") or "unknown"),
                 "task_type": str(_plan_value(plan, "task_type", "unknown") or "unknown"),
                 "target_terms": list(_plan_value(plan, "target_terms", []) or []),
+                "search_targets": list(_plan_value(plan, 'search_targets', []) or []),
+                "answer_goals": list(_plan_value(plan, 'answer_goals', []) or []),
+                "answer_aspects": list(_plan_value(plan, 'answer_aspects', []) or []),
+                "retrieval_queries": list(_plan_value(plan, 'retrieval_queries', []) or []),
                 "planner_latency_ms": round(float(_plan_value(plan, "planner_latency_ms", 0.0) or 0.0), 2),
                 "planner_model_load_ms": round(float(_plan_value(plan, "planner_model_load_ms", 0.0) or 0.0), 2),
                 "planner_generation_ms": round(float(_plan_value(plan, "planner_generation_ms", 0.0) or 0.0), 2),
@@ -241,6 +267,9 @@ def build_customer_answer_graph(callbacks: AnswerWorkflowCallbacks):
                 "planning_rounds": int(state.get("planning_rounds", 1)),
                 "tool_rounds": int(state.get("tool_rounds", 1)),
                 "max_tool_retries": MAX_TOOL_RETRIES,
+                "max_request_recoveries": 2,
+                "max_execution_recoveries": 1,
+                "max_query_normalizations": 1,
                 "recovery_actions": list(current_budget.get().recoveries) if current_budget.get() else [],
                 "bounded_retry_attempted": int(state.get("tool_rounds", 1)) > 1,
                 "retry_reason": str(state.get("retry_reason", "")),

@@ -4,7 +4,6 @@ import "./globals.css";
 const staticBasePath = (process.env.STATIC_BASE ?? "").replace(/\/$/, "");
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
   title: "建材知识助手",
   description: "面向建材销售与技术支持的本地多模态 RAG 助手。",
   manifest: `${staticBasePath}/manifest.webmanifest`,

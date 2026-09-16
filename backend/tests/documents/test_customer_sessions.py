@@ -136,7 +136,7 @@ class CustomerDocumentSessionTests(unittest.TestCase):
             {"施工说明.txt"},
         )
 
-    def test_valid_attachment_with_zero_overlap_returns_document_index_not_expired_state(self) -> None:
+    def test_valid_attachment_with_zero_overlap_expands_children_not_expired_state(self) -> None:
         from openpyxl import Workbook
 
         workbook = Workbook()
@@ -152,10 +152,11 @@ class CustomerDocumentSessionTests(unittest.TestCase):
         selected = retrieve(result["session_id"], "请识别图片中的外墙节点")
 
         self.assertTrue(selected["evidence"])
-        self.assertEqual(selected["evidence"][0]["evidence_scope"], "document_index")
+        self.assertEqual(selected["evidence"][0]["evidence_scope"], "content")
+        self.assertTrue(selected['navigation_evidence'])
         self.assertEqual(
             selected["input_snapshot"]["retrieval_fallback_reason"],
-            "no_positive_query_overlap_used_document_index",
+            "navigation_child_expansion_relevance_unverified",
         )
 
     def test_more_than_four_files_are_rejected(self) -> None:
@@ -221,7 +222,7 @@ class CustomerDocumentSessionTests(unittest.TestCase):
             "先给我介绍再分析一下",
             document_scope="whole_document",
         )
-        rendered = "\n".join(str(item.get("text") or "") for item in selected["evidence"])
+        rendered = "\n".join(str(item.get("text") or "") for item in [*selected["evidence"], *selected.get('navigation_evidence', [])])
 
         self.assertIn("STRUCTURE_OVERVIEW", rendered)
         self.assertIn("经营汇总", rendered)
@@ -230,7 +231,8 @@ class CustomerDocumentSessionTests(unittest.TestCase):
         self.assertTrue(snapshot["global_document_question"])
         self.assertTrue(snapshot["all_canonical_chunks_scanned"])
         self.assertEqual(snapshot["scanned_canonical_chunk_count"], result["documents"][0]["chunk_count"])
-        self.assertGreater(snapshot["selected_document_index_window_count"], 0)
+        self.assertEqual(snapshot["selected_document_index_window_count"], 0)
+        self.assertGreater(snapshot['navigation_candidate_count'], 0)
         self.assertGreater(snapshot["selected_content_window_count"], 0)
         self.assertEqual(snapshot["semantic_rerank"]["status"], "structure_aware_global_sampling")
 
@@ -270,7 +272,8 @@ class CustomerDocumentSessionTests(unittest.TestCase):
         snapshot = selected["input_snapshot"]
         self.assertTrue(snapshot["global_document_question"])
         self.assertEqual(snapshot["planner_document_scope"], "cross_document")
-        self.assertGreaterEqual(snapshot["selected_document_index_window_count"], 2)
+        self.assertEqual(snapshot["selected_document_index_window_count"], 0)
+        self.assertGreaterEqual(snapshot['navigation_candidate_count'], 2)
         self.assertGreaterEqual(snapshot["selected_content_window_count"], 2)
         content_documents = {
             item["document_name"]
@@ -383,7 +386,7 @@ class CustomerDocumentSessionTests(unittest.TestCase):
             ) as continue_batch,
         ):
             result = add_files([("五页扫描件.pdf", b"five-page-pdf-fixture")])
-        continue_batch.assert_called_once_with("五页扫描件.pdf", b"five-page-pdf-fixture", page_start=5)
+        continue_batch.assert_called_once_with("五页扫描件.pdf", b"five-page-pdf-fixture", page_start=5, cached_summary=initial.pdf)
         self.sessions = [result["session_id"]]
         document = result["documents"][0]
         self.assertTrue(document["visual_coverage"]["coverage_complete"])
@@ -465,6 +468,49 @@ class CustomerDocumentSessionTests(unittest.TestCase):
         bilingual = _estimate_text_tokens("外墙 insulation system 2026")
         self.assertGreaterEqual(bilingual, 7)
         self.assertLess(bilingual, len("外墙 insulation system 2026"))
+
+    def test_metadata_excluded_and_ocr_candidate_keeps_page_and_unverified_role(self) -> None:
+        from backend.documents.customer_sessions import StoredVisualAsset
+        result = add_files([('candidate.txt', b'placeholder')])
+        self.sessions = [result['session_id']]
+        document = get_session(result['session_id']).documents[0]
+        metadata = '[BLOCK page=9 type=no_text parser=pdf]\n[VISUAL id=page9]'
+        document.chunks = [dict(chunk_id='empty', kind='evidence', text=metadata, source_refs=[])]
+        document.source_locations['page9'] = dict(page_number=9)
+        document.visuals = [StoredVisualAsset(visual_id='page9', document_id=document.document_id,
+            document_name=document.file_name, kind='pdf_page', source=dict(page_number=9),
+            media_type='image/png', metadata=dict(ocr_literal_text='Fieldwork personnel: Wave I 52, Wave II 50'),
+            image_bytes=None, searchable_text='Fieldwork personnel: Wave I 52, Wave II 50')]
+        found = retrieve(result['session_id'], 'fieldwork personnel', enable_semantic_rerank=False)
+        self.assertTrue(found['evidence'])
+        candidate = found['evidence'][0]
+        self.assertIn('Wave I 52', candidate['text'])
+        self.assertFalse(candidate['facts_eligible'])
+        self.assertTrue(candidate['candidate_requires_pixel_verification'])
+        self.assertEqual(candidate['citations'][0]['source_page'], 9)
+        self.assertEqual(found['input_snapshot']['metadata_only_chunks_excluded_from_answers'], 1)
+        self.assertEqual(document.chunks[0]['text'], metadata)
+
+    def test_repeated_retrieval_reuses_windows_but_not_mutable_rank_state(self) -> None:
+        result = add_files([('cache.txt', b'BeamY thickness 21 mm. Installation uses anchors.')])
+        self.sessions = [result['session_id']]
+        retrieve(result['session_id'], 'thickness', enable_semantic_rerank=False)
+        with patch('backend.documents.customer_sessions._window_chunk', side_effect=AssertionError('unexpected resplit')):
+            found = retrieve(result['session_id'], 'anchors', enable_semantic_rerank=False)
+        self.assertTrue(any('anchors' in e['text'] for e in found['evidence']))
+        document = get_session(result['session_id']).documents[0]
+        self.assertLessEqual(document.window_cache_bytes, 1024**2)
+        self.assertTrue(all('score' not in window for windows in document.window_cache.values() for window in windows))
+
+    def test_interleaved_visual_geometry_does_not_displace_prose_or_break_offsets(self) -> None:
+        from backend.documents.customer_sessions import _window_chunk
+        text = 'Purpose: flexible working application.\n[VISUAL id=logo metadata=' + ('coordinate ' * 300) + ']\nApproval requires an authorised manager.'
+        windows = _window_chunk(text, 'C', window_tokens=64, overlap_tokens=8)
+        self.assertTrue(any('flexible working' in w['text'] for w in windows))
+        self.assertTrue(any('authorised manager' in w['text'] for w in windows))
+        self.assertFalse(any('coordinate' in w['text'] for w in windows))
+        for window in windows:
+            self.assertEqual(text[window['start_character']:window['end_character']].strip(), window['text'].strip())
 
     def test_four_file_budget_is_reserved_only_for_relevant_documents(self) -> None:
         relevant_a = ("窗洞口防水节点应连续密封。" * 180).encode("utf-8")

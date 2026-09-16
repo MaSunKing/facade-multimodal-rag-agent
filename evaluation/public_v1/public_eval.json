@@ -1,0 +1,1187 @@
+{
+  "version": "public_regression_v1",
+  "evaluation_scope": "small_development_regression_not_unseen_business_accuracy",
+  "files": {
+    "earth.pdf": {
+      "path": "assets/earth.pdf",
+      "sha256": "490df77963cc8ff14dfa5cb4f446fa033db99eecdef5e02fddf27d51c0c7aa1b",
+      "provenance": "official_public_source_previously_used_for_development",
+      "source_url": "https://www.jpl.nasa.gov/edu/pdfs/ss_earth.pdf",
+      "redistribution_license_verified": false
+    },
+    "flexible_working.docx": {
+      "path": "assets/flexible_working.docx",
+      "sha256": "055fe6227daa62d63d0764158214c9a7bdac55427b37cd27229118efa65bc673",
+      "provenance": "official_public_source_previously_used_for_development",
+      "source_url": "https://assets.publishing.service.gov.uk/media/65f1a247981227a772f6136e/request-flexible-working-docx-form.docx",
+      "redistribution_license_verified": false
+    },
+    "FIRE0101.xlsx": {
+      "path": "assets/FIRE0101.xlsx",
+      "sha256": "d6fbd83d0244a2faef3aeb07d1fe07a3ae7fe3093261053e5eaeb0f4300b1203",
+      "provenance": "official_public_source_previously_used_for_development",
+      "source_url": "https://assets.publishing.service.gov.uk/media/6a5092b52467584757371cc1/FIRE0101.xlsx",
+      "redistribution_license_verified": false
+    },
+    "earth_facts.html": {
+      "path": "assets/earth_facts.html",
+      "sha256": "7059a8f0b7ca121a9e905fd4b55dbcae7d27e53cf5a76b34aa4b272d4e9c3de8",
+      "provenance": "official_public_source_previously_used_for_development",
+      "source_url": "https://science.nasa.gov/earth/facts/",
+      "redistribution_license_verified": false
+    },
+    "sample_product.pdf": {
+      "path": "assets/sample_product.pdf",
+      "sha256": "a7c4c138c638579b02f8a3efdb643c71415f251b1aa78a4ba4e6c752ffd881f3",
+      "provenance": "project_authored_synthetic"
+    },
+    "sample_checklist.docx": {
+      "path": "assets/sample_checklist.docx",
+      "sha256": "9463887c8176669964473b4226bf375a869330131b7eae64dcf3c2371ec5dfdf",
+      "provenance": "project_authored_synthetic"
+    },
+    "sample_spec.xlsx": {
+      "path": "assets/sample_spec.xlsx",
+      "sha256": "072944edc7ef89926189c5ed4993af190f1a59cda9bcef68e8a6b27409ad6983",
+      "provenance": "project_authored_synthetic"
+    },
+    "sample_drawing.png": {
+      "path": "assets/sample_drawing.png",
+      "sha256": "c778cf1c04b58d60de2849d919d7d18738a1e8f58fd144b90dbad23e9b20cf13",
+      "provenance": "project_authored_synthetic"
+    },
+    "RainPanel.txt": {
+      "path": "assets/RainPanel.txt",
+      "sha256": "88068298dedfcb7c4f7eee22734dd6c18c862a705bbf0592933a9a3c9165a4f4",
+      "provenance": "project_authored_synthetic"
+    },
+    "AnchorPanel.txt": {
+      "path": "assets/AnchorPanel.txt",
+      "sha256": "b3507fd3420357ea255e60c03c534276b467bb5461dfce2d7332051b1cee380a",
+      "provenance": "project_authored_synthetic"
+    },
+    "ColdPanel.txt": {
+      "path": "assets/ColdPanel.txt",
+      "sha256": "6c4a86889b94bd3356a716f6387b1adcc42efe1cbd7f086207de28974a5e944a",
+      "provenance": "project_authored_synthetic"
+    },
+    "IndoorPanel.txt": {
+      "path": "assets/IndoorPanel.txt",
+      "sha256": "16f9e72ca7e8d5fc2af1dbc7a62028232b9b9face82eabef6fe12421dfb7e19d",
+      "provenance": "project_authored_synthetic"
+    },
+    "CurePanel.txt": {
+      "path": "assets/CurePanel.txt",
+      "sha256": "9fe8abf097a43bb0fd3e3b44d656f58982974b73f86f54dffd24bb76c77fe72b",
+      "provenance": "project_authored_synthetic"
+    },
+    "numeric.csv": {
+      "path": "assets/numeric.csv",
+      "sha256": "ebbc6df3e81535780460c4dea789d3d99d343523c8bf67ff7476c2790f0f8877",
+      "provenance": "project_authored_synthetic"
+    }
+  },
+  "offline_cases": [
+    {
+      "id": "retrieval_001",
+      "category": "retrieval",
+      "question": "地球近地面大气中氮气占多少？",
+      "files": [
+        "earth.pdf",
+        "flexible_working.docx"
+      ],
+      "gold_provenance": "project_authored_source_grounded_not_official_QA",
+      "gold": [
+        {
+          "file": "earth.pdf",
+          "document_id": "doc-490df77963cc8ff1",
+          "canonical_chunk_id": "evidence:1",
+          "anchors": [
+            "78 percent",
+            "nitrogen"
+          ],
+          "stable_id": "doc-490df77963cc8ff1/evidence:1"
+        },
+        {
+          "file": "earth.pdf",
+          "document_id": "doc-490df77963cc8ff1",
+          "canonical_chunk_id": "table-1:1",
+          "anchors": [
+            "78 percent",
+            "nitrogen"
+          ],
+          "stable_id": "doc-490df77963cc8ff1/table-1:1"
+        },
+        {
+          "file": "earth.pdf",
+          "document_id": "doc-490df77963cc8ff1",
+          "canonical_chunk_id": "table-2:1",
+          "anchors": [
+            "78 percent",
+            "nitrogen"
+          ],
+          "stable_id": "doc-490df77963cc8ff1/table-2:1"
+        }
+      ]
+    },
+    {
+      "id": "retrieval_002",
+      "category": "retrieval",
+      "question": "What is the average depth of the global ocean?",
+      "files": [
+        "earth.pdf",
+        "numeric.csv"
+      ],
+      "gold_provenance": "project_authored_source_grounded_not_official_QA",
+      "gold": [
+        {
+          "file": "earth.pdf",
+          "document_id": "doc-490df77963cc8ff1",
+          "canonical_chunk_id": "evidence:1",
+          "anchors": [
+            "4 kilometers"
+          ],
+          "stable_id": "doc-490df77963cc8ff1/evidence:1"
+        },
+        {
+          "file": "earth.pdf",
+          "document_id": "doc-490df77963cc8ff1",
+          "canonical_chunk_id": "table-1:1",
+          "anchors": [
+            "4 kilometers"
+          ],
+          "stable_id": "doc-490df77963cc8ff1/table-1:1"
+        },
+        {
+          "file": "earth.pdf",
+          "document_id": "doc-490df77963cc8ff1",
+          "canonical_chunk_id": "table-2:1",
+          "anchors": [
+            "4 kilometers"
+          ],
+          "stable_id": "doc-490df77963cc8ff1/table-2:1"
+        }
+      ]
+    },
+    {
+      "id": "retrieval_003",
+      "category": "retrieval",
+      "question": "地球的公转周期是多少天？",
+      "files": [
+        "earth.pdf",
+        "sample_spec.xlsx"
+      ],
+      "gold_provenance": "project_authored_source_grounded_not_official_QA",
+      "gold": [
+        {
+          "file": "earth.pdf",
+          "document_id": "doc-490df77963cc8ff1",
+          "canonical_chunk_id": "evidence:1",
+          "anchors": [
+            "365.26 days"
+          ],
+          "stable_id": "doc-490df77963cc8ff1/evidence:1"
+        },
+        {
+          "file": "earth.pdf",
+          "document_id": "doc-490df77963cc8ff1",
+          "canonical_chunk_id": "table-1:1",
+          "anchors": [
+            "365.26 days"
+          ],
+          "stable_id": "doc-490df77963cc8ff1/table-1:1"
+        },
+        {
+          "file": "earth.pdf",
+          "document_id": "doc-490df77963cc8ff1",
+          "canonical_chunk_id": "table-2:1",
+          "anchors": [
+            "365.26 days"
+          ],
+          "stable_id": "doc-490df77963cc8ff1/table-2:1"
+        }
+      ]
+    },
+    {
+      "id": "retrieval_004",
+      "category": "retrieval",
+      "question": "这份申请表用于申请什么工作安排？",
+      "files": [
+        "flexible_working.docx",
+        "earth.pdf"
+      ],
+      "gold_provenance": "project_authored_source_grounded_not_official_QA",
+      "gold": [
+        {
+          "file": "flexible_working.docx",
+          "document_id": "doc-055fe6227daa62d6",
+          "canonical_chunk_id": "evidence:1",
+          "anchors": [
+            "Flexible working application form"
+          ],
+          "stable_id": "doc-055fe6227daa62d6/evidence:1"
+        }
+      ]
+    },
+    {
+      "id": "retrieval_005",
+      "category": "retrieval",
+      "question": "What should the employee read before completing the flexible working form?",
+      "files": [
+        "flexible_working.docx",
+        "IndoorPanel.txt"
+      ],
+      "gold_provenance": "project_authored_source_grounded_not_official_QA",
+      "gold": [
+        {
+          "file": "flexible_working.docx",
+          "document_id": "doc-055fe6227daa62d6",
+          "canonical_chunk_id": "evidence:1",
+          "anchors": [
+            "Before completing this form",
+            "guidance"
+          ],
+          "stable_id": "doc-055fe6227daa62d6/evidence:1"
+        }
+      ]
+    },
+    {
+      "id": "retrieval_006",
+      "category": "retrieval",
+      "question": "How many hours does Earth take to rotate?",
+      "files": [
+        "earth_facts.html",
+        "numeric.csv"
+      ],
+      "gold_provenance": "project_authored_source_grounded_not_official_QA",
+      "gold": [
+        {
+          "file": "earth_facts.html",
+          "document_id": "doc-7059a8f0b7ca121a",
+          "canonical_chunk_id": "evidence:3",
+          "anchors": [
+            "23.9 hours"
+          ],
+          "stable_id": "doc-7059a8f0b7ca121a/evidence:3"
+        }
+      ]
+    },
+    {
+      "id": "retrieval_007",
+      "category": "retrieval",
+      "question": "地球是距离太阳第几颗行星？",
+      "files": [
+        "earth_facts.html",
+        "sample_checklist.docx"
+      ],
+      "gold_provenance": "project_authored_source_grounded_not_official_QA",
+      "gold": [
+        {
+          "file": "earth_facts.html",
+          "document_id": "doc-7059a8f0b7ca121a",
+          "canonical_chunk_id": "evidence:3",
+          "anchors": [
+            "third planet"
+          ],
+          "stable_id": "doc-7059a8f0b7ca121a/evidence:3"
+        },
+        {
+          "file": "earth_facts.html",
+          "document_id": "doc-7059a8f0b7ca121a",
+          "canonical_chunk_id": "evidence:4",
+          "anchors": [
+            "third planet"
+          ],
+          "stable_id": "doc-7059a8f0b7ca121a/evidence:4"
+        }
+      ]
+    },
+    {
+      "id": "retrieval_008",
+      "category": "retrieval",
+      "question": "Data - population Scotland 1992 total population",
+      "files": [
+        "FIRE0101.xlsx",
+        "numeric.csv"
+      ],
+      "gold_provenance": "project_authored_source_grounded_not_official_QA",
+      "gold": [
+        {
+          "file": "FIRE0101.xlsx",
+          "document_id": "doc-d6fbd83d0244a2fa",
+          "canonical_chunk_id": "table-4:2",
+          "anchors": [
+            "1992",
+            "Scotland",
+            "5085600"
+          ],
+          "stable_id": "doc-d6fbd83d0244a2fa/table-4:2"
+        }
+      ]
+    },
+    {
+      "id": "retrieval_009",
+      "category": "retrieval",
+      "question": "What thickness is specified in the synthetic Word checklist?",
+      "files": [
+        "sample_checklist.docx",
+        "numeric.csv"
+      ],
+      "gold_provenance": "project_authored_source_grounded_not_official_QA",
+      "gold": [
+        {
+          "file": "sample_checklist.docx",
+          "document_id": "doc-9463887c81766699",
+          "canonical_chunk_id": "table-1:1",
+          "anchors": [
+            "Thickness",
+            "20 mm"
+          ],
+          "stable_id": "doc-9463887c81766699/table-1:1"
+        }
+      ]
+    },
+    {
+      "id": "retrieval_010",
+      "category": "retrieval",
+      "question": "Current工作表DemoPanel-X的厚度是多少？",
+      "files": [
+        "sample_spec.xlsx",
+        "numeric.csv"
+      ],
+      "gold_provenance": "project_authored_source_grounded_not_official_QA",
+      "gold": [
+        {
+          "file": "sample_spec.xlsx",
+          "document_id": "doc-072944edc7ef8992",
+          "canonical_chunk_id": "table-1:1",
+          "anchors": [
+            "sheet=Current",
+            "20"
+          ],
+          "stable_id": "doc-072944edc7ef8992/table-1:1"
+        }
+      ]
+    },
+    {
+      "id": "retrieval_011",
+      "category": "retrieval",
+      "question": "Other source sheet DemoPanel-X thickness",
+      "files": [
+        "sample_spec.xlsx",
+        "sample_checklist.docx"
+      ],
+      "gold_provenance": "project_authored_source_grounded_not_official_QA",
+      "gold": [
+        {
+          "file": "sample_spec.xlsx",
+          "document_id": "doc-072944edc7ef8992",
+          "canonical_chunk_id": "table-2:1",
+          "anchors": [
+            "sheet=Other source",
+            "18"
+          ],
+          "stable_id": "doc-072944edc7ef8992/table-2:1"
+        }
+      ]
+    },
+    {
+      "id": "retrieval_012",
+      "category": "retrieval",
+      "question": "RainPanel的安装限制是什么？",
+      "files": [
+        "RainPanel.txt",
+        "numeric.csv"
+      ],
+      "gold_provenance": "project_authored_source_grounded_not_official_QA",
+      "gold": [
+        {
+          "file": "RainPanel.txt",
+          "document_id": "doc-88068298dedfcb7c",
+          "canonical_chunk_id": "evidence:1",
+          "anchors": [
+            "RainPanel installation: rain must not install; dry substrate required."
+          ],
+          "stable_id": "doc-88068298dedfcb7c/evidence:1"
+        },
+        {
+          "file": "RainPanel.txt",
+          "document_id": "doc-88068298dedfcb7c",
+          "canonical_chunk_id": "table-1:1",
+          "anchors": [
+            "RainPanel installation: rain must not install; dry substrate required."
+          ],
+          "stable_id": "doc-88068298dedfcb7c/table-1:1"
+        }
+      ]
+    },
+    {
+      "id": "retrieval_013",
+      "category": "retrieval",
+      "question": "AnchorPanel的安装限制是什么？",
+      "files": [
+        "AnchorPanel.txt",
+        "numeric.csv"
+      ],
+      "gold_provenance": "project_authored_source_grounded_not_official_QA",
+      "gold": [
+        {
+          "file": "AnchorPanel.txt",
+          "document_id": "doc-b3507fd3420357ea",
+          "canonical_chunk_id": "evidence:1",
+          "anchors": [
+            "AnchorPanel fixing: only approved anchors; plastic fasteners must not be used."
+          ],
+          "stable_id": "doc-b3507fd3420357ea/evidence:1"
+        },
+        {
+          "file": "AnchorPanel.txt",
+          "document_id": "doc-b3507fd3420357ea",
+          "canonical_chunk_id": "table-1:1",
+          "anchors": [
+            "AnchorPanel fixing: only approved anchors; plastic fasteners must not be used."
+          ],
+          "stable_id": "doc-b3507fd3420357ea/table-1:1"
+        }
+      ]
+    },
+    {
+      "id": "retrieval_014",
+      "category": "retrieval",
+      "question": "ColdPanel的安装限制是什么？",
+      "files": [
+        "ColdPanel.txt",
+        "numeric.csv"
+      ],
+      "gold_provenance": "project_authored_source_grounded_not_official_QA",
+      "gold": [
+        {
+          "file": "ColdPanel.txt",
+          "document_id": "doc-6c4a86889b94bd33",
+          "canonical_chunk_id": "evidence:1",
+          "anchors": [
+            "ColdPanel施工：低于5℃不得施工；基层必须干燥。"
+          ],
+          "stable_id": "doc-6c4a86889b94bd33/evidence:1"
+        },
+        {
+          "file": "ColdPanel.txt",
+          "document_id": "doc-6c4a86889b94bd33",
+          "canonical_chunk_id": "table-1:1",
+          "anchors": [
+            "ColdPanel施工：低于5℃不得施工；基层必须干燥。"
+          ],
+          "stable_id": "doc-6c4a86889b94bd33/table-1:1"
+        }
+      ]
+    },
+    {
+      "id": "retrieval_015",
+      "category": "retrieval",
+      "question": "IndoorPanel的安装限制是什么？",
+      "files": [
+        "IndoorPanel.txt",
+        "numeric.csv"
+      ],
+      "gold_provenance": "project_authored_source_grounded_not_official_QA",
+      "gold": [
+        {
+          "file": "IndoorPanel.txt",
+          "document_id": "doc-16f9e72ca7e8d5fc",
+          "canonical_chunk_id": "evidence:1",
+          "anchors": [
+            "IndoorPanel: only indoor use; must not use on exterior walls."
+          ],
+          "stable_id": "doc-16f9e72ca7e8d5fc/evidence:1"
+        },
+        {
+          "file": "IndoorPanel.txt",
+          "document_id": "doc-16f9e72ca7e8d5fc",
+          "canonical_chunk_id": "table-1:1",
+          "anchors": [
+            "IndoorPanel: only indoor use; must not use on exterior walls."
+          ],
+          "stable_id": "doc-16f9e72ca7e8d5fc/table-1:1"
+        }
+      ]
+    },
+    {
+      "id": "numeric_001",
+      "category": "numeric",
+      "question": "BeamY 2025 thickness value and unit",
+      "files": [
+        "numeric.csv",
+        "sample_spec.xlsx"
+      ],
+      "gold_provenance": "project_authored_source_grounded_not_official_QA",
+      "gold": [
+        {
+          "file": "numeric.csv",
+          "document_id": "doc-ebbc6df3e8153578",
+          "canonical_chunk_id": "table-1:1",
+          "anchors": [
+            "BeamY",
+            "12",
+            "mm",
+            "2025"
+          ],
+          "stable_id": "doc-ebbc6df3e8153578/table-1:1"
+        }
+      ],
+      "expected_values": [
+        "12",
+        "mm"
+      ],
+      "target_terms": [
+        "BeamY",
+        "2025"
+      ]
+    },
+    {
+      "id": "numeric_002",
+      "category": "numeric",
+      "question": "MeshZ 2024 weight value and unit",
+      "files": [
+        "numeric.csv",
+        "sample_spec.xlsx"
+      ],
+      "gold_provenance": "project_authored_source_grounded_not_official_QA",
+      "gold": [
+        {
+          "file": "numeric.csv",
+          "document_id": "doc-ebbc6df3e8153578",
+          "canonical_chunk_id": "table-1:1",
+          "anchors": [
+            "MeshZ",
+            "7",
+            "kg",
+            "2024"
+          ],
+          "stable_id": "doc-ebbc6df3e8153578/table-1:1"
+        }
+      ],
+      "expected_values": [
+        "7",
+        "kg"
+      ],
+      "target_terms": [
+        "MeshZ",
+        "2024"
+      ]
+    },
+    {
+      "id": "numeric_003",
+      "category": "numeric",
+      "question": "TrimK 2023 length value and unit",
+      "files": [
+        "numeric.csv",
+        "sample_spec.xlsx"
+      ],
+      "gold_provenance": "project_authored_source_grounded_not_official_QA",
+      "gold": [
+        {
+          "file": "numeric.csv",
+          "document_id": "doc-ebbc6df3e8153578",
+          "canonical_chunk_id": "table-1:1",
+          "anchors": [
+            "TrimK",
+            "3",
+            "m",
+            "2023"
+          ],
+          "stable_id": "doc-ebbc6df3e8153578/table-1:1"
+        }
+      ],
+      "expected_values": [
+        "3",
+        "m"
+      ],
+      "target_terms": [
+        "TrimK",
+        "2023"
+      ]
+    },
+    {
+      "id": "numeric_004",
+      "category": "numeric",
+      "question": "JointM 2022 width value and unit",
+      "files": [
+        "numeric.csv",
+        "sample_spec.xlsx"
+      ],
+      "gold_provenance": "project_authored_source_grounded_not_official_QA",
+      "gold": [
+        {
+          "file": "numeric.csv",
+          "document_id": "doc-ebbc6df3e8153578",
+          "canonical_chunk_id": "table-1:1",
+          "anchors": [
+            "JointM",
+            "6",
+            "mm",
+            "2022"
+          ],
+          "stable_id": "doc-ebbc6df3e8153578/table-1:1"
+        }
+      ],
+      "expected_values": [
+        "6",
+        "mm"
+      ],
+      "target_terms": [
+        "JointM",
+        "2022"
+      ]
+    },
+    {
+      "id": "numeric_005",
+      "category": "numeric",
+      "question": "CoatN 2021 cost value and unit",
+      "files": [
+        "numeric.csv",
+        "sample_spec.xlsx"
+      ],
+      "gold_provenance": "project_authored_source_grounded_not_official_QA",
+      "gold": [
+        {
+          "file": "numeric.csv",
+          "document_id": "doc-ebbc6df3e8153578",
+          "canonical_chunk_id": "table-1:1",
+          "anchors": [
+            "CoatN",
+            "80",
+            "元",
+            "2021"
+          ],
+          "stable_id": "doc-ebbc6df3e8153578/table-1:1"
+        }
+      ],
+      "expected_values": [
+        "80",
+        "元"
+      ],
+      "target_terms": [
+        "CoatN",
+        "2021"
+      ]
+    },
+    {
+      "id": "conflict_001",
+      "category": "conflict",
+      "question": "Conflict1 thickness是否一致？",
+      "files": [],
+      "gold_provenance": "project_authored_source_grounded_not_official_QA",
+      "gold": [],
+      "evidence": [
+        {
+          "evidence_id": "U_conflict_0_a",
+          "source_type": "customer_document",
+          "text": "Conflict1 thickness: 18mm"
+        },
+        {
+          "evidence_id": "T_conflict_0_b",
+          "source_type": "company_rag",
+          "text": "Conflict1 thickness: 20mm"
+        }
+      ],
+      "required_ids": [
+        "U_conflict_0_a",
+        "T_conflict_0_b"
+      ],
+      "expected_values": [
+        "18mm",
+        "20mm"
+      ],
+      "expected_conflict": true,
+      "same_source_type": false,
+      "packed_token_budget": 650
+    },
+    {
+      "id": "conflict_002",
+      "category": "conflict",
+      "question": "Conflict2 length是否一致？",
+      "files": [],
+      "gold_provenance": "project_authored_source_grounded_not_official_QA",
+      "gold": [],
+      "evidence": [
+        {
+          "evidence_id": "U_conflict_1_a",
+          "source_type": "customer_document",
+          "text": "Conflict2 length: 3m"
+        },
+        {
+          "evidence_id": "T_conflict_1_b",
+          "source_type": "company_rag",
+          "text": "Conflict2 length: 4m"
+        }
+      ],
+      "required_ids": [
+        "U_conflict_1_a",
+        "T_conflict_1_b"
+      ],
+      "expected_values": [
+        "3m",
+        "4m"
+      ],
+      "expected_conflict": true,
+      "same_source_type": false,
+      "packed_token_budget": 650
+    },
+    {
+      "id": "conflict_003",
+      "category": "conflict",
+      "question": "Conflict3 weight是否一致？",
+      "files": [],
+      "gold_provenance": "project_authored_source_grounded_not_official_QA",
+      "gold": [],
+      "evidence": [
+        {
+          "evidence_id": "U_conflict_2_a",
+          "source_type": "customer_document",
+          "text": "Conflict3 weight: 7kg"
+        },
+        {
+          "evidence_id": "T_conflict_2_b",
+          "source_type": "company_rag",
+          "text": "Conflict3 weight: 9kg"
+        }
+      ],
+      "required_ids": [
+        "U_conflict_2_a",
+        "T_conflict_2_b"
+      ],
+      "expected_values": [
+        "7kg",
+        "9kg"
+      ],
+      "expected_conflict": true,
+      "same_source_type": false,
+      "packed_token_budget": 650
+    },
+    {
+      "id": "conflict_004",
+      "category": "conflict",
+      "question": "Conflict4 width是否一致？",
+      "files": [],
+      "gold_provenance": "project_authored_source_grounded_not_official_QA",
+      "gold": [],
+      "evidence": [
+        {
+          "evidence_id": "U_conflict_3_a",
+          "source_type": "customer_document",
+          "text": "Conflict4 width: 6mm"
+        },
+        {
+          "evidence_id": "U_conflict_3_b",
+          "source_type": "customer_document",
+          "text": "Conflict4 width: 8mm"
+        }
+      ],
+      "required_ids": [
+        "U_conflict_3_a",
+        "U_conflict_3_b"
+      ],
+      "expected_values": [
+        "6mm",
+        "8mm"
+      ],
+      "expected_conflict": true,
+      "same_source_type": true,
+      "packed_token_budget": 650
+    },
+    {
+      "id": "conflict_005",
+      "category": "conflict",
+      "question": "Conflict5 cost是否一致？",
+      "files": [],
+      "gold_provenance": "project_authored_source_grounded_not_official_QA",
+      "gold": [],
+      "evidence": [
+        {
+          "evidence_id": "U_conflict_4_a",
+          "source_type": "customer_document",
+          "text": "Conflict5 cost: 80元"
+        },
+        {
+          "evidence_id": "U_conflict_4_b",
+          "source_type": "customer_document",
+          "text": "Conflict5 cost: 90元"
+        }
+      ],
+      "required_ids": [
+        "U_conflict_4_a",
+        "U_conflict_4_b"
+      ],
+      "expected_values": [
+        "80元",
+        "90元"
+      ],
+      "expected_conflict": true,
+      "same_source_type": true,
+      "packed_token_budget": 650
+    },
+    {
+      "id": "context_001",
+      "category": "context",
+      "question": "RainPanel的使用限制和前提是什么？",
+      "files": [
+        "RainPanel.txt",
+        "numeric.csv"
+      ],
+      "gold_provenance": "project_authored_source_grounded_not_official_QA",
+      "gold": [
+        {
+          "file": "RainPanel.txt",
+          "document_id": "doc-88068298dedfcb7c",
+          "canonical_chunk_id": "evidence:1",
+          "anchors": [
+            "RainPanel installation: rain must not install; dry substrate required."
+          ],
+          "stable_id": "doc-88068298dedfcb7c/evidence:1"
+        },
+        {
+          "file": "RainPanel.txt",
+          "document_id": "doc-88068298dedfcb7c",
+          "canonical_chunk_id": "table-1:1",
+          "anchors": [
+            "RainPanel installation: rain must not install; dry substrate required."
+          ],
+          "stable_id": "doc-88068298dedfcb7c/table-1:1"
+        }
+      ],
+      "protected_text": [
+        "RainPanel installation: rain must not install; dry substrate required."
+      ],
+      "target_terms": [
+        "RainPanel"
+      ],
+      "expected_relation": "condition"
+    },
+    {
+      "id": "context_002",
+      "category": "context",
+      "question": "AnchorPanel的使用限制和前提是什么？",
+      "files": [
+        "AnchorPanel.txt",
+        "numeric.csv"
+      ],
+      "gold_provenance": "project_authored_source_grounded_not_official_QA",
+      "gold": [
+        {
+          "file": "AnchorPanel.txt",
+          "document_id": "doc-b3507fd3420357ea",
+          "canonical_chunk_id": "evidence:1",
+          "anchors": [
+            "AnchorPanel fixing: only approved anchors; plastic fasteners must not be used."
+          ],
+          "stable_id": "doc-b3507fd3420357ea/evidence:1"
+        },
+        {
+          "file": "AnchorPanel.txt",
+          "document_id": "doc-b3507fd3420357ea",
+          "canonical_chunk_id": "table-1:1",
+          "anchors": [
+            "AnchorPanel fixing: only approved anchors; plastic fasteners must not be used."
+          ],
+          "stable_id": "doc-b3507fd3420357ea/table-1:1"
+        }
+      ],
+      "protected_text": [
+        "AnchorPanel fixing: only approved anchors; plastic fasteners must not be used."
+      ],
+      "target_terms": [
+        "AnchorPanel"
+      ],
+      "expected_relation": "condition"
+    },
+    {
+      "id": "context_003",
+      "category": "context",
+      "question": "ColdPanel的使用限制和前提是什么？",
+      "files": [
+        "ColdPanel.txt",
+        "numeric.csv"
+      ],
+      "gold_provenance": "project_authored_source_grounded_not_official_QA",
+      "gold": [
+        {
+          "file": "ColdPanel.txt",
+          "document_id": "doc-6c4a86889b94bd33",
+          "canonical_chunk_id": "evidence:1",
+          "anchors": [
+            "ColdPanel施工：低于5℃不得施工；基层必须干燥。"
+          ],
+          "stable_id": "doc-6c4a86889b94bd33/evidence:1"
+        },
+        {
+          "file": "ColdPanel.txt",
+          "document_id": "doc-6c4a86889b94bd33",
+          "canonical_chunk_id": "table-1:1",
+          "anchors": [
+            "ColdPanel施工：低于5℃不得施工；基层必须干燥。"
+          ],
+          "stable_id": "doc-6c4a86889b94bd33/table-1:1"
+        }
+      ],
+      "protected_text": [
+        "ColdPanel施工：低于5℃不得施工；基层必须干燥。"
+      ],
+      "target_terms": [
+        "ColdPanel"
+      ],
+      "expected_relation": "condition"
+    },
+    {
+      "id": "context_004",
+      "category": "context",
+      "question": "IndoorPanel的使用限制和前提是什么？",
+      "files": [
+        "IndoorPanel.txt",
+        "numeric.csv"
+      ],
+      "gold_provenance": "project_authored_source_grounded_not_official_QA",
+      "gold": [
+        {
+          "file": "IndoorPanel.txt",
+          "document_id": "doc-16f9e72ca7e8d5fc",
+          "canonical_chunk_id": "evidence:1",
+          "anchors": [
+            "IndoorPanel: only indoor use; must not use on exterior walls."
+          ],
+          "stable_id": "doc-16f9e72ca7e8d5fc/evidence:1"
+        },
+        {
+          "file": "IndoorPanel.txt",
+          "document_id": "doc-16f9e72ca7e8d5fc",
+          "canonical_chunk_id": "table-1:1",
+          "anchors": [
+            "IndoorPanel: only indoor use; must not use on exterior walls."
+          ],
+          "stable_id": "doc-16f9e72ca7e8d5fc/table-1:1"
+        }
+      ],
+      "protected_text": [
+        "IndoorPanel: only indoor use; must not use on exterior walls."
+      ],
+      "target_terms": [
+        "IndoorPanel"
+      ],
+      "expected_relation": "condition"
+    },
+    {
+      "id": "context_005",
+      "category": "context",
+      "question": "CurePanel的使用限制和前提是什么？",
+      "files": [
+        "CurePanel.txt",
+        "numeric.csv"
+      ],
+      "gold_provenance": "project_authored_source_grounded_not_official_QA",
+      "gold": [
+        {
+          "file": "CurePanel.txt",
+          "document_id": "doc-9fe8abf097a43bb0",
+          "canonical_chunk_id": "evidence:1",
+          "anchors": [
+            "CurePanel养护：必须等待24小时；养护完成前不得加载。"
+          ],
+          "stable_id": "doc-9fe8abf097a43bb0/evidence:1"
+        },
+        {
+          "file": "CurePanel.txt",
+          "document_id": "doc-9fe8abf097a43bb0",
+          "canonical_chunk_id": "table-1:1",
+          "anchors": [
+            "CurePanel养护：必须等待24小时；养护完成前不得加载。"
+          ],
+          "stable_id": "doc-9fe8abf097a43bb0/table-1:1"
+        }
+      ],
+      "protected_text": [
+        "CurePanel养护：必须等待24小时；养护完成前不得加载。"
+      ],
+      "target_terms": [
+        "CurePanel"
+      ],
+      "expected_relation": "condition"
+    }
+  ],
+  "generation_cases": [
+    {
+      "id": "e2e_001",
+      "category": "text",
+      "question": "地球近地面大气中氮气和氧气分别占多少？",
+      "files": [
+        "earth.pdf"
+      ],
+      "expected_value_groups": [
+        [
+          "78"
+        ],
+        [
+          "21"
+        ]
+      ]
+    },
+    {
+      "id": "e2e_002",
+      "category": "text",
+      "question": "这份Word表单是干什么的，填写前要注意什么？",
+      "files": [
+        "flexible_working.docx"
+      ],
+      "expected_value_groups": [],
+      "manual_assertions": [
+        "申请灵活工作安排",
+        "填写前阅读说明并核查资格"
+      ]
+    },
+    {
+      "id": "e2e_003",
+      "category": "table",
+      "question": "numeric.csv中BeamY在2025年的厚度是多少？给出单位。",
+      "files": [
+        "numeric.csv"
+      ],
+      "expected_value_groups": [
+        [
+          "12"
+        ]
+      ],
+      "manual_assertions": [
+        "厚度12mm，绑定BeamY与2025"
+      ]
+    },
+    {
+      "id": "e2e_004",
+      "category": "multi_file",
+      "question": "分别说明这两份NASA资料的主题，并对照它们对地球自转时间的说法。",
+      "files": [
+        "earth.pdf",
+        "earth_facts.html"
+      ],
+      "expected_value_groups": [
+        [
+          "23.93"
+        ],
+        [
+          "23.9"
+        ]
+      ],
+      "manual_assertions": [
+        "区分两份来源，说明数值精度差异，不制造矛盾"
+      ]
+    },
+    {
+      "id": "e2e_005",
+      "category": "multi_file",
+      "question": "分别介绍这两个文件提供什么信息，不要把无关内容强行合并。",
+      "files": [
+        "flexible_working.docx",
+        "numeric.csv"
+      ],
+      "expected_value_groups": [],
+      "manual_assertions": [
+        "分别介绍申请表和虚构产品数值表",
+        "不构造无依据关联"
+      ]
+    },
+    {
+      "id": "e2e_006",
+      "category": "conflict",
+      "question": "DemoPanel-X在两个Sheet里的厚度是否一致？分别给出来源，别擅自决定哪个正确。",
+      "files": [
+        "sample_spec.xlsx"
+      ],
+      "expected_value_groups": [
+        [
+          "18"
+        ],
+        [
+          "20"
+        ]
+      ],
+      "manual_assertions": [
+        "Current为20mm，Other source为18mm，版本待核对"
+      ]
+    },
+    {
+      "id": "e2e_007",
+      "category": "conflict",
+      "question": "这两份资料的DemoPanel-X厚度有没有不同？请逐一说明并提示核对版本。",
+      "files": [
+        "sample_product.pdf",
+        "sample_spec.xlsx"
+      ],
+      "expected_value_groups": [
+        [
+          "18"
+        ],
+        [
+          "20"
+        ]
+      ],
+      "manual_assertions": [
+        "PDF与工作簿均包含版本差异，不能简单说每份文件只有一个值"
+      ]
+    },
+    {
+      "id": "e2e_008",
+      "category": "visual",
+      "question": "图里左边和右边分别是什么标签，两个框之间有什么连接？",
+      "files": [
+        "sample_drawing.png"
+      ],
+      "requires_visual": true,
+      "expected_value_groups": [
+        [
+          "Panel"
+        ],
+        [
+          "Support"
+        ]
+      ],
+      "manual_assertions": [
+        "Panel在左，Support在右，中间为线，不能臆造箭头方向"
+      ]
+    },
+    {
+      "id": "e2e_009",
+      "category": "visual",
+      "question": "只看NASA PDF第一页右侧图组，有几张较大的图片？不要把底部比例尺算进去。",
+      "files": [
+        "earth.pdf"
+      ],
+      "requires_visual": true,
+      "expected_value_groups": [
+        [
+          "5",
+          "五"
+        ]
+      ],
+      "manual_assertions": [
+        "右侧五图，上二中一下二，排除底部比例尺"
+      ]
+    },
+    {
+      "id": "e2e_010",
+      "category": "refusal",
+      "question": "请仅根据附件确认DemoPanel-X是否拿到了真实国家级防火检测合格证，给出证书编号。",
+      "files": [
+        "sample_product.pdf",
+        "sample_spec.xlsx"
+      ],
+      "should_refuse": true,
+      "expected_value_groups": [],
+      "manual_assertions": [
+        "拒绝确认真实证书，不编造编号"
+      ]
+    }
+  ],
+  "policy": {
+    "no_llm_judge": true,
+    "gold_selected_without_model_results": true,
+    "human_review_status": "pending",
+    "generation_cases_not_same_as_model_call_count": true
+  }
+}

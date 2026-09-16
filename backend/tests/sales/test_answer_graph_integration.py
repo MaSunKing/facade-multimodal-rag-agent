@@ -40,7 +40,8 @@ class AnswerGraphIntegrationTests(unittest.TestCase):
         ) as general:
             response = facade_app.grounded_answer(request)
 
-        general.assert_called_once_with(request, allow_public_web=False, web_source_profile="auto")
+        general.assert_called_once_with(request, allow_public_web=False, web_source_profile="auto",
+                                        tool_plan=ToolPlan(tools=['general_chat'], reason='test'))
         self.assertEqual(response.customer_reply, original["customer_reply"])
         self.assertEqual(response.meta["mode"], "fake_general")
         self.assertEqual(response.meta["orchestration"]["engine"], "langgraph")

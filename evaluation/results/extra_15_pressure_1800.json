@@ -1,0 +1,213 @@
+{
+  "metrics": {
+    "numeric": {
+      "cases": 5,
+      "passed": 0,
+      "target_row_value_retained": {
+        "hits": 3,
+        "total": 5
+      },
+      "native_unit_retained": {
+        "hits": 0,
+        "total": 5
+      },
+      "row_value_unit_retained": {
+        "hits": 0,
+        "total": 5
+      }
+    },
+    "condition": {
+      "cases": 5,
+      "passed": 2,
+      "condition_relation_retained": {
+        "hits": 2,
+        "total": 5
+      },
+      "condition_protection_tagged": {
+        "hits": 1,
+        "total": 5
+      }
+    },
+    "conflict": {
+      "cases": 5,
+      "passed": 0,
+      "conflict_detected": {
+        "hits": 0,
+        "total": 5
+      },
+      "both_sources_retained": {
+        "hits": 5,
+        "total": 5
+      }
+    }
+  },
+  "model_generation_tested": false,
+  "prompt_budget": 1800,
+  "details": [
+    {
+      "id": "extra_numeric_01",
+      "category": "numeric",
+      "target_row_value_retained": true,
+      "native_unit_retained": false,
+      "before_packing": {
+        "target_row_value_retained": true,
+        "native_unit_retained": false,
+        "row_value_unit_retained": false
+      },
+      "passed": false
+    },
+    {
+      "id": "extra_numeric_02",
+      "category": "numeric",
+      "target_row_value_retained": true,
+      "native_unit_retained": false,
+      "before_packing": {
+        "target_row_value_retained": true,
+        "native_unit_retained": false,
+        "row_value_unit_retained": false
+      },
+      "passed": false
+    },
+    {
+      "id": "extra_numeric_03",
+      "category": "numeric",
+      "target_row_value_retained": true,
+      "native_unit_retained": false,
+      "before_packing": {
+        "target_row_value_retained": true,
+        "native_unit_retained": false,
+        "row_value_unit_retained": false
+      },
+      "passed": false
+    },
+    {
+      "id": "extra_numeric_04",
+      "category": "numeric",
+      "target_row_value_retained": false,
+      "native_unit_retained": false,
+      "before_packing": {
+        "target_row_value_retained": false,
+        "native_unit_retained": false,
+        "row_value_unit_retained": false
+      },
+      "passed": false
+    },
+    {
+      "id": "extra_numeric_05",
+      "category": "numeric",
+      "target_row_value_retained": false,
+      "native_unit_retained": false,
+      "before_packing": {
+        "target_row_value_retained": true,
+        "native_unit_retained": true,
+        "row_value_unit_retained": true
+      },
+      "passed": false
+    },
+    {
+      "id": "extra_condition_01",
+      "category": "condition",
+      "condition_relation_retained": true,
+      "condition_protection_tagged": true,
+      "before_packing": {
+        "condition_relation_retained": true,
+        "condition_protection_tagged": true
+      },
+      "passed": true
+    },
+    {
+      "id": "extra_condition_02",
+      "category": "condition",
+      "condition_relation_retained": false,
+      "condition_protection_tagged": false,
+      "before_packing": {
+        "condition_relation_retained": true,
+        "condition_protection_tagged": true
+      },
+      "passed": false
+    },
+    {
+      "id": "extra_condition_03",
+      "category": "condition",
+      "condition_relation_retained": false,
+      "condition_protection_tagged": false,
+      "before_packing": {
+        "condition_relation_retained": true,
+        "condition_protection_tagged": true
+      },
+      "passed": false
+    },
+    {
+      "id": "extra_condition_04",
+      "category": "condition",
+      "condition_relation_retained": true,
+      "condition_protection_tagged": false,
+      "before_packing": {
+        "condition_relation_retained": true,
+        "condition_protection_tagged": false
+      },
+      "passed": true
+    },
+    {
+      "id": "extra_condition_05",
+      "category": "condition",
+      "condition_relation_retained": false,
+      "condition_protection_tagged": false,
+      "before_packing": {
+        "condition_relation_retained": true,
+        "condition_protection_tagged": false
+      },
+      "passed": false
+    },
+    {
+      "id": "extra_conflict_01",
+      "category": "conflict",
+      "conflict_detected": false,
+      "both_sources_retained": true,
+      "before_packing": {
+        "both_sources_retained": true
+      },
+      "passed": false
+    },
+    {
+      "id": "extra_conflict_02",
+      "category": "conflict",
+      "conflict_detected": false,
+      "both_sources_retained": true,
+      "before_packing": {
+        "both_sources_retained": true
+      },
+      "passed": false
+    },
+    {
+      "id": "extra_conflict_03",
+      "category": "conflict",
+      "conflict_detected": false,
+      "both_sources_retained": true,
+      "before_packing": {
+        "both_sources_retained": true
+      },
+      "passed": false
+    },
+    {
+      "id": "extra_conflict_04",
+      "category": "conflict",
+      "conflict_detected": false,
+      "both_sources_retained": true,
+      "before_packing": {
+        "both_sources_retained": true
+      },
+      "passed": false
+    },
+    {
+      "id": "extra_conflict_05",
+      "category": "conflict",
+      "conflict_detected": false,
+      "both_sources_retained": true,
+      "before_packing": {
+        "both_sources_retained": true
+      },
+      "passed": false
+    }
+  ]
+}

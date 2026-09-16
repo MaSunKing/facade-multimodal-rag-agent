@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import time
 from html.parser import HTMLParser
 from pathlib import Path
 from tempfile import NamedTemporaryFile, gettempdir
@@ -27,11 +28,18 @@ _STRUCTURED_NUMERIC_LABEL = re.compile(
 )
 _NUMERIC_SURFACE = re.compile(r"(?:[$€£¥]|\b\d{1,3}(?:[,，.]\d{3})+(?:[.,]\d+)?\b|\b\d+(?:[.,]\d+)?%\b)")
 _pipeline: Any | None = None
+_text_pipeline: Any | None = None
+_text_pipeline_error: str | None = None
 # PaddleX defaults to the user's home directory, which is not a reliable
 # writable location for a desktop service.  Its native Windows runtime also
 # expects an ASCII-safe model path, so use the OS temp root by default.  A
 # stable ASCII-only path can be supplied via FINANCE_OCR_CACHE_HOME.
 PADDLE_CACHE_HOME = Path(os.getenv("FINANCE_OCR_CACHE_HOME", Path(gettempdir()) / "finance-paddlex-cache"))
+TEXT_INDEX_CACHE_HOME = Path(os.getenv("FINANCE_OCR_TEXT_CACHE_HOME", Path(gettempdir()) / "finance-text-index-cache"))
+TEXT_INDEX_MODEL_NAMES = (
+    os.getenv('FINANCE_OCR_TEXT_DETECTION_MODEL', 'PP-OCRv5_mobile_det'),
+    os.getenv('FINANCE_OCR_TEXT_RECOGNITION_MODEL', 'PP-OCRv5_mobile_rec'),
+)
 
 
 class OcrRuntimeUnavailable(RuntimeError):
@@ -256,6 +264,80 @@ def run_pp_structure_v3(asset: VisualAsset) -> dict[str, Any]:
             path.unlink(missing_ok=True)
 
 
+def _get_text_pipeline() -> Any:
+    """CPU-only cached text index; no layout/table/LLM inference here."""
+    global _text_pipeline, _text_pipeline_error
+    if _text_pipeline is not None:
+        return _text_pipeline
+    if _text_pipeline_error is not None:
+        raise OcrRuntimeUnavailable(_text_pipeline_error)
+    TEXT_INDEX_CACHE_HOME.mkdir(parents=True, exist_ok=True)
+    os.environ.setdefault("PADDLE_PDX_CACHE_HOME", str(TEXT_INDEX_CACHE_HOME))
+    try:
+        from paddleocr import PaddleOCR
+        options = dict(device="cpu", enable_mkldnn=False,
+                       use_doc_orientation_classify=False,
+                       use_doc_unwarping=False, use_textline_orientation=False)
+        # Reuse the already downloaded local models, without an implicit
+        # network download during customer upload.
+        for role, name in zip(("detection", "recognition"), TEXT_INDEX_MODEL_NAMES):
+            directory = TEXT_INDEX_CACHE_HOME / "official_models" / name
+            if not (directory / 'inference.yml').is_file():
+                raise OcrRuntimeUnavailable("Local page text-index model cache is incomplete.")
+            options[f"text_{role}_model_dir"] = str(directory)
+            options[f"text_{role}_model_name"] = name
+        _text_pipeline = PaddleOCR(**options)
+    except Exception as exc:
+        _text_pipeline_error = "Local CPU page text index could not initialize."
+        raise OcrRuntimeUnavailable(_text_pipeline_error) from exc
+    return _text_pipeline
+
+
+def pack_ocr_index_lines(lines: list[str], *, maximum: int = 24,
+                         block_characters: int = 800) -> tuple[list[str], bool]:
+    """Group literal lines, retaining line boundaries; disclose overflow."""
+    blocks: list[str] = []
+    for line in lines:
+        if not line.strip():
+            continue
+        # Oversized lines are split, not silently prefix-truncated.
+        for start in range(0, len(line), block_characters):
+            piece = line[start:start + block_characters]
+            if blocks and len(blocks[-1]) + len(piece) + 1 <= block_characters:
+                blocks[-1] += "\n" + piece
+            else:
+                blocks.append(piece)
+    return blocks[:maximum], len(blocks) > maximum
+
+
+def run_page_text_index(asset: VisualAsset) -> dict[str, Any]:
+    """Literal search hints only; selected pages still require visual reading."""
+    if not asset.image_bytes:
+        raise OcrRuntimeUnavailable("No page image bytes are available.")
+    path: Path | None = None
+    try:
+        with NamedTemporaryFile(prefix="page-text-index-", suffix=".png", delete=False) as file:
+            file.write(asset.image_bytes)
+            path = Path(file.name)
+        payloads = [_as_mapping(item) for item in _get_text_pipeline().predict(str(path))]
+        lines: list[str] = []
+        scores: list[float] = []
+        for payload in payloads:
+            if payload is None:
+                continue
+            nested = payload.get("res", payload)
+            lines.extend(str(line) for line in nested.get("rec_texts", []) if str(line).strip())
+            scores.extend(_scores(nested))
+        blocks, truncated = pack_ocr_index_lines(lines)
+        return {"text_blocks": blocks, "tables": [], "document_type": "report",
+                "confidence": sum(scores) / len(scores) if scores else 0.0,
+                "index_truncated": truncated,
+                "recognizer": "paddle_text_index"}
+    finally:
+        if path is not None:
+            path.unlink(missing_ok=True)
+
+
 def _candidate_from_ocr(asset: VisualAsset, payload: dict[str, Any]) -> VisionDocumentCandidate:
     raw_tables = payload.get("tables")
     tables = raw_tables if isinstance(raw_tables, list) else []
@@ -272,36 +354,55 @@ def _candidate_from_ocr(asset: VisualAsset, payload: dict[str, Any]) -> VisionDo
         text_blocks=[str(value).strip()[:800] for value in payload.get("text_blocks", [])[:24] if str(value).strip()],
         tables=[table for table in tables[:4] if isinstance(table, VisionTableCandidate)],
         confidence=numeric_confidence,
-        recognizer="pp_structure_v3",
-        message="PP-StructureV3 OCR/layout/table candidate; requires customer confirmation.",
+        recognizer=str(payload.get("recognizer") or "pp_structure_v3"),
+        message=("Literal text-index candidate; not verified layout or a training label."
+                 + (" Text-index overflow: some lines are pending." if payload.get("index_truncated") else ""))
+                if payload.get("recognizer") == "paddle_text_index"
+                else "PP-StructureV3 OCR/layout/table candidate; requires customer confirmation.",
     )
 
 
 def augment_with_document_ocr_candidates(
     result: IntakeResult,
     infer_document: Callable[[VisualAsset], dict[str, Any]] = run_pp_structure_v3,
+    *, deadline: float | None = None,
 ) -> IntakeResult:
     """Attach bounded PP-Structure candidates while keeping all output review-only."""
 
     assets = [asset for asset in result.intermediate.visual_assets if asset.kind == "document_page"]
+    recognizer = "paddle_text_index" if infer_document is run_page_text_index else "pp_structure_v3"
+    if recognizer == 'paddle_text_index' and hasattr(result, 'pdf'):
+        # Reliable native text is already indexed. OCR only unavailable or
+        # suspect text layers, not every photograph/chart in a native PDF.
+        required = {page.page_number for page in result.pdf.page_inspections
+                    if page.parse_route != 'direct_text'}
+        assets = [asset for asset in assets if asset.source.page_number in required]
     candidates: list[VisionDocumentCandidate] = []
     issues: list[ValidationIssue] = []
     for asset in assets[:MAX_DOCUMENT_OCR_ASSETS]:
+        if deadline is not None and time.monotonic() >= deadline:
+            candidates.append(VisionDocumentCandidate(visual_id=asset.visual_id,
+                status='unavailable',recognizer=recognizer,
+                message='OCR indexing time budget exhausted; original page retained, indexing pending.'))
+            continue
         if asset.delivery_status != "ready_for_vision" or not asset.image_bytes:
-            candidates.append(VisionDocumentCandidate(visual_id=asset.visual_id, status="unavailable", recognizer="pp_structure_v3", message="This page could not be prepared for local OCR."))
+            candidates.append(VisionDocumentCandidate(visual_id=asset.visual_id, status="unavailable", recognizer=recognizer, message="This page could not be prepared for local OCR."))
             continue
         try:
             candidates.append(_candidate_from_ocr(asset, infer_document(asset)))
         except OcrRuntimeUnavailable as exc:
-            candidates.append(VisionDocumentCandidate(visual_id=asset.visual_id, status="unavailable", recognizer="pp_structure_v3", message=str(exc)[:300]))
+            candidates.append(VisionDocumentCandidate(visual_id=asset.visual_id, status="unavailable", recognizer=recognizer, message=str(exc)[:300]))
         except Exception:
-            candidates.append(VisionDocumentCandidate(visual_id=asset.visual_id, status="failed", recognizer="pp_structure_v3", message="PP-StructureV3 did not return a usable OCR candidate."))
+            candidates.append(VisionDocumentCandidate(visual_id=asset.visual_id, status="failed", recognizer=recognizer, message="Local OCR did not return a usable candidate."))
     for asset in assets[MAX_DOCUMENT_OCR_ASSETS:]:
         candidates.append(VisionDocumentCandidate(visual_id=asset.visual_id, status="unavailable", recognizer="pp_structure_v3", message=f"One request processes at most {MAX_DOCUMENT_OCR_ASSETS} document pages with PP-StructureV3."))
 
     for candidate in candidates:
         if candidate.status != "candidate_ready":
-            issues.append(ValidationIssue(severity="warning", code="document_ocr_unavailable", message="专用 OCR 未完成该页识别，已保留页面并交由视觉模型回退处理。", source=next((asset.source for asset in assets if asset.visual_id == candidate.visual_id), None)))
+            code = ('document_ocr_index_budget_exhausted' if 'budget exhausted' in str(candidate.message)
+                    else 'document_ocr_prediction_failed' if candidate.status == 'failed'
+                    else 'document_ocr_unavailable')
+            issues.append(ValidationIssue(severity="warning", code=code, message="专用 OCR 未完成该页识别，已保留页面并交由视觉模型回退处理。", source=next((asset.source for asset in assets if asset.visual_id == candidate.visual_id), None)))
     return result.model_copy(update={"vision_document_candidates": [*result.vision_document_candidates, *candidates], "validation": [*result.validation, *issues]})
 
 

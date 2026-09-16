@@ -1,0 +1,1 @@
+AnchorPanel fixing: only approved anchors; plastic fasteners must not be used.

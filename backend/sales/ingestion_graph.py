@@ -12,7 +12,6 @@ import json
 import os
 import re
 import subprocess
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol, TypedDict
@@ -24,8 +23,8 @@ from langgraph.graph import END, START, StateGraph
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_RUN_ROOT = ROOT / "data" / "sales" / "processed" / "intake_runs"
 DEFAULT_TAXONOMY_PATH = ROOT / "data" / "sales" / "config" / "knowledge_taxonomy_v1.json"
-DEFAULT_MINERU = Path(os.getenv("MINERU_EXECUTABLE", "mineru"))
-DEFAULT_AI_PYTHON = Path(sys.executable)
+DEFAULT_MINERU = Path(r"C:\Anaconda\envs\mineru_local\Scripts\mineru.exe")
+DEFAULT_AI_PYTHON = Path(r"C:\Anaconda\envs\ai6130\python.exe")
 MANIFEST_BUILDER = ROOT / "scripts" / "build_mineru_asset_manifest.py"
 VISUAL_ANNOTATOR = ROOT / "scripts" / "annotate_visual_assets_qwen3vl.py"
 SALES_PLAYBOOK_INGESTOR = ROOT / "scripts" / "ingest_sales_playbook.py"

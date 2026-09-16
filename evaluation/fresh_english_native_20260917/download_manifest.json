@@ -1,0 +1,102 @@
+[
+  {
+    "file": "ofgem_data_dictionary.pdf",
+    "path": "assets/ofgem_data_dictionary.pdf",
+    "sha256": "095af66622899e03fe30e5f1c9bd2cdbe9820dd687fd1d9b4edbceb4268fac86",
+    "bytes": 198263,
+    "source_url": "https://www.ofgem.gov.uk/sites/default/files/2024-05/Great_British_Insulation_Scheme_and_ECO4_Flex_Data_Dictionary_V1.2.pdf",
+    "source_page": "https://www.ofgem.gov.uk/guidance/great-british-insulation-scheme-and-eco4-la-and-supplier-flex-forms-and-subsidiary-documents",
+    "provenance": "new_download_official_native_file_not_synthetic",
+    "redistribution_license_verified": false
+  },
+  {
+    "file": "ofgem_third_party_facts.pdf",
+    "path": "assets/ofgem_third_party_facts.pdf",
+    "sha256": "879383282d47d4e30e99d5cefc65a04e2d066f11782909862cdee3ade7cc19d3",
+    "bytes": 102746,
+    "source_url": "https://www.ofgem.gov.uk/sites/default/files/2023-07/Great%20British%20Insulation%20Scheme%20and%20ECO4%20Flex%20fact%20sheet%20for%20third%20parties%20V1.0.pdf",
+    "source_page": "https://www.ofgem.gov.uk/guidance/great-british-insulation-scheme-and-eco4-la-and-supplier-flex-forms-and-subsidiary-documents",
+    "provenance": "new_download_official_native_file_not_synthetic",
+    "redistribution_license_verified": false
+  },
+  {
+    "file": "ofgem_statement_of_intent.docx",
+    "path": "assets/ofgem_statement_of_intent.docx",
+    "sha256": "d60ee3f24ce8a621ebdfa87d5635b62303453e277c51d64fdf7b096089e58e3c",
+    "bytes": 45919,
+    "source_url": "https://www.ofgem.gov.uk/sites/default/files/2026-03/ECO4-and-GBIS-Flex-Statement-of-Intent-Template.docx",
+    "source_page": "https://www.ofgem.gov.uk/guidance/great-british-insulation-scheme-and-eco4-la-and-supplier-flex-forms-and-subsidiary-documents",
+    "provenance": "new_download_official_native_file_not_synthetic",
+    "redistribution_license_verified": false
+  },
+  {
+    "file": "ofgem_medical_referral.docx",
+    "path": "assets/ofgem_medical_referral.docx",
+    "sha256": "d47fa0e22c62163902f8bca768b2ab7d99526606603ce5dc6f1ec3782aa8fe27",
+    "bytes": 59676,
+    "source_url": "https://www.ofgem.gov.uk/sites/default/files/2024-11/ECO4%20and%20GBIS%20Flex%20Medical%20Referral%20Template.docx",
+    "source_page": "https://www.ofgem.gov.uk/guidance/great-british-insulation-scheme-and-eco4-la-and-supplier-flex-forms-and-subsidiary-documents",
+    "provenance": "new_download_official_native_file_not_synthetic",
+    "redistribution_license_verified": false
+  },
+  {
+    "file": "ofgem_householder_application.docx",
+    "path": "assets/ofgem_householder_application.docx",
+    "sha256": "b72741fd177ab4c028dc8a1edecf76d0f7090d43f4a2b25a50140b65163060ce",
+    "bytes": 71210,
+    "source_url": "https://www.ofgem.gov.uk/sites/default/files/2023-07/Great%20British%20Insulation%20Scheme%20and%20ECO4%20Flex%20householder%20application%20form%20V1.0.docx",
+    "source_page": "https://www.ofgem.gov.uk/guidance/great-british-insulation-scheme-and-eco4-la-and-supplier-flex-forms-and-subsidiary-documents",
+    "provenance": "new_download_official_native_file_not_synthetic",
+    "redistribution_license_verified": false
+  },
+  {
+    "file": "ofgem_declaration_template.xlsx",
+    "path": "assets/ofgem_declaration_template.xlsx",
+    "sha256": "bb407ddb7c7b0277dd8f85e48499f9251d9c8f70b5e06ca705aaa22dd8efa37f",
+    "bytes": 24750,
+    "source_url": "https://www.ofgem.gov.uk/sites/default/files/2024-06/great_british_insulation_scheme_and_eco4_flex_declaration_notification_template_v1.3.xlsx",
+    "source_page": "https://www.ofgem.gov.uk/guidance/great-british-insulation-scheme-and-eco4-la-and-supplier-flex-forms-and-subsidiary-documents",
+    "provenance": "new_download_official_native_file_not_synthetic",
+    "redistribution_license_verified": false
+  },
+  {
+    "file": "eia_industry_summary.xlsx",
+    "path": "assets/eia_industry_summary.xlsx",
+    "sha256": "3a1cadef9d13e3031feeb3fc269502d9c20cfc3ef1bb53c736b12a7f97da3842",
+    "bytes": 17061,
+    "source_url": "https://www.eia.gov/electricity/annual/xls/epa_01_01.xlsx",
+    "source_page": "https://www.eia.gov/electricity/annual/",
+    "provenance": "new_download_official_native_file_not_synthetic",
+    "redistribution_license_verified": false
+  },
+  {
+    "file": "eia_electricity_prices.xlsx",
+    "path": "assets/eia_electricity_prices.xlsx",
+    "sha256": "d193a508898f07146c7ac46194c830431528b024cc0915214bea065b4392d933",
+    "bytes": 14104,
+    "source_url": "https://www.eia.gov/electricity/annual/xls/epa_02_04.xlsx",
+    "source_page": "https://www.eia.gov/electricity/annual/",
+    "provenance": "new_download_official_native_file_not_synthetic",
+    "redistribution_license_verified": false
+  },
+  {
+    "file": "canterbury_fire_risk.docx",
+    "path": "assets/canterbury_fire_risk.docx",
+    "sha256": "097a5f30b1f1d9e779f3b8203d49295b84978b020cd19e18d6aebdffe90f4d3c",
+    "bytes": 21595,
+    "source_url": "https://www.canterbury.gov.uk/sites/default/files/2022-10/HMO%20fire%20risk%20template.docx",
+    "source_page": "https://www.canterbury.gov.uk/housing/houses-multiple-occupation-hmo/hmo-fire-safety",
+    "provenance": "new_download_official_native_file_not_synthetic",
+    "redistribution_license_verified": false
+  },
+  {
+    "file": "gmfrs_information_box.pdf",
+    "path": "assets/gmfrs_information_box.pdf",
+    "sha256": "850bc396136537193106a3426ff989a5c601e8b8a778dc18bf6e2b407354daea",
+    "bytes": 394937,
+    "source_url": "https://manchesterfire.gov.uk/media/jq2ll2ra/gmfrs-guidance-secure-information-boxes-updated-april-2026-accessible.pdf",
+    "source_page": "https://manchesterfire.gov.uk/your-safety/fire-and-building-safety-in-flats/the-fire-safety-england-regulations-2022/guidance-documents-fire-safety-england-regulations-2022/",
+    "provenance": "new_download_official_native_file_not_synthetic",
+    "redistribution_license_verified": false
+  }
+]

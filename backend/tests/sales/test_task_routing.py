@@ -38,7 +38,7 @@ from backend.app import (
 from backend.sales.retriever import LocalRagRetriever, is_product_overview_query
 
 
-@unittest.skipUnless(os.getenv("RUN_ENTERPRISE_DATA_TESTS") == "1", "Requires separately authorised enterprise index; public core checks run without business data")
+@unittest.skipUnless(os.getenv("RUN_ENTERPRISE_DATA_TESTS") == "1", "Requires separately authorised enterprise index; not included in public fixtures")
 class TaskRoutingTests(unittest.TestCase):
     def test_clear_topic_switch_does_not_inherit_facade_domain_from_history(self) -> None:
         request = DraftRequest(

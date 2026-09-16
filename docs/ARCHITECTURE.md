@@ -62,3 +62,5 @@ NF4 4-bit 8B模型串行运行；生成预留GPU时企业Dense/Reranker可跳过
 ## 代码导航
 
 `backend/sales/answer_graph.py`：条件图；`tool_planner.py`：计划/Guard；`staged_execution.py`：阶段操作；`context_engine.py`：上下文；`retriever.py`：检索；`task_memory.py`：相关历史；`runtime_status.py`和`backend/request_budget.py`：错误/恢复；`backend/documents/`：客户附件；`backend/access_control.py`：权限/审计；`backend/app.py`：回答集成。
+
+新增算法模块：`goal_reranking.py`为目标相关重排；`fact_normalization.py`为实体/指标/范围/单位事实键；`evidence_packing.py`为语义组压缩与原生文本清理；`answer_integrity.py`为回答支持和完整性检查；`recovery_policy.py`为有限恢复策略；`backend/stage_timing.py`为细粒度调用计时。公开75题的指标/边界见[EVALUATION_RESULTS.md](EVALUATION_RESULTS.md)。

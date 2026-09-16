@@ -25,6 +25,7 @@ class WorkflowCursor:
         self.result = None
         self.done = False
         self.operation_error = None
+        self.last_value = None
 
     def advance(self, value=None, error=None):
         try:
@@ -37,6 +38,7 @@ class WorkflowCursor:
     def execute(self):
         step = self.pending
         self.operation_error = None
+        self.last_value = None
         try:
             try:
                 value = step.operation(*step.args, **step.kwargs) if step.operation else None
@@ -54,6 +56,7 @@ class WorkflowCursor:
             # Existing path-specific error handling remains authoritative.
             self.advance(error=exc)
         else:
+            self.last_value = value
             self.advance(value)
 
     def close(self):

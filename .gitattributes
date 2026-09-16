@@ -1,0 +1,5 @@
+# Preserve native fixture bytes and source SHA across Windows/Linux checkouts.
+*.pdf binary
+*.docx binary
+*.xlsx binary
+*.png binary

@@ -1,0 +1,3 @@
+Synthetic evaluation data, not a real product specification.
+Measurement scope: same laboratory sample and same batch.
+MockStrip-R width: 85 mm.

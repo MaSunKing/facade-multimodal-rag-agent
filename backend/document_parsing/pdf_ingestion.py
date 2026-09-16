@@ -20,6 +20,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 from pypdf import PdfReader
+from backend.stage_timing import timed_call
 
 from backend.document_parsing.ingestion import (
     FinanceIntakeError,
@@ -50,7 +51,7 @@ MAX_TEXT_PDF_TABLE_PAGES = 12
 # Keeping the cap finite also prevents one upload from holding the web UI for
 # several minutes when the local runtime is unhealthy.
 MINERU_TIMEOUT_SECONDS = 90
-DEFAULT_MINERU = Path(os.getenv("MINERU_EXECUTABLE", "mineru"))
+DEFAULT_MINERU = Path(r"C:\Anaconda\envs\mineru_local\Scripts\mineru.exe")
 
 StatementType = Literal["income_statement", "balance_sheet", "cash_flow_statement"]
 PdfKind = Literal["text_pdf", "scanned_pdf", "mixed_pdf"]
@@ -95,6 +96,9 @@ class PdfExtractionSummary(BaseModel):
     # large uploads responsive without silently discarding later pages.
     vision_rendered_page_numbers: list[int] = Field(default_factory=list)
     vision_next_page_start: int | None = Field(default=None, ge=1)
+    vision_required_page_numbers: list[int] = Field(default_factory=list)
+    stage_timings_ms: dict[str, float] = Field(default_factory=dict)
+    file_sha256: str = ''
 
 
 class PdfIntakeResult(IntakeResult):
@@ -321,11 +325,27 @@ def render_scanned_pdf_pages(
     return assets, None
 
 
+def visual_recovery_page_numbers(source: Path, page_inspections: list[PdfPageInspection]) -> list[int]:
+    """Shared initial/continuation discovery, including native-page visuals."""
+    pages = {page.page_number for page in page_inspections
+             if page.parse_route in {'vision', 'hybrid'}}
+    import fitz
+    with fitz.open(str(source)) as pdf:
+        for page_index, page in enumerate(pdf):
+            area = max(1.0, page.rect.get_area())
+            image_area = sum(fitz.Rect(info['bbox']).get_area() for info in page.get_image_info())
+            vector_area = sum(item['rect'].get_area() for item in page.get_drawings())
+            if image_area / area >= 0.03 or vector_area / area >= 0.15:
+                pages.add(page_index + 1)
+    return sorted(pages)
+
+
 def ingest_scanned_pdf_vision_batch(
     file_name: str,
     content: bytes,
     *,
     page_start: int = 1,
+    cached_summary: PdfExtractionSummary | None = None,
 ) -> PdfIntakeResult:
     """Render one bounded scanned or mixed-PDF visual batch for review.
 
@@ -347,9 +367,18 @@ def ingest_scanned_pdf_vision_batch(
     with tempfile.TemporaryDirectory(prefix="finance-pdf-vision-batch-") as temporary_directory:
         source = Path(temporary_directory) / safe_file_name
         source.write_bytes(content)
-        document_kind, pypdf_pages, page_inspections = inspect_pdf_pages(source)
-        vision_page_numbers = [inspection.page_number for inspection in page_inspections if inspection.parse_route == "vision"]
-        unresolved_table_pages = text_table_pages_needing_visual_recovery(source, pypdf_pages, page_inspections)
+        timings: dict[str, float] = {}
+        if cached_summary and cached_summary.file_sha256 == hashlib.sha256(content).hexdigest() and cached_summary.vision_required_page_numbers:
+            document_kind = cached_summary.document_kind
+            pypdf_pages = [''] * cached_summary.page_count
+            page_inspections = list(cached_summary.page_inspections)
+            vision_page_numbers = list(cached_summary.vision_required_page_numbers)
+            unresolved_table_pages = []
+            timings['inspection_cache_hit'] = 1.0
+        else:
+            document_kind, pypdf_pages, page_inspections = timed_call(timings, 'pdf_text_extraction', inspect_pdf_pages, source)
+            vision_page_numbers = timed_call(timings, 'pdf_visual_detection', visual_recovery_page_numbers, source, page_inspections)
+            unresolved_table_pages = timed_call(timings, 'pdf_table_recovery_probe', text_table_pages_needing_visual_recovery, source, pypdf_pages, page_inspections)
         if unresolved_table_pages:
             for page_number in unresolved_table_pages:
                 current = page_inspections[page_number - 1]
@@ -371,7 +400,7 @@ def ingest_scanned_pdf_vision_batch(
         page_numbers = [page_number for page_number in vision_page_numbers if page_number >= page_start][:MAX_SCANNED_PDF_VISION_PAGES]
         if not page_numbers:
             raise FinanceIntakeError("There are no remaining visual-recovery pages at or after page_start.")
-        visual_assets, render_error = render_scanned_pdf_pages(
+        visual_assets, render_error = timed_call(timings, 'pdf_page_rendering', render_scanned_pdf_pages,
             source,
             file_name=safe_file_name,
             page_count=len(pypdf_pages),
@@ -451,6 +480,9 @@ def ingest_scanned_pdf_vision_batch(
             validation=[*issues, *standard_result.validation],
             pdf=PdfExtractionSummary(
                 document_kind=document_kind,
+                vision_required_page_numbers=vision_page_numbers,
+                stage_timings_ms=timings,
+                file_sha256=hashlib.sha256(content).hexdigest(),
                 page_count=len(pypdf_pages),
                 text_characters=sum(len(page.strip()) for page in pypdf_pages),
                 page_locator="pypdf_fallback",
@@ -681,7 +713,8 @@ def ingest_pdf(file_name: str, content: bytes) -> PdfIntakeResult:
     with tempfile.TemporaryDirectory(prefix="finance-pdf-") as temporary_directory:
         source = Path(temporary_directory) / Path(file_name).name
         source.write_bytes(content)
-        document_kind, pypdf_pages, page_inspections = inspect_pdf_pages(source)
+        timings: dict[str, float] = {}
+        document_kind, pypdf_pages, page_inspections = timed_call(timings, 'pdf_text_extraction', inspect_pdf_pages, source)
         locator = "pypdf_fallback"
         mineru_status: Literal["completed", "unavailable"] = "unavailable"
         page_texts = pypdf_pages
@@ -691,15 +724,7 @@ def ingest_pdf(file_name: str, content: bytes) -> PdfIntakeResult:
         # Usable text does not imply that charts/photos can be discarded.
         # Detect visible raster/vector regions on CPU, preserving native text.
         try:
-            import fitz
-            with fitz.open(str(source)) as visual_pdf:
-                for page_index, page in enumerate(visual_pdf):
-                    area = max(1.0, page.rect.get_area())
-                    image_area = sum(fitz.Rect(info['bbox']).get_area() for info in page.get_image_info())
-                    vector_area = sum(item['rect'].get_area() for item in page.get_drawings())
-                    if image_area / area >= 0.03 or vector_area / area >= 0.15:
-                        vision_page_numbers.append(page_index + 1)
-            vision_page_numbers = sorted(set(vision_page_numbers))
+            vision_page_numbers = timed_call(timings, 'pdf_visual_detection', visual_recovery_page_numbers, source, page_inspections)
         except Exception as exc:
             _issue(issues, "warning", "visual_region_detection_unavailable", f"PDF visual coverage could not be inspected: {type(exc).__name__}")
         visual_assets: list[VisualAsset] = []
@@ -736,7 +761,7 @@ def ingest_pdf(file_name: str, content: bytes) -> PdfIntakeResult:
         intermediate_tables: list[IntermediateTable] = []
         status_by_page: dict[int, str] = {}
         if text_page_numbers and table_candidates:
-            intermediate_tables, status_by_page = extract_text_pdf_tables(source, table_candidates)
+            intermediate_tables, status_by_page = timed_call(timings, 'pdf_table_extraction', extract_text_pdf_tables, source, table_candidates)
             if not intermediate_tables:
                 _issue(issues, "warning", "camelot_no_table", "已定位疑似财务报表页，但未提取到可用表格；请客户复核 PDF 版式或改传 Excel。")
         unresolved_table_pages = [
@@ -765,7 +790,7 @@ def ingest_pdf(file_name: str, content: bytes) -> PdfIntakeResult:
 
         if vision_page_numbers:
             selected_vision_pages = vision_page_numbers[:MAX_SCANNED_PDF_VISION_PAGES]
-            visual_assets, render_error = render_scanned_pdf_pages(
+            visual_assets, render_error = timed_call(timings, 'pdf_page_rendering', render_scanned_pdf_pages,
                 source,
                 file_name=Path(file_name).name,
                 page_count=len(pypdf_pages),
@@ -884,6 +909,9 @@ def ingest_pdf(file_name: str, content: bytes) -> PdfIntakeResult:
             validation=[*issues, *standard_result.validation],
             pdf=PdfExtractionSummary(
                 document_kind=document_kind,
+                vision_required_page_numbers=vision_page_numbers,
+                stage_timings_ms=timings,
+                file_sha256=hashlib.sha256(content).hexdigest(),
                 page_count=len(pypdf_pages),
                 text_characters=sum(len(page.strip()) for page in pypdf_pages),
                 page_locator=locator,

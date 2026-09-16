@@ -29,6 +29,7 @@ jobs:
       - run: pip install -r requirements-test.txt
       - run: python scripts/verify_public_release.py
       - run: python scripts/public_smoke.py
+      - run: python scripts/verify_evaluation_results.py
       - run: python scripts/audit_public_sources.py
 
   frontend-build:

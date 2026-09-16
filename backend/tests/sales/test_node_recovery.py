@@ -60,7 +60,7 @@ class NodeRecoveryTests(unittest.TestCase):
         with budget_scope(RequestBudget(time.monotonic()+90)):
             self.assertTrue(reserve_recovery('public_web_search','retry'))
             self.assertFalse(reserve_recovery('public_web_search','retry'))
-            self.assertTrue(reserve_recovery('customer_documents','broaden'))
+            self.assertFalse(reserve_recovery('customer_documents','broaden'))
             self.assertFalse(reserve_recovery('generate_answer','repack'))
         with budget_scope(RequestBudget(time.monotonic()+5)):
             self.assertFalse(reserve_recovery('public_web_search','retry'))

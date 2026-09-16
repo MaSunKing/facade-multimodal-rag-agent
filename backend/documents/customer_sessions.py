@@ -85,6 +85,10 @@ class CustomerDocument:
     source_locations: dict[str, dict[str, Any]]
     visuals: list[StoredVisualAsset]
     visual_coverage: dict[str, Any]
+    stage_timings_ms: dict[str, Any] = field(default_factory=dict)
+    window_cache: dict[tuple, list[dict]] = field(default_factory=dict, repr=False)
+    window_cache_bytes: int = 0
+    language_candidates: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass
@@ -154,6 +158,8 @@ def _public_document(document: CustomerDocument) -> dict[str, Any]:
         "visual_count": len(document.visuals),
         "ready_visual_count": sum(1 for visual in document.visuals if visual.image_bytes),
         "visual_coverage": document.visual_coverage,
+        "stage_timings_ms": document.stage_timings_ms,
+        "language_candidates": document.language_candidates,
     }
 
 
@@ -215,23 +221,26 @@ def _visual_context(intermediate: Any, visual: Any) -> str:
     )
 
 
-def _with_optional_document_ocr(result: Any) -> Any:
+def _with_optional_document_ocr(result: Any, *, deadline: float | None = None) -> Any:
     if not (
         os.getenv("CUSTOMER_DOCUMENT_OCR_ENABLED", "1").lower() in {"1", "true", "yes"}
         and result.intermediate.source_type in {"pdf", "word"}
         and any(asset.kind == "document_page" and asset.image_bytes for asset in result.intermediate.visual_assets)
     ):
         return result
-    # CPU PP-Structure supplies searchable page text. It does not consume the
-    # local Qwen GPU and remains a review-only candidate.
+    # Literal CPU text index is enough for page retrieval. Full layout/table
+    # reconstruction remains separate; neither is promoted to verified facts.
     try:
-        from backend.document_parsing.document_ocr import augment_with_document_ocr_candidates
+        from backend.document_parsing.document_ocr import augment_with_document_ocr_candidates, run_page_text_index
 
-        return augment_with_document_ocr_candidates(result)
-    except Exception:
+        return augment_with_document_ocr_candidates(result, infer_document=run_page_text_index, deadline=deadline)
+    except Exception as exc:
         # OCR is optional. Original page bytes remain available for the
         # question-time local VLM fallback.
-        return result
+        from backend.document_parsing.ingestion import ValidationIssue
+        return result.model_copy(update={'validation': [*result.validation,
+            ValidationIssue(severity='warning',code='document_ocr_adapter_failed',
+                message=f'本地OCR接入失败（{type(exc).__name__}），页面原图已保留，文字索引未完成。')]})
 
 
 def add_files(*args, **kwargs):
@@ -250,6 +259,7 @@ def estimated_session_bytes(session: CustomerDocumentSession) -> int:
     # Includes Python Unicode/object overhead and original upload allowance.
     return sum(doc.size_bytes + 4 * len(json.dumps(doc.chunks, ensure_ascii=False))
                + 4 * len(json.dumps(doc.source_locations, ensure_ascii=False))
+               + doc.window_cache_bytes
                + sum(len(v.image_bytes or b"") + 4 * len(v.searchable_text) + 1024 for v in doc.visuals)
                for doc in session.documents)
 
@@ -289,8 +299,14 @@ def _add_files_serial(
             raise ValueError("session_files_too_large")
 
     parsed: list[CustomerDocument] = []
+    # One upload shares this CPU indexing budget across files and batches.
+    # Native parsing/original images are retained after the budget expires.
+    index_deadline = time.monotonic() + 90
     for file_name, content in files:
-        result = _with_optional_document_ocr(ingest_uploaded_file(file_name, content))
+        from backend.stage_timing import timed_call
+        timings: dict[str, float] = {}
+        result = timed_call(timings, 'native_ingestion', ingest_uploaded_file, file_name, content)
+        result = timed_call(timings, 'ocr_text_index', _with_optional_document_ocr, result, deadline=index_deadline)
         batches = [result]
         coverage_stop_reason: str | None = None
         if file_name.lower().endswith(".pdf") and hasattr(result, "pdf"):
@@ -304,9 +320,9 @@ def _add_files_serial(
                     coverage_stop_reason = "visual_batch_safety_limit"
                     break
                 try:
-                    batch = _with_optional_document_ocr(
-                        ingest_scanned_pdf_vision_batch(file_name, content, page_start=next_page_start)
-                    )
+                    batch = timed_call(timings, 'pdf_continuation_render', ingest_scanned_pdf_vision_batch,
+                        file_name, content, page_start=next_page_start, cached_summary=result.pdf)
+                    batch = timed_call(timings, 'ocr_text_index', _with_optional_document_ocr, batch, deadline=index_deadline)
                 except Exception as exc:
                     coverage_stop_reason = f"visual_batch_failed:{type(exc).__name__}"
                     break
@@ -349,13 +365,16 @@ def _add_files_serial(
                 media_type=visual.media_type,
                 metadata={**dict(visual.metadata),
                           "text_visual_binding": "same_container_candidate_not_verified",
-                          "requires_layout_verification": True},
+                          "requires_layout_verification": True,
+                          "ocr_literal_text": '\n'.join(candidate_by_visual[visual.visual_id].text_blocks)
+                              if visual.visual_id in candidate_by_visual else '',
+                          "ocr_verified": False},
                 image_bytes=visual.image_bytes,
                 searchable_text=" ".join(
                     [
                         _visual_context(batch_intermediate, visual),
                         (
-                            json.dumps(candidate_by_visual[visual.visual_id].model_dump(mode="json"), ensure_ascii=False)
+                            '\n'.join(candidate_by_visual[visual.visual_id].text_blocks)
                             if visual.visual_id in candidate_by_visual
                             else ""
                         ),
@@ -383,8 +402,30 @@ def _add_files_serial(
                 "max_visual_pages": MAX_CUSTOMER_PDF_VISUAL_PAGES,
                 "stop_reason": coverage_stop_reason,
             }
+            page_by_visual = {asset.visual_id: asset.source.page_number
+                              for batch in batches for asset in batch.intermediate.visual_assets
+                              if asset.kind == "document_page"}
+            indexed = {page_by_visual[candidate.visual_id]
+                       for batch in batches for candidate in batch.vision_document_candidates
+                       if candidate.visual_id in page_by_visual
+                       and candidate.status == "candidate_ready" and candidate.text_blocks
+                       and "overflow" not in str(candidate.message).lower()}
+            indexed.discard(None)
+            native_text_pages = {page.page_number for page in result.pdf.page_inspections
+                                 if page.parse_route == 'direct_text'}
+            required_ocr_pages = set(rendered_page_numbers) - native_text_pages
+            visual_coverage.update(
+                ocr_indexed_page_numbers=sorted(indexed),
+                native_text_indexed_page_numbers=sorted(native_text_pages),
+                ocr_index_pending_page_numbers=sorted(required_ocr_pages - indexed),
+                ocr_index_coverage_complete=coverage_complete and required_ocr_pages <= indexed,
+                ocr_failure_codes=sorted({issue.code for batch in batches for issue in batch.validation
+                                          if issue.code.startswith('document_ocr_')}),
+            )
         else:
             visual_coverage = {"coverage_complete": True}
+        from backend.document_parsing.ingestion import language_candidates_for_text
+        language_preview = '\n'.join(str(c.get('text') or '') for c in chunks if c.get('kind') != 'document_index')[:6000]
         parsed.append(
             CustomerDocument(
                 document_id=intermediate.document_id or f"doc_{uuid.uuid4().hex[:16]}",
@@ -396,6 +437,9 @@ def _add_files_serial(
                 source_locations=source_locations,
                 visuals=visuals,
                 visual_coverage=visual_coverage,
+                stage_timings_ms={**timings, 'pdf_detail': {key: sum(float(b.pdf.stage_timings_ms.get(key, 0)) for b in batches if hasattr(b, 'pdf'))
+                    for key in {k for b in batches if hasattr(b, 'pdf') for k in b.pdf.stage_timings_ms}}},
+                language_candidates=[candidate.model_dump(mode='json') for candidate in language_candidates_for_text(language_preview)],
             )
         )
 
@@ -855,24 +899,76 @@ def _window_chunk(text: str, chunk_id: str, *, window_tokens: int, overlap_token
 
     if not text:
         return []
+    # A native chunk can interleave prose with large visual-layout metadata.
+    # Index the prose spans separately, retaining exact canonical offsets;
+    # geometry stays available in visual assets, not answer-text competition.
+    visual_lines = list(re.finditer(r'(?m)^\[VISUAL[^\n]*\]\s*$', text))
+    if visual_lines:
+        output = []
+        cursor = 0
+        for end in [*(m.start() for m in visual_lines), len(text)]:
+            if end > cursor:
+                segment = text[cursor:end]
+                for window in _window_chunk(segment, chunk_id, window_tokens=window_tokens,
+                    overlap_tokens=overlap_tokens, _table_rows=_table_rows, header_context=header_context):
+                    window['start_character'] += cursor
+                    window['end_character'] += cursor
+                    window['window_id'] = f'{chunk_id}:window:{len(output)+1}'
+                    output.append(window)
+            if end < len(text):
+                cursor = next(m.end() for m in visual_lines if m.start() == end)
+        return output
     rows = list(re.finditer(r"(?m)^\[ROW[^\n]*", text))
-    if _table_rows and text.startswith("[TABLE ") and ' sheet=' in text.split('\n',1)[0] and len(rows) > 1:
+    if _table_rows and text.startswith("[TABLE ") and ' sheet=' in text.split('\n',1)[0] and rows:
+        window_tokens = min(window_tokens, 384)
         prefix = text[:rows[0].start()] + header_context
         # Read-only context; keep headers with values without indexing their
         # repeated words as extra relevance. Canonical source is untouched.
+        from backend.sales.evidence_packing import compact_source_text
         output = []
+        above_cells: dict[str, str] = {}
+        above_offsets: dict[str, int] = {}
         for row in rows:
-            compact_row = _compact_row_formulas(row.group())
-            if _estimate_text_tokens(compact_row) > max(64, window_tokens-_estimate_text_tokens(prefix)):
-                compact_row = row.group()
-            pieces = _window_chunk(compact_row, chunk_id, window_tokens=max(64, window_tokens-_estimate_text_tokens(prefix)), overlap_tokens=0, _table_rows=False)
-            for piece in pieces:
-                value = prefix + piece['text']
-                output.append({**piece, 'window_id': f'{chunk_id}:row:{len(output)+1}',
-                    'text': value, 'ranking_text': piece['text'],
-                    'start_character': row.start() if compact_row != row.group() else row.start()+piece['start_character'],
-                    'end_character': row.end() if compact_row != row.group() else row.start()+piece['end_character'],
-                    'estimated_tokens': _estimate_text_tokens(value), 'windowed': True})
+            raw_row = re.sub(r'^\[ROW[^\]]*\]\s*', '', row.group())
+            cells = re.split(r'\s+\|\s+(?=[A-Z]{1,3}\d+(?:\[[^\]]*\])?=)', raw_row)
+            identities = cells[:2] if len(cells) > 2 else []
+            groups: list[list[str]] = []
+            group: list[str] = []
+            def render(parts):
+                values = list(dict.fromkeys([*identities, *parts]))
+                body = '[ROW] ' + ' | '.join(values)
+                # Previous source cells are context, not asserted headers.
+                cols = re.findall(r'\b([A-Z]{1,3})\d+(?:\[[^\]]*\])?=', body)
+                adjacent = list(dict.fromkeys(above_cells[col] for col in cols if col in above_cells))
+                value = compact_source_text(prefix + _compact_row_formulas(body))
+                if adjacent:
+                    nearby = '[ABOVE_CELLS source_context_not_header] ' + ' | '.join(adjacent)
+                    if _estimate_text_tokens(value + '\n' + nearby) <= window_tokens:
+                        value += '\n' + nearby
+                return value
+            for cell in cells:
+                if group and _estimate_text_tokens(render([*group, cell])) > window_tokens:
+                    groups.append(group); group = []
+                group.append(cell)
+            if group:
+                groups.append(group)
+            for parts in groups:
+                value = render(parts)
+                contextual_columns = re.findall(r'\b([A-Z]{1,3})\d+(?:\[[^\]]*\])?=', value)
+                span_start = min([row.start(), *[above_offsets[col] for col in contextual_columns
+                                 if col in above_offsets and '[ABOVE_CELLS' in value]])
+                output.append({'original_chunk_id':chunk_id,
+                    'window_id': f'{chunk_id}:row:{len(output)+1}',
+                    'text': value, 'ranking_text': value,
+                    'start_character': span_start, 'end_character': row.end(),
+                    'source_span_scope': 'whole_row_with_neighbor_context',
+                    'estimated_tokens': _estimate_text_tokens(value), 'windowed': True,
+                    'oversized_atomic_field': _estimate_text_tokens(value) > window_tokens})
+            for cell in cells:
+                match = re.match(r"([A-Z]{1,3})\d+(?:\[[^\]]*\])?='([^']*)'", cell)
+                if match and 0 < len(match.group(2)) <= 100 and not re.fullmatch(r'[\d.,/ -]+', match.group(2)):
+                    above_cells[match.group(1)] = cell
+                    above_offsets[match.group(1)] = row.start()
         return output
     if _estimate_text_tokens(text) <= window_tokens:
         return [
@@ -946,11 +1042,19 @@ def _select_visuals(
     selected: list[dict[str, Any]],
     *,
     max_visuals: int = 4,
+    visual_required: bool = False,
 ) -> list[dict[str, Any]]:
     query_terms = _terms(question)
     selected_pages: set[tuple[str, int]] = set()
     selected_sheets: set[tuple[str, str]] = set()
+    selected_documents = {item['document_id'] for item in selected if item.get('evidence_scope') == 'content'}
     for item in selected:
+        content = str(item.get('text') or '')
+        literal_content = re.sub(r'(?m)^\[(?:VISUAL|BLOCK)[^\n]*\]\s*', '', content).strip()
+        if item.get('evidence_scope') == 'document_index' or not literal_content:
+            # A metadata wrapper is not evidence that its page answers the
+            # question. It must not promote a cover over a relevant OCR page.
+            continue
         pages = {citation.get("source_page") for citation in item.get("citations", []) if citation.get("source_page") is not None}
         sheets = {citation.get("sheet_name") for citation in item.get("citations", []) if citation.get("sheet_name")}
         # Do not convert a multi-page packed chunk into a false exact-page
@@ -975,6 +1079,10 @@ def _select_visuals(
                 score += 10.0
             if document.source_type == "image":
                 score += 4.0
+            if visual_required and document.document_id in selected_documents:
+                # A semantic visual request may use the best asset associated
+                # with a retrieved document. It is NOT a proven exact page hit.
+                score += 1.0
             ranked.append((score, order, visual))
     ranked.sort(key=lambda item: (-item[0], item[1]))
     # Prefer the best relevant asset from each file before spending the
@@ -982,14 +1090,9 @@ def _select_visuals(
     # four-file request inspectable without allowing duplicate renderings of
     # one page/sheet to consume the entire visual budget.
     ordered: list[tuple[float, int, StoredVisualAsset]] = []
-    location_matched = [
-        item
-        for item in ranked
-        if (item[2].document_id, item[2].source.get("page_number")) in selected_pages
-        or (item[2].document_id, item[2].source.get("sheet_name")) in selected_sheets
-    ]
-    ordered.extend(location_matched)
-    represented_documents: set[str] = {item[2].document_id for item in location_matched}
+    # Position is already a bounded score feature, not an absolute ordering
+    # rule. Choose each document's highest scoring image, then fill spare slots.
+    represented_documents: set[str] = set()
     for item in ranked:
         visual = item[2]
         if item not in ordered and visual.document_id not in represented_documents:
@@ -1026,7 +1129,7 @@ def _select_visuals(
                 "metadata": visual.metadata,
                 "searchable_text": _question_centered_text(visual.searchable_text, query_terms, 1_200),
                 "score": round(score, 3),
-                "selection_status": "question_relevant" if score > 0 else "single_image_direct",
+                "selection_status": "semantic_document_visual_candidate" if visual_required else "question_relevant" if score > 0 else "single_image_direct",
                 "image_bytes": visual.image_bytes,
             }
         )
@@ -1041,6 +1144,10 @@ def retrieve(
     max_chunks: int | None = None,
     max_characters: int | None = None,
     max_text_tokens: int | None = None,
+    visual_required: bool | None = None,
+    search_targets: list[str] | None = None,
+    retrieval_queries: list[str] | None = None,
+    enable_semantic_rerank: bool = True,
 ) -> dict[str, Any]:
     """Select source-linked windows across all uploaded files.
 
@@ -1050,6 +1157,11 @@ def retrieve(
     the formal budget and audit are token estimates.
     """
 
+    if search_targets or retrieval_queries:
+        return retrieve_goal_candidates(session_id, question, search_targets=search_targets or [],
+            retrieval_queries=retrieval_queries or [],
+            document_scope=document_scope, max_text_tokens=max_text_tokens, visual_required=visual_required,
+            max_chunks=max_chunks, max_characters=max_characters)
     session = get_session(session_id)
     if not session:
         return {"status": "session_not_found", "evidence": [], "documents": []}
@@ -1133,6 +1245,8 @@ def retrieve(
     }
     raw_estimated_tokens = 0
     raw_chunk_count = 0
+    metadata_only_chunk_count = 0
+    ocr_candidate_window_count = 0
     windowed_chunk_count = 0
     window_records: list[dict[str, Any]] = []
     original_chunks: dict[tuple[str, str], str] = {}
@@ -1163,17 +1277,34 @@ def retrieve(
             chunk_estimated_tokens = _estimate_text_tokens(text)
             raw_estimated_tokens += chunk_estimated_tokens
             per_document_raw_tokens[document.document_id] += chunk_estimated_tokens
+            lines = [line.strip() for line in text.splitlines() if line.strip()]
+            if lines and all(re.fullmatch(r'\[(?:BLOCK|VISUAL|PROFILE)[^\n]+\]', line) for line in lines):
+                # Empty-page/rendering metadata is not answer text. Keep it
+                # in canonical evidence and visual assets, not the text pool.
+                metadata_only_chunk_count += 1
+                continue
             original_chunks[(document.document_id, chunk_id)] = text
-            # PDF prose benefits from shorter coherent windows. This does
+            # Long prose benefits from shorter coherent windows. This does
             # not alter the canonical document or the total prompt budget.
-            prose_pdf = document.file_name.lower().endswith('.pdf') and not text.startswith('[TABLE')
-            windows = _window_chunk(
-                text,
-                chunk_id,
-                window_tokens=min(window_token_budget,384) if prose_pdf else window_token_budget,
-                overlap_tokens=min(overlap_token_budget,64) if prose_pdf else overlap_token_budget,
-                header_context=table_headers.get(match.group(1), '') if (match := re.match(r'\[TABLE id=([^\n]*?) sheet=', text)) else '',
-            )
+            prose_pdf = chunk.get('kind') != 'document_index' and not text.startswith('[TABLE')
+            header_context = table_headers.get(match.group(1), '') if (match := re.match(r'\[TABLE id=([^\n]*?) sheet=', text)) else ''
+            window_size = min(window_token_budget,384) if prose_pdf else window_token_budget
+            overlap_size = min(overlap_token_budget,64) if prose_pdf else overlap_token_budget
+            cache_key = (chunk_id, hashlib.sha256(text.encode()).hexdigest(), window_size, overlap_size, header_context)
+            cached = document.window_cache.get(cache_key)
+            if cached is None:
+                cached = _window_chunk(text, chunk_id, window_tokens=window_size,
+                    overlap_tokens=overlap_size, header_context=header_context)
+                # Retain at most two complete segmentation profiles. Large
+                # documents must not accumulate unlimited request budgets.
+                size = sum(4*len(w.get('text','')) + 1024 for w in cached)
+                if len(document.window_cache) >= max(2, len(document.chunks)*2) or document.window_cache_bytes + size > 1024**2:
+                    document.window_cache.clear()
+                    document.window_cache_bytes = 0
+                if size <= 1024**2:
+                    document.window_cache[cache_key] = cached
+                    document.window_cache_bytes += size
+            windows = [dict(window) for window in cached]
             if len(windows) > 1:
                 windowed_chunk_count += 1
             for window_index, window in enumerate(windows):
@@ -1189,6 +1320,32 @@ def retrieve(
                         "original_chunk_estimated_tokens": chunk_estimated_tokens,
                     }
                 )
+            # Native counts/sheet names are genuine structural facts, unlike
+            # a broad navigation profile. Expose only that exact parser line
+            # as an answer view, linked to its canonical parent.
+            if chunk.get('kind') == 'document_index':
+                for match in re.finditer(r'(?m)^\[STRUCTURE_OVERVIEW[^\n]*', text):
+                    line = match.group(0)
+                    order += 1
+                    window_records.append(dict(text=line, ranking_text=line,
+                        window_id=f'{chunk_id}:native-structure', original_chunk_id=chunk_id,
+                        start_character=match.start(), end_character=match.end(),
+                        estimated_tokens=_estimate_text_tokens(line), is_last_window=True,
+                        order=order, document=document, chunk={**chunk, 'kind':'native_structure'},
+                        terms=_terms(line), original_chunk_estimated_tokens=chunk_estimated_tokens))
+        for visual in document.visuals:
+            literal = str(visual.metadata.get('ocr_literal_text') or '')
+            if not literal:
+                continue
+            chunk_id = f'visual_candidate:{visual.visual_id}'
+            text = f'[OCR_CANDIDATE visual_id={visual.visual_id} unverified=true]\n' + literal
+            for window in _window_chunk(text, chunk_id, window_tokens=min(384,window_token_budget),
+                                        overlap_tokens=min(64,overlap_token_budget)):
+                order += 1
+                ocr_candidate_window_count += 1
+                window_records.append({**window, 'is_last_window':True, 'order':order, 'document':document,
+                    'chunk':dict(chunk_id=chunk_id, kind='visual_candidate', source_refs=[visual.visual_id]),
+                    'terms':_terms(window['text']), 'original_chunk_estimated_tokens':_estimate_text_tokens(text)})
 
     document_frequency = {
         term: sum(1 for window in window_records if term in window["terms"])
@@ -1308,6 +1465,37 @@ def retrieve(
             represented_documents.add(document_id)
         if positive_candidates:
             retrieval_fallback_reason = "no_positive_query_overlap_used_document_index"
+    # Navigation locates parents; it is not answer evidence. Expand actual
+    # child windows when lexical matching found only a parent/index (including
+    # cross-language zero overlap). Semantic ranking, when enabled, evaluates
+    # the child text rather than rewarding its navigation wrapper.
+    navigation_candidates = [c for c in positive_candidates if c['is_document_index']]
+    answer_candidates = [c for c in positive_candidates if not c['is_document_index']]
+    represented = {c['document'].document_id for c in answer_candidates
+                   if c['chunk'].get('kind') != 'native_structure'}
+    expanded = []
+    for document in session.documents:
+        if document.document_id in represented:
+            continue
+        if represented and not global_document_question:
+            # Do not spend answer slots on unrelated files when real local
+            # matches already exist. Discovery-only expansion is for an empty
+            # content recall, or an explicitly planned whole-document task.
+            continue
+        children = [w for w in window_records if w['document'].document_id == document.document_id
+                    and not w['is_document_index']]
+        # Bounded, evenly distributed views are discovery candidates, NOT a
+        # claim of relevance. Preserve this distinction in the input audit.
+        if children:
+            stride = max(1, math.ceil(len(children) / 12))
+            for child in children[::stride][:12]:
+                child['score'] = 0.0
+                child['navigation_expanded'] = True
+                answer_candidates.append(child)
+                expanded.append(child['window_id'])
+    positive_candidates = answer_candidates
+    if expanded:
+        retrieval_fallback_reason = 'navigation_child_expansion_relevance_unverified'
     # Deduplicate parser representations by their cell values, not parser IDs.
     # Canonical chunks remain untouched and can still be inspected.
     unique_candidates = []
@@ -1324,11 +1512,11 @@ def retrieve(
             seen_values.add(fingerprint)
         unique_candidates.append(candidate)
     positive_candidates = unique_candidates
-    positive_candidates, semantic_rerank_audit = _semantic_rerank_customer_windows(
-        question,
-        positive_candidates,
-        global_document_question=global_document_question,
-    )
+    if enable_semantic_rerank:
+        positive_candidates, semantic_rerank_audit = _semantic_rerank_customer_windows(
+            question, positive_candidates, global_document_question=global_document_question)
+    else:
+        semantic_rerank_audit = {'status':'deferred_to_shared_goal_reranker', 'applied':False}
 
     candidates_by_document: dict[str, list[dict[str, Any]]] = {}
     for candidate in positive_candidates:
@@ -1471,11 +1659,15 @@ def retrieve(
                     else None
                 ),
                 "evidence_scope": "document_index" if candidate["is_document_index"] else "content",
+                "evidence_role": "answer",
+                "facts_eligible": chunk.get('kind') != 'visual_candidate',
+                "candidate_requires_pixel_verification": chunk.get('kind') == 'visual_candidate',
                 "citations": citations,
             }
         )
 
-    selected_visuals = _select_visuals(session.documents, question, selected)
+    selected_visuals = ([] if visual_required is False else
+                        _select_visuals(session.documents, question, selected, visual_required=visual_required is True))
     precise_citation_count = sum(
         1
         for item in selected
@@ -1514,11 +1706,17 @@ def retrieve(
     return {
         "status": "ok",
         "evidence": selected,
+        "navigation_evidence": [dict(evidence_id=f'N{i+1}', evidence_role='navigation',
+            document_id=c['document'].document_id, document_name=c['document'].file_name,
+            source_refs=list(c['chunk'].get('source_refs') or []),
+            text=c['text'], window_id=c['window_id']) for i, c in enumerate(navigation_candidates[:4])],
         "documents": [_public_document(document) for document in session.documents],
         "selected_visuals": selected_visuals,
         "input_snapshot": {
             "selected_chunk_count": len(selected),
             "raw_chunk_count": raw_chunk_count,
+            "metadata_only_chunks_excluded_from_answers": metadata_only_chunk_count,
+            "unverified_ocr_candidate_window_count": ocr_candidate_window_count,
             "raw_estimated_text_tokens": raw_estimated_tokens,
             "selected_estimated_text_tokens": selected_token_total,
             "max_text_tokens": text_token_budget,
@@ -1536,6 +1734,9 @@ def retrieve(
             "retrieval_scope": "global_document" if global_document_question else "question_local",
             "planner_document_scope": normalized_document_scope,
             "retrieval_fallback_reason": retrieval_fallback_reason,
+            "navigation_expanded_window_ids": expanded,
+            "navigation_candidate_count": len(navigation_candidates),
+            "answer_ranking_excludes_navigation": True,
             "global_document_question": global_document_question,
             "global_reserved_index_windows_per_document": (
                 reserved_index_windows_per_document if global_document_question else 0
@@ -1583,6 +1784,82 @@ def retrieve(
             "canonical_evidence_preserved": True,
         },
     }
+
+
+def retrieve_goal_candidates(session_id: str, question: str, *, search_targets: list[str],
+                             document_scope: str, max_text_tokens: int | None,
+                             visual_required: bool | None, max_chunks: int | None,
+                             max_characters: int | None, retrieval_queries: list[str] | None = None) -> dict[str, Any]:
+    """Normal candidate retrieval: overview + <=4 semantic factual subqueries.
+
+    This is a single CPU tool invocation, not a recovery or model call. Each
+    subquery scans canonical evidence with the same ownership rules. Ranked goal
+    windows compete within the SAME candidate token budget, before overview
+    windows. Gold answers are never read here.
+    """
+    from backend.request_budget import check_budget
+    from backend.sales.recovery_policy import content_search_anchor
+    goals = list(dict.fromkeys(content_search_anchor(goal) for goal in [*search_targets, *(retrieval_queries or [])]
+                              if content_search_anchor(goal)))[:10]
+    main = retrieve(session_id, question, document_scope=document_scope,
+                    max_text_tokens=max_text_tokens, visual_required=visual_required,
+                    max_chunks=max_chunks, max_characters=max_characters, enable_semantic_rerank=False)
+    if main.get('status') == 'session_not_found' or not goals:
+        return main
+    goal_results = []
+    for goal in goals:
+        check_budget()
+        result = retrieve(session_id, goal, document_scope='local_lookup', max_chunks=6,
+                          max_text_tokens=min(max_text_tokens or 5000, 3500), visual_required=False,
+                          enable_semantic_rerank=False)
+        goal_results.append((goal, result))
+    # Round-robin prevents the first goal from consuming the whole shared
+    # token budget before subsequent requested dimensions are represented.
+    candidates = [dict(result['evidence'][index], retrieval_aspect=goal)
+                  for index in range(6) for goal, result in goal_results
+                  if index < len(result.get('evidence', []))]
+    candidates.extend(main.get('evidence', []))
+    token_budget = int(main.get('input_snapshot', {}).get('max_text_tokens') or max_text_tokens or 5000)
+    limit = max_chunks or 24
+    selected, seen, tokens = [], {}, 0
+    for raw in candidates:
+        identity = (raw.get('document_id'), raw.get('original_chunk_id'), raw.get('text'))
+        if identity in seen:
+            previous = selected[seen[identity]]
+            previous['retrieval_aspects'] = list(dict.fromkeys([*previous.get('retrieval_aspects', []),
+                *([raw['retrieval_aspect']] if raw.get('retrieval_aspect') else [])]))
+            continue
+        size = _estimate_text_tokens(str(raw.get('text') or ''))
+        if tokens+size > token_budget or len(selected) >= limit:
+            continue
+        item = dict(raw, evidence_id=f'U{len(selected)+1}')
+        item['retrieval_aspects'] = [raw['retrieval_aspect']] if raw.get('retrieval_aspect') else []
+        seen[identity] = len(selected)
+        selected.append(item); tokens += size
+    main = dict(main, evidence=selected)
+    session = get_session(session_id)
+    if session:
+        main['selected_visuals'] = [] if visual_required is False else _select_visuals(
+            session.documents, question+'\n'+'\n'.join(goals), selected, visual_required=visual_required is True)
+    snapshot = dict(main.get('input_snapshot', {}))
+    snapshot.update(selected_chunk_count=len(selected), selected_estimated_text_tokens=tokens,
+        selected_window_count=len(selected), selected_characters=sum(len(item.get('text', '')) for item in selected),
+        selected_visual_count=len(main.get('selected_visuals', [])),
+        selected_visual_ids=[item.get('visual_id') for item in main.get('selected_visuals', [])],
+        selected_document_index_window_count=sum(item.get('evidence_scope') == 'document_index' for item in selected),
+        selected_content_window_count=sum(item.get('evidence_scope') == 'content' for item in selected),
+        goal_candidate_expansion={'policy': 'normal_semantic_goal_subqueries_not_retries',
+            'queries': goals, 'subquery_count': len(goals), 'candidate_count_before_budget': len(candidates),
+            'shared_token_budget': token_budget, 'gold_labels_used': False,
+            'base_generated_window_count': main.get('input_snapshot', {}).get('generated_window_count'),
+            'subquery_generated_window_count': sum(result.get('input_snapshot', {}).get('generated_window_count', 0)
+                                                  for _, result in goal_results)})
+    for quota in snapshot.get('per_document_quotas', []):
+        items = [item for item in selected if item.get('document_id') == quota.get('document_id')]
+        quota['selected_estimated_tokens'] = sum(_estimate_text_tokens(item.get('text', '')) for item in items)
+        quota['selected_window_count'] = len(items)
+    main['input_snapshot'] = snapshot
+    return main
 
 
 @contextmanager

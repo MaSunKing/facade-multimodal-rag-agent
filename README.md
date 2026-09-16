@@ -1,6 +1,6 @@
 # 建材多模态 RAG Agent
 
-面向真岩石系列产品咨询、施工技术支持与资料查询的本地知识助手。将产品资料、施工方案、节点图纸、项目案例和客户附件转为可追溯证据，由有限 Agent 选择信息来源，输出回答、引用及原始证据图片。
+面向建材销售与客户技术支持的本地多模态知识助手，当前知识场景主要围绕真岩石系列产品。将产品资料、施工方案、节点图纸、项目案例和客户附件转为可追溯证据，由有限 Agent 选择信息来源，输出回答、引用及原始证据图片。
 
 ![实际前端界面](frontend/public/og-sales-assistant.png)
 
@@ -33,6 +33,8 @@ flowchart TD
 |---|---|---|
 | 有限 Agent | 结构化计划、Guard、真实阶段执行、有限重试、执行轨迹 | [Graph](backend/sales/answer_graph.py)、[Planner](backend/sales/tool_planner.py)、[阶段执行](backend/sales/staged_execution.py) |
 | Query-aware Context | 跨来源排名归一、去重、表格行/条件/数字单位关系保护、候选冲突成组、动态预算 | [Context Engine](backend/sales/context_engine.py) |
+| 多目标与跨语言检索 | Planner一次输出来源语言Query、search targets与answer goals；目标证据重排、导航/回答Evidence分离 | [目标重排](backend/sales/goal_reranking.py)、[附件检索](backend/documents/customer_sessions.py) |
+| 结构化冲突候选 | 实体＋规范化指标＋范围/版本＋单位事实键，关联不同值的证据；不自动裁定哪方正确 | [Fact Normalization](backend/sales/fact_normalization.py)、[成组打包](backend/sales/evidence_packing.py) |
 | 混合检索 | BM25 + 本地Embedding、RRF、词法与Dense-only候选保留、Cross-Encoder重排、资源不足降级 | [Retriever](backend/sales/retriever.py)、[Dense/Reranker](backend/sales/dense_retrieval.py) |
 | 多格式证据化 | PDF、DOCX、XLSX/XLS/CSV、TXT、HTML/XML、ZIP表格包、常见图片；保留格式专用位置 | [解析器](backend/document_parsing)、[Evidence V2](backend/documents/evidence_v2.py) |
 | 附件隔离 | 最多4份文件；浏览器/账号绑定的进程内会话；TTL、容量限制、独立检索 | [会话](backend/documents/customer_sessions.py)、[Owner Guard](backend/documents/ownership.py) |
@@ -56,6 +58,8 @@ flowchart TD
 - Canonical Evidence与本轮输入审计分离，单轮压缩不删除原始解析结果。
 - 表格尽量按业务行召回，绑定紧凑表头，避免字段名与值分离。
 - 已识别的条件、否定关系与候选冲突组参与成组打包，防止丢掉限制条件。
+- 导航索引用于定位和展开正文，不应替代回答证据；多目标请求按目标相关性选择实际业务行/段落。
+- 数值、单位和条件保护仍依赖正确召回与关系识别，公开原生文件评测发现缺口，见下文。
 - 不直接比较各来源原始分数，先按来源内部排名归一，再结合问题与结构信息评分。
 - 热态8B预留GPU时，企业检索跳过Dense/Reranker使用词法路径；混合检索不是每次请求的保证。
 
@@ -134,7 +138,24 @@ python scripts/public_smoke.py --base-url http://127.0.0.1:8000
 
 ## 验证与边界
 
-见 [本地验证记录](docs/VALIDATION.md)、[评测协议](docs/EVALUATION.md)。企业历史评测数据未发布，因此不把旧召回数字作为本版可复现成绩。
+新增[75题公开开发评测](evaluation/README.md)：检索45、数值10、条件10、冲突10。统一发布题目、标签、逐题结果及复现入口，保留失败题，不加入旧问题改写变体。
+
+| 离线指标 | 实测结果 |
+|---|---|
+| Evidence Recall@5 | 38/45，84.44% |
+| MRR | 0.6146 |
+| 目标行与数值保留 | 8/10，80% |
+| 条件关系文本保留 | 10/10，100% |
+| 冲突组检测 / 双方证据保留 | 5/10 / 10/10 |
+| 新增原生数值＋单位绑定 | 0/5 |
+
+这是CPU附件词法检索和Context/tokenizer打包开发回归，**不是模型答案准确率、完整混合企业RAG或未见测试成绩**。集合保留不同历史预算；旧冲突为人工Evidence控制，新原生TXT冲突实际检测0/5。单位漏召回、表格重排和实体绑定缺陷公开记录，不以合并高分掩盖。
+
+```bash
+python scripts/verify_evaluation_results.py
+```
+
+见[指标与已知问题](docs/EVALUATION_RESULTS.md)、[本地验证记录](docs/VALIDATION.md)、[评测协议](docs/EVALUATION.md)。企业历史评测数据未发布，旧企业召回数字不作为当前公开成绩。原生来源提供URL/SHA；再分发许可未核验的官方文件不随仓库上传。
 
 - Schema、引用身份和接口200不代表语义正确；支持审计不是逐句事实证明。
 - 冲突分组是候选发现，主体、期间和业务口径未保证完全对齐。
