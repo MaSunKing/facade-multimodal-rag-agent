@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
+from backend.sales.task_memory import MemoryUpdate
 
 
 ToolName = Literal["general_chat", "customer_documents", "company_rag", "visual_inspection", "public_web_search"]
@@ -56,6 +57,8 @@ class CaseFilters(BaseModel):
 
 
 class ToolPlan(BaseModel):
+    memory_updates: list[MemoryUpdate] = Field(default_factory=list, max_length=4)
+    answer_basis: Literal["tools", "conversation"] = "tools"
     tools: list[ToolName] = Field(default_factory=list, max_length=5)
     reason: str = Field(default="", max_length=300)
     web_source_profile: WebSourceProfile = "auto"
@@ -78,7 +81,17 @@ class ToolPlan(BaseModel):
     # product/case/node/process image.  It is distinct from visual_inspection,
     # which reads a newly uploaded image.
     wants_visuals: bool = False
+    document_visual_required: bool | None = None
     visual_scope: VisualScope = "mixed"
+    # Runtime-only observability.  These fields are deliberately excluded
+    # from the planner contract and API serialisation, but LangGraph may expose
+    # them in response metadata for local latency audits.
+    planner_latency_ms: float = Field(default=0.0, exclude=True)
+    planner_model_load_ms: float = Field(default=0.0, exclude=True)
+    planner_generation_ms: float = Field(default=0.0, exclude=True)
+    planner_cache_hit: bool = Field(default=False, exclude=True)
+    planner_input_tokens: int = Field(default=0, exclude=True)
+    planner_output_tokens: int = Field(default=0, exclude=True)
 
 
 def fallback_plan(
@@ -97,11 +110,29 @@ def fallback_plan(
     product_overview: bool = False,
     wants_visuals: bool = False,
     visual_scope: VisualScope = "mixed",
+    documents_relevant: bool | None = None,
+    image_relevant: bool = True,
 ) -> ToolPlan:
+    """Build a bounded fallback without confusing availability with relevance.
+
+    ``has_documents`` and ``has_image`` describe capabilities available in the
+    current request.  They do not, on their own, prove that the current
+    question is about those attachments.  Callers that have a reliable
+    semantic signal (for example, an explicit ``document_scope`` recovered by
+    a lightweight fallback) opt in through ``documents_relevant`` or
+    ``image_relevant``.  This keeps planner failures local and conservative
+    without forcing every later turn through an old attachment session.
+    """
+
+    use_documents = (
+        document_scope in {"local_lookup", "whole_document", "cross_document"}
+        if documents_relevant is None
+        else documents_relevant
+    )
     tools: list[ToolName] = []
-    if has_documents:
+    if has_documents and use_documents:
         tools.append("customer_documents")
-    if has_image:
+    if has_image and image_relevant:
         tools.append("visual_inspection")
     if facade_related:
         tools.append("company_rag")
@@ -161,20 +192,34 @@ def guard_plan(
                 continue
         if tool not in allowed:
             allowed.append(tool)
-    if has_documents and "customer_documents" not in allowed:
+    # Attachment availability is not attachment relevance.  The semantic
+    # planner may deliberately omit an old session when the user changes topic
+    # (for example, from an uploaded workbook to today's weather).  Only a
+    # semantic contract that explicitly scopes the question to documents may
+    # repair a missing tool selection here.
+    if (
+        has_documents
+        and proposed.document_scope in {"local_lookup", "whole_document", "cross_document"}
+        and "customer_documents" not in allowed
+    ):
         allowed.insert(0, "customer_documents")
-    if has_image and "visual_inspection" not in allowed:
-        allowed.append("visual_inspection")
     if proposed.product_overview and "company_rag" not in allowed:
         # This is contract consistency, not keyword routing: a plan that says
         # it needs the reviewed company catalogue also needs its local source.
         allowed.insert(0, "company_rag")
     if not allowed:
         allowed = ["company_rag"] if facade_related else ["general_chat"]
+    if proposed.answer_basis == "conversation":
+        # The MODEL classified this as recalling user-provided context, not
+        # verifying a product/project claim. Do not search a public/company
+        # corpus for the customer's private budget or earlier preferences.
+        allowed = ["general_chat"]
     task_type = "case_reference" if proposed.case_reference else proposed.task_type
     case_reference = task_type == "case_reference"
     return ToolPlan(
         tools=allowed[:5],
+        answer_basis=proposed.answer_basis,
+        memory_updates=proposed.memory_updates,
         reason=proposed.reason or "model_planned_policy_guarded",
         web_source_profile=proposed.web_source_profile if "public_web_search" in allowed else "auto",
         requires_public_web="public_web_search" in allowed and proposed.requires_public_web,
@@ -187,5 +232,6 @@ def guard_plan(
         case_filters=proposed.case_filters,
         product_overview=proposed.product_overview,
         wants_visuals=proposed.wants_visuals,
+        document_visual_required=proposed.document_visual_required,
         visual_scope=proposed.visual_scope if proposed.wants_visuals else "mixed",
     )

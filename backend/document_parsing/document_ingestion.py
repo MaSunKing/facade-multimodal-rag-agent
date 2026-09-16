@@ -1,9 +1,9 @@
-"""Request-only Word and image intake for the multimodal RAG service.
+"""Request-only Word and image intake for the finance assistant.
 
-Safe parsing is separated from downstream semantic interpretation. DOCX
-paragraphs, tables and embedded images are preserved as intermediate evidence;
-visual assets remain candidates until a controlled OCR/layout pipeline has
-produced reviewable output.
+The module intentionally separates safe file parsing from financial
+interpretation.  DOCX paragraphs and tables can be deterministically mapped
+with the same rules as Excel/text.  Images are accepted and validated, but do
+not become financial facts until a controlled OCR table pipeline is enabled.
 """
 
 from __future__ import annotations

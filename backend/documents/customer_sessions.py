@@ -11,9 +11,15 @@ import re
 import math
 import json
 import os
+import base64
+import binascii
+import hashlib
+import hmac
+import secrets
 import threading
 import time
 import uuid
+import contextvars
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -31,6 +37,13 @@ SESSION_TTL_SECONDS = 60 * 60
 MAX_CUSTOMER_PDF_VISUAL_PAGES = 40
 MAX_CUSTOMER_PDF_VISION_BATCHES = 10
 CUSTOMER_PDF_VISUAL_BATCH_PAGES = 4
+MAX_RESIDENT_SESSIONS = 32
+MAX_RESIDENT_BYTES = 256 * 1024 * 1024
+_parse_slot = threading.BoundedSemaphore(1)
+
+
+class AttachmentCapacityError(ValueError):
+    pass
 
 # Customer uploads are intentionally kept complete in ``CustomerDocument``.
 # These limits only govern the question-time snapshot sent to the language
@@ -77,12 +90,50 @@ class CustomerDocument:
 @dataclass
 class CustomerDocumentSession:
     session_id: str
+    # ``owner_id`` is an opaque, process-local identity. Logged-in callers use
+    # their stable user id; anonymous callers use a hash of the browser client
+    # id. It is never returned in the public session payload.
+    owner_id: str | None = None
     documents: list[CustomerDocument] = field(default_factory=list)
     updated_at: float = field(default_factory=time.monotonic)
+    visual_ticket_secret: bytes = field(default_factory=lambda: secrets.token_bytes(32), repr=False)
 
 
 _sessions: dict[str, CustomerDocumentSession] = {}
 _lock = threading.RLock()
+_CURRENT_SESSION_OWNER: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "facade_customer_document_owner", default=None
+)
+
+
+@contextmanager
+def bind_session_owner(owner_id: str | None):
+    """Bind one verified HTTP caller to nested attachment operations.
+
+    The answer pipeline calls several helpers indirectly through LangGraph. A
+    context variable keeps those calls owner-aware without putting an owner
+    field in the customer-controlled request body.
+    """
+
+    token = _CURRENT_SESSION_OWNER.set(owner_id)
+    try:
+        yield
+    finally:
+        _CURRENT_SESSION_OWNER.reset(token)
+
+
+def current_session_owner() -> str | None:
+    return _CURRENT_SESSION_OWNER.get()
+
+
+def _effective_owner(owner_id: str | None) -> str | None:
+    return owner_id if owner_id is not None else current_session_owner()
+
+
+def _owner_matches(session: CustomerDocumentSession, owner_id: str | None) -> bool:
+    # Ownerless sessions exist only for local parser/unit-test callers. Every
+    # HTTP-created session is owner-bound by ``documents.router``.
+    return session.owner_id is None or session.owner_id == _effective_owner(owner_id)
 
 
 def _purge_expired(now: float | None = None) -> None:
@@ -145,6 +196,7 @@ def _build_source_locations(intermediate: Any) -> dict[str, dict[str, Any]]:
 
 
 def _visual_context(intermediate: Any, visual: Any) -> str:
+    from backend.documents.visual_layout import compact_visual_metadata
     source = visual.source
     nearby: list[str] = []
     for block in intermediate.blocks:
@@ -157,7 +209,7 @@ def _visual_context(intermediate: Any, visual: Any) -> str:
             visual.visual_id,
             visual.kind,
             str(source.model_dump(mode="json")),
-            str(visual.metadata),
+            str(compact_visual_metadata(visual.metadata)),
             *nearby[:3],
         ]
     )
@@ -182,7 +234,32 @@ def _with_optional_document_ocr(result: Any) -> Any:
         return result
 
 
-def add_files(files: list[tuple[str, bytes]], session_id: str | None = None) -> dict[str, Any]:
+def add_files(*args, **kwargs):
+    # Serialise CPU/OCR/Office parsing. Fail explicitly instead of accumulating
+    # unbounded waiting uploads or evicting another active user's documents.
+    if not _parse_slot.acquire(blocking=False):
+        raise AttachmentCapacityError("附件正在解析，请稍后重试。")
+    try:
+        return _add_files_serial(*args, **kwargs)
+    finally:
+        _parse_slot.release()
+
+
+def estimated_session_bytes(session: CustomerDocumentSession) -> int:
+    # Conservative retained-data estimate, NOT a measurement of process RSS.
+    # Includes Python Unicode/object overhead and original upload allowance.
+    return sum(doc.size_bytes + 4 * len(json.dumps(doc.chunks, ensure_ascii=False))
+               + 4 * len(json.dumps(doc.source_locations, ensure_ascii=False))
+               + sum(len(v.image_bytes or b"") + 4 * len(v.searchable_text) + 1024 for v in doc.visuals)
+               for doc in session.documents)
+
+
+def _add_files_serial(
+    files: list[tuple[str, bytes]],
+    session_id: str | None = None,
+    *,
+    owner_id: str | None = None,
+) -> dict[str, Any]:
     if not files:
         raise ValueError("at_least_one_file_required")
     if len(files) > MAX_SESSION_FILES:
@@ -191,6 +268,25 @@ def add_files(files: list[tuple[str, bytes]], session_id: str | None = None) -> 
         raise ValueError("single_file_too_large")
     if sum(len(content) for _, content in files) > MAX_SESSION_BYTES:
         raise ValueError("session_files_too_large")
+    with _lock:
+        _purge_expired()
+        if session_id not in _sessions and len(_sessions) >= MAX_RESIDENT_SESSIONS:
+            raise AttachmentCapacityError("附件会话容量已满，请清除不用的附件或稍后重试。")
+
+    # Reject cumulative overflow before running expensive PDF/OCR/Office
+    # parsers.  A second exact check below handles content-addressed
+    # replacement safely under the session lock.
+    if session_id:
+        with _lock:
+            _purge_expired()
+            existing = _sessions.get(session_id)
+            if existing is None:
+                raise ValueError("attachment_session_not_found")
+            if not _owner_matches(existing, owner_id):
+                raise PermissionError("attachment_session_owner_mismatch")
+            existing_size = sum(document.size_bytes for document in existing.documents) if existing else 0
+        if existing_size + sum(len(content) for _, content in files) > MAX_SESSION_BYTES:
+            raise ValueError("session_files_too_large")
 
     parsed: list[CustomerDocument] = []
     for file_name, content in files:
@@ -251,7 +347,9 @@ def add_files(files: list[tuple[str, bytes]], session_id: str | None = None) -> 
                 kind=visual.kind,
                 source=visual.source.model_dump(mode="json"),
                 media_type=visual.media_type,
-                metadata=dict(visual.metadata),
+                metadata={**dict(visual.metadata),
+                          "text_visual_binding": "same_container_candidate_not_verified",
+                          "requires_layout_verification": True},
                 image_bytes=visual.image_bytes,
                 searchable_text=" ".join(
                     [
@@ -305,13 +403,27 @@ def add_files(files: list[tuple[str, bytes]], session_id: str | None = None) -> 
         _purge_expired()
         key = session_id or f"upload_{uuid.uuid4().hex}"
         existing = _sessions.get(key)
+        if existing is not None and not _owner_matches(existing, owner_id):
+            raise PermissionError("attachment_session_owner_mismatch")
         documents = list(existing.documents) if existing else []
         by_id = {document.document_id: document for document in documents}
         for document in parsed:
             by_id[document.document_id] = document
         if len(by_id) > MAX_SESSION_FILES:
             raise ValueError("maximum_four_files_per_session")
-        session = CustomerDocumentSession(session_id=key, documents=list(by_id.values()))
+        if sum(document.size_bytes for document in by_id.values()) > MAX_SESSION_BYTES:
+            raise ValueError("session_files_too_large")
+        session = CustomerDocumentSession(
+            session_id=key,
+            owner_id=existing.owner_id if existing is not None else _effective_owner(owner_id),
+            documents=list(by_id.values()),
+            visual_ticket_secret=(
+                existing.visual_ticket_secret if existing is not None else secrets.token_bytes(32)
+            ),
+        )
+        projected = sum(estimated_session_bytes(value) for name, value in _sessions.items() if name != key)
+        if projected + estimated_session_bytes(session) > MAX_RESIDENT_BYTES:
+            raise AttachmentCapacityError("附件解析结果超出本地总容量，请减少文件或清除不用的附件。")
         _sessions[key] = session
         return {
             "session_id": key,
@@ -321,17 +433,18 @@ def add_files(files: list[tuple[str, bytes]], session_id: str | None = None) -> 
         }
 
 
-def get_session(session_id: str) -> CustomerDocumentSession | None:
+def get_session(session_id: str, *, owner_id: str | None = None) -> CustomerDocumentSession | None:
     with _lock:
         _purge_expired()
         session = _sessions.get(session_id)
-        if session:
+        if session and _owner_matches(session, owner_id):
             session.updated_at = time.monotonic()
-        return session
+            return session
+        return None
 
 
-def session_summary(session_id: str) -> dict[str, Any] | None:
-    session = get_session(session_id)
+def session_summary(session_id: str, *, owner_id: str | None = None) -> dict[str, Any] | None:
+    session = get_session(session_id, owner_id=owner_id)
     if not session:
         return None
     return {
@@ -342,10 +455,32 @@ def session_summary(session_id: str) -> dict[str, Any] | None:
     }
 
 
-def get_visual_asset(session_id: str, document_id: str, visual_id: str) -> StoredVisualAsset | None:
+def session_access_status(session_id: str, *, owner_id: str | None = None) -> str:
+    """Return ``owned``, ``foreign`` or ``missing`` without exposing it over HTTP."""
+
+    with _lock:
+        _purge_expired()
+        session = _sessions.get(session_id)
+        if session is None:
+            return "missing"
+        return "owned" if _owner_matches(session, owner_id) else "foreign"
+
+
+def get_visual_asset(
+    session_id: str,
+    document_id: str,
+    visual_id: str,
+    *,
+    owner_id: str | None = None,
+    access_ticket: str | None = None,
+) -> StoredVisualAsset | None:
     """Return one in-memory visual only while its private upload session lives."""
 
-    session = get_session(session_id)
+    session = (
+        _session_for_visual_ticket(session_id, document_id, visual_id, access_ticket)
+        if access_ticket
+        else get_session(session_id, owner_id=owner_id)
+    )
     if not session:
         return None
     for document in session.documents:
@@ -357,13 +492,105 @@ def get_visual_asset(session_id: str, document_id: str, visual_id: str) -> Store
     return None
 
 
-def delete_session(session_id: str) -> bool:
+def delete_session(session_id: str, *, owner_id: str | None = None) -> bool:
     with _lock:
-        return _sessions.pop(session_id, None) is not None
+        _purge_expired()
+        session = _sessions.get(session_id)
+        if session is None or not _owner_matches(session, owner_id):
+            return False
+        del _sessions[session_id]
+        return True
+
+
+def _visual_ticket_payload(session_id: str, document_id: str, visual_id: str, expires_at: int) -> bytes:
+    return json.dumps(
+        {
+            "session_id": session_id,
+            "document_id": document_id,
+            "visual_id": visual_id,
+            "expires_at": expires_at,
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+
+
+def issue_customer_visual_ticket(
+    session_id: str,
+    document_id: str,
+    visual_id: str,
+    *,
+    lifetime_seconds: int = 300,
+) -> str | None:
+    """Issue a short-lived capability for an authorised browser ``img`` tag.
+
+    Image elements cannot attach the bearer/client-id headers used by fetch.
+    The ticket is scoped to one visual and signed with an in-memory per-session
+    secret, so it expires with the upload session and cannot be reused for a
+    different attachment.
+    """
+
+    session = get_session(session_id)
+    if session is None:
+        return None
+    exists = any(
+        document.document_id == document_id
+        and any(visual.visual_id == visual_id and visual.image_bytes for visual in document.visuals)
+        for document in session.documents
+    )
+    if not exists:
+        return None
+    expires_at = int(time.time()) + max(30, min(int(lifetime_seconds), 900))
+    payload = _visual_ticket_payload(session_id, document_id, visual_id, expires_at)
+    signature = hmac.new(session.visual_ticket_secret, payload, hashlib.sha256).digest()
+    encoded_payload = base64.urlsafe_b64encode(payload).decode("ascii").rstrip("=")
+    encoded_signature = base64.urlsafe_b64encode(signature).decode("ascii").rstrip("=")
+    return f"{encoded_payload}.{encoded_signature}"
+
+
+def _session_for_visual_ticket(
+    session_id: str,
+    document_id: str,
+    visual_id: str,
+    ticket: str,
+) -> CustomerDocumentSession | None:
+    try:
+        encoded_payload, encoded_signature = ticket.split(".", 1)
+        payload = base64.urlsafe_b64decode(
+            (encoded_payload + "=" * (-len(encoded_payload) % 4)).encode("ascii")
+        )
+        signature = base64.urlsafe_b64decode(
+            (encoded_signature + "=" * (-len(encoded_signature) % 4)).encode("ascii")
+        )
+        parsed = json.loads(payload.decode("utf-8"))
+        if not isinstance(parsed, dict):
+            return None
+        if (
+            parsed.get("session_id") != session_id
+            or parsed.get("document_id") != document_id
+            or parsed.get("visual_id") != visual_id
+            or int(parsed.get("expires_at") or 0) < int(time.time())
+        ):
+            return None
+    except (ValueError, TypeError, UnicodeDecodeError, json.JSONDecodeError, binascii.Error):
+        return None
+    with _lock:
+        _purge_expired()
+        session = _sessions.get(session_id)
+        if session is None:
+            return None
+        expected = hmac.new(session.visual_ticket_secret, payload, hashlib.sha256).digest()
+        if not hmac.compare_digest(signature, expected):
+            return None
+        session.updated_at = time.monotonic()
+        return session
 
 
 def _terms(text: str) -> set[str]:
     latin = re.findall(r"[a-z0-9_./%-]+", text.lower())
+    stopwords = {'the','a','an','of','in','on','at','to','for','from','and','or','is','are','was','were','be','by','with','this','that','it','its','what','which','how'}
+    latin = [term for term in latin if term not in stopwords]
     chinese = re.findall(r"[\u4e00-\u9fff]{2,}", text)
     grams: list[str] = []
     for value in chinese:
@@ -603,11 +830,50 @@ def _overlap_start(text: str, start: int, end: int, overlap_tokens: int) -> int:
     return min(end, max(start + 1, best))
 
 
-def _window_chunk(text: str, chunk_id: str, *, window_tokens: int, overlap_tokens: int) -> list[dict[str, Any]]:
+def _compact_row_formulas(row: str) -> str:
+    """Losslessly share repeated self-cell formula templates in a prompt row."""
+    pattern = re.compile(r"(\b[A-Z]+\d+)(\[[^\]]*\])?='([^']*)' formula='([^']*)'")
+    matches = list(pattern.finditer(row))
+    templates: dict[str, list[str]] = {}
+    for match in matches:
+        cell, formula = match.group(1), match.group(4)
+        template = re.sub(r'(?<![A-Za-z0-9_])'+re.escape(cell)+r'(?![A-Za-z0-9_])', '{cell}', formula)
+        templates.setdefault(template, []).append(cell)
+    shared = {template: f'F{index+1}' for index, (template, cells) in enumerate(templates.items()) if len(cells) > 1}
+    if not shared:
+        return row
+    def replace(match):
+        template = re.sub(r'(?<![A-Za-z0-9_])'+re.escape(match.group(1))+r'(?![A-Za-z0-9_])', '{cell}', match.group(4))
+        if template not in shared:
+            return match.group()
+        return f"{match.group(1)}{match.group(2) or ''}='{match.group(3)}' formula_template={shared[template]}"
+    return pattern.sub(replace, row) + '\n[FORMULA_TEMPLATES substitute {cell} with each cell address] ' + json.dumps({key:template for template,key in shared.items()},ensure_ascii=False)
+
+
+def _window_chunk(text: str, chunk_id: str, *, window_tokens: int, overlap_tokens: int, _table_rows: bool = True, header_context: str = "") -> list[dict[str, Any]]:
     """Split a canonical chunk into auditable, overlapping retrieval views."""
 
     if not text:
         return []
+    rows = list(re.finditer(r"(?m)^\[ROW[^\n]*", text))
+    if _table_rows and text.startswith("[TABLE ") and ' sheet=' in text.split('\n',1)[0] and len(rows) > 1:
+        prefix = text[:rows[0].start()] + header_context
+        # Read-only context; keep headers with values without indexing their
+        # repeated words as extra relevance. Canonical source is untouched.
+        output = []
+        for row in rows:
+            compact_row = _compact_row_formulas(row.group())
+            if _estimate_text_tokens(compact_row) > max(64, window_tokens-_estimate_text_tokens(prefix)):
+                compact_row = row.group()
+            pieces = _window_chunk(compact_row, chunk_id, window_tokens=max(64, window_tokens-_estimate_text_tokens(prefix)), overlap_tokens=0, _table_rows=False)
+            for piece in pieces:
+                value = prefix + piece['text']
+                output.append({**piece, 'window_id': f'{chunk_id}:row:{len(output)+1}',
+                    'text': value, 'ranking_text': piece['text'],
+                    'start_character': row.start() if compact_row != row.group() else row.start()+piece['start_character'],
+                    'end_character': row.end() if compact_row != row.group() else row.start()+piece['end_character'],
+                    'estimated_tokens': _estimate_text_tokens(value), 'windowed': True})
+        return output
     if _estimate_text_tokens(text) <= window_tokens:
         return [
             {
@@ -856,7 +1122,15 @@ def retrieve(
         if document_scope in {"local_lookup", "whole_document", "cross_document", "unknown"}
         else "unknown"
     )
-    global_document_question = normalized_document_scope == "whole_document"
+    # Whole-document summaries and cross-document comparisons both need a
+    # structural view plus representative content from every attachment.
+    # Treating cross-document analysis as a narrow lexical lookup caused broad
+    # prompts such as "compare these files and give recommendations" to fall
+    # back to document indexes because those words do not occur in data rows.
+    global_document_question = normalized_document_scope in {
+        "whole_document",
+        "cross_document",
+    }
     raw_estimated_tokens = 0
     raw_chunk_count = 0
     windowed_chunk_count = 0
@@ -865,6 +1139,21 @@ def retrieve(
     per_document_raw_tokens: dict[str, int] = {document.document_id: 0 for document in session.documents}
     order = 0
     for document in session.documents:
+        table_headers: dict[str, str] = {}
+        for source_chunk in document.chunks:
+            source_text = str(source_chunk.get('text') or '')
+            table = re.match(r'\[TABLE id=([^\n]*?) sheet=', source_text)
+            if not table or table.group(1) in table_headers:
+                continue
+            headers = []
+            for row in re.findall(r'(?m)^\[ROW[^\n]*', source_text)[:3]:
+                values = re.findall(r"='([^']*)'", row)
+                if not values or any(re.fullmatch(r'[\d.,/ -]+', value) for value in values):
+                    break
+                if _estimate_text_tokens(''.join(headers)+row) > 180:
+                    break
+                headers.append(row)
+            table_headers[table.group(1)] = '\n'.join(headers) + ('\n' if headers else '')
         for chunk in document.chunks:
             chunk_id = str(chunk.get("chunk_id"))
             text = str(chunk.get("text") or "")
@@ -875,11 +1164,15 @@ def retrieve(
             raw_estimated_tokens += chunk_estimated_tokens
             per_document_raw_tokens[document.document_id] += chunk_estimated_tokens
             original_chunks[(document.document_id, chunk_id)] = text
+            # PDF prose benefits from shorter coherent windows. This does
+            # not alter the canonical document or the total prompt budget.
+            prose_pdf = document.file_name.lower().endswith('.pdf') and not text.startswith('[TABLE')
             windows = _window_chunk(
                 text,
                 chunk_id,
-                window_tokens=window_token_budget,
-                overlap_tokens=overlap_token_budget,
+                window_tokens=min(window_token_budget,384) if prose_pdf else window_token_budget,
+                overlap_tokens=min(overlap_token_budget,64) if prose_pdf else overlap_token_budget,
+                header_context=table_headers.get(match.group(1), '') if (match := re.match(r'\[TABLE id=([^\n]*?) sheet=', text)) else '',
             )
             if len(windows) > 1:
                 windowed_chunk_count += 1
@@ -892,7 +1185,7 @@ def retrieve(
                         "order": order,
                         "document": document,
                         "chunk": chunk,
-                        "terms": _terms(str(window["text"])),
+                        "terms": _terms(str(window.get("ranking_text", window["text"]))),
                         "original_chunk_estimated_tokens": chunk_estimated_tokens,
                     }
                 )
@@ -913,6 +1206,13 @@ def retrieve(
             * (1.0 + lowered.count(term.lower()) / (lowered.count(term.lower()) + 1.5))
             for term in overlap
         )
+        sheet_match = re.search(r"\[TABLE[^\n]*? sheet=(.*?) state=", str(window['text']))
+        if sheet_match and re.search(r'(?<![\w])'+re.escape(sheet_match.group(1))+r'(?![\w])', question, re.IGNORECASE):
+            score += 4.0
+        # Exact dates/periods/identifiers are task constraints, not domain rules.
+        for identifier in re.findall(r'\b\d{4}[/\-]\d{2,4}\b', question):
+            if identifier in str(window.get('ranking_text', window['text'])):
+                score += 8.0
         is_document_index = str(window["chunk"].get("kind")) == "document_index"
         if is_document_index:
             document_id = window["document"].document_id
@@ -964,6 +1264,14 @@ def retrieve(
                 if first_window or prioritize_tail
                 else min(0.15, overview_weight / 10)
             )
+        # Multi-column prose is sometimes duplicated as Camelot stream
+        # tables. Prefer native prose to those long-sentence pseudo cells;
+        # retain the candidates and source for actual table-only evidence.
+        window_text = str(window['text'])
+        pseudo_cells = re.findall(r"='([^']*)'", window_text)
+        long_cells = sum(len(re.findall(r'[A-Za-z]+', cell)) >= 14 for cell in pseudo_cells)
+        if ('source=pdf;' in window_text or 'parser=camelot-stream' in window_text) and long_cells >= 2:
+            score *= 0.25
         window["score"] = score
         window["is_document_index"] = is_document_index
         if score > 0:
@@ -1000,6 +1308,22 @@ def retrieve(
             represented_documents.add(document_id)
         if positive_candidates:
             retrieval_fallback_reason = "no_positive_query_overlap_used_document_index"
+    # Deduplicate parser representations by their cell values, not parser IDs.
+    # Canonical chunks remain untouched and can still be inspected.
+    unique_candidates = []
+    seen_values = set()
+    for candidate in positive_candidates:
+        text = str(candidate['text'])
+        values = re.findall(r"='([^']*)'", text)
+        page = re.search(r'\bpage=(\d+)', text)
+        same_page_stream = bool(page and ('parser=camelot-stream' in text or 'source=pdf;' in text))
+        fingerprint = (candidate['document'].document_id, page.group(1) if page else None, tuple(values))
+        if same_page_stream and len(values) >= 4 and fingerprint in seen_values:
+            continue
+        if same_page_stream and len(values) >= 4:
+            seen_values.add(fingerprint)
+        unique_candidates.append(candidate)
+    positive_candidates = unique_candidates
     positive_candidates, semantic_rerank_audit = _semantic_rerank_customer_windows(
         question,
         positive_candidates,
@@ -1112,6 +1436,16 @@ def retrieve(
         document = candidate["document"]
         chunk = candidate["chunk"]
         excerpt = str(candidate["text"])
+        citations = _citation(document, chunk)
+        source_refs = list(chunk.get('source_refs') or [])
+        if '[ROW ' in excerpt:
+            visible_rows = {int(number) for number in re.findall(r"\b[A-Z]+(\d+)(?:\[[^\]]*\])?=", excerpt)}
+            if visible_rows:
+                citations = [citation for citation in citations
+                             if citation.get('row_index') is None or citation.get('row_index') in visible_rows]
+                source_refs = [ref for ref in source_refs
+                               if document.source_locations.get(str(ref), {}).get('row_index') is None
+                               or document.source_locations.get(str(ref), {}).get('row_index') in visible_rows]
         selected_characters += len(excerpt)
         selected.append(
             {
@@ -1127,7 +1461,7 @@ def retrieve(
                 },
                 "window_estimated_tokens": int(candidate["estimated_tokens"]),
                 "original_chunk_estimated_tokens": int(candidate["original_chunk_estimated_tokens"]),
-                "source_refs": list(chunk.get("source_refs") or []),
+                "source_refs": source_refs,
                 "text": excerpt,
                 "score": round(float(candidate["score"]), 3),
                 "lexical_score": round(float(candidate.get("lexical_score", candidate["score"])), 3),
@@ -1137,7 +1471,7 @@ def retrieve(
                     else None
                 ),
                 "evidence_scope": "document_index" if candidate["is_document_index"] else "content",
-                "citations": _citation(document, chunk),
+                "citations": citations,
             }
         )
 

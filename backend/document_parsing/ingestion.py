@@ -30,6 +30,7 @@ from openpyxl import load_workbook
 from openpyxl.utils import column_index_from_string, get_column_letter
 from openpyxl.utils.cell import range_to_tuple
 from pydantic import BaseModel, Field
+from backend.documents.visual_layout import compact_visual_metadata as _searchable_visual_metadata
 
 
 MAX_EXCEL_BYTES = 5 * 1024 * 1024
@@ -962,7 +963,7 @@ def _build_model_context_chunks(document: IntermediateDocument) -> list[ModelCon
         evidence_lines.append(
             (
                 f"[VISUAL id={visual.visual_id} kind={visual.kind} source={_source_ref(visual.source)} "
-                f"status={visual.delivery_status} metadata={visual.metadata}]",
+                f"status={visual.delivery_status} metadata={_searchable_visual_metadata(visual.metadata)}]",
                 visual.visual_id,
             )
         )
@@ -1139,7 +1140,7 @@ def render_intermediate_for_model(
         location = visual.source.cell or visual.source.sheet_name or "source"
         if not append(
             f"[VISUAL id={visual.visual_id} kind={visual.kind} location={location} "
-            f"status={visual.delivery_status} metadata={visual.metadata}]"
+            f"status={visual.delivery_status} metadata={_searchable_visual_metadata(visual.metadata)}]"
         ):
             return "\n".join(lines)
 

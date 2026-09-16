@@ -1,288 +1,145 @@
-# 建材销售与技术支持多模态 RAG Agent
+# 建材多模态 RAG Agent
 
-面向建材销售、售前咨询和工程技术支持的本地多模态知识助手。系统把分散在产品画册、检测资料、施工方案、节点图集、项目案例和客户临时附件中的信息，转换为可检索、可引用、可返回原图的证据；再由受约束 Agent 决定使用企业知识库、客户附件、视觉理解、普通对话或公开网页搜索。
+面向真岩石系列产品咨询、施工技术支持与资料查询的本地知识助手。将产品资料、施工方案、节点图纸、项目案例和客户附件转为可追溯证据，由有限 Agent 选择信息来源，输出回答、引用及原始证据图片。
 
-> 本仓库是隐私清理后的公开核心版本，不包含模型权重、企业原始资料、客户文件、私有索引、API Key、生产地址、运行日志和未公开评测数据。
+![实际前端界面](frontend/public/og-sales-assistant.png)
 
-![建材知识助手界面](frontend/public/og-sales-assistant.png)
-
-## 项目解决什么问题
-
-建材业务的问题不是“缺一个聊天框”，而是资料形态复杂、检索结果难核对、图片与说明容易失联：
-
-- PDF、Word、Excel、CSV、扫描件、节点图和现场图片无法统一检索；
-- 同一产品在画册、检测报告和销售资料中的命名及粒度不同；
-- 表格切块后容易丢失表头，图纸切块后容易丢失页码与邻近说明；
-- 普通 RAG 容易返回语义相近但产品不匹配的图片；
-- 多份文件可能重复、互补或冲突，不能简单取 Top-1；
-- 企业资料和客户附件不能无边界发送给外部服务；
-- 模型即使回答正确，也需要说明来自哪份文件、哪一页、哪个 Sheet 或哪张原图。
-
-本项目将问题拆为可独立验证的六层：
-
-```text
-多格式解析 → Canonical Evidence → 混合检索 → Agent 工具规划
-          → Grounded Generation → 引用回填与可信性校验
-```
-
-## 核心算法与工程贡献
-
-| 难点 | 实现 | 可验证产物 |
-|---|---|---|
-| 异构文件结构容易在统一切块时丢失 | 为 PDF、Word、Excel、图片分别解析，再投影到保留格式专用位置的 Canonical Evidence V2 | 稳定 Evidence ID、页码／bbox、Sheet／range、段落／表格和 Visual Asset 引用 |
-| 长文档无法完整进入 16GB GPU | Canonical Evidence 与单轮 Input Snapshot 分离；按真实结构切块、问题相关窗口召回、文件配额和 Token／像素预算组装输入 | 每轮记录扫描块、入选窗口、截断数、图片、Token 和覆盖状态，原始证据不因压缩而删除 |
-| 单一向量检索漏掉型号、规范号和精确参数 | BM25 + Qwen3-Embedding 双路召回，RRF 融合前显式保留 Lexical Top-8 与 Dense-only Top-4，再用 Qwen3-Reranker 重排 | Recall@K、MRR、候选来源和共享索引指纹可分别审计 |
-| 表格字段名和值容易被拆开 | Excel 识别一页内多个非连续表格，以完整业务行为候选，绑定紧凑列头；整表问题为每个 Table／Section 保留代表窗口 | 可直接定位到 Sheet、表格范围、数据行与单元格，不依赖只截取工作簿开头 |
-| 图片返回“语义相似但产品不对” | 产品图、案例图、节点图、工艺图分域建立审核图库；指定产品按名称／别名约束，未匹配时返回空集 | 原始图片接口、来源页和视觉召回结果可核对，不用生成图或相似产品替代 |
-| Agent 容易退化为不断增长的关键词路由 | Qwen3-VL Planner 语义输出工具、任务、检索词、视觉范围和联网需求；LangGraph Guard 只执行隐私、权限、额度和工具可用性边界 | Tool Plan、执行轮次、工具集合和 fallback 原因写入响应元数据 |
-| 公开产品服务与内部知识容易混用 | 匿名用户只读 `public`；首个本机管理员通过一次性令牌初始化，并可为成员授予 `internal`；访问范围在检索候选生成前过滤 | SQLite用户与会话、public/internal索引统计、401/403边界测试及短时签名原图票据 |
-| 模型可能引用不存在的来源或生成不可复核数字 | Grounded JSON、Evidence 白名单、数值支持审计、冲突／拒答协议、服务端引用物化；长输出采用引用前置与安全截断恢复 | Citation Precision／Recall、Unsupported Answer Rate、失败原因和最终来源卡片 |
-| 8B VLM、Embedding 和 Reranker 无法同时常驻 16GB GPU | Qwen3-VL-8B 使用 4-bit NF4；检索模型与生成模型错峰驻留，Batch Size 1，限制视觉像素并在空闲后卸载 | 峰值显存、OOM 重试、冷启动和 P50／P95 延迟可独立统计 |
-
-这套设计的重点不是堆叠框架，而是让解析、召回、视觉选择、生成和校验能够分别复现、评测和定位错误。
-
-## 技术亮点
-
-### 1. 保留原始结构的多格式解析
-
-- **PDF**：逐页检测文本层；可可靠提取时优先直接解析，扫描、乱码或结构严重错位页面进入 OCR／版面分析／视觉回退。
-- **Word**：分别保留标题、段落、表格、页眉页脚、评论和内嵌图片。
-- **Excel/CSV**：按 Workbook、Sheet、局部表格、业务表头、数据行和单元格组织；将紧凑表头绑定到行值，避免字段名和值被切开。
-- **图片与图表**：原图作为 Visual Asset 保存；OCR、版面模型和 VLM 结果只作为带来源的候选，不静默覆盖原始信息。
-
-所有输入投影为统一的 **Canonical Evidence**，同时保留格式专用位置：PDF 的 `page + bbox`、Excel 的 `sheet + range`、Word 的段落／表格位置和图片的 `visual_asset_id`。
-
-### 2. 文本、表格和图片可追溯
-
-完整解析结果与单次模型输入分离：
-
-- **Canonical Evidence** 保存完整原始结构；
-- **Input Snapshot** 只保存该问题实际进入模型的文本窗口、图片、Token 预算和选择理由；
-- 模型只能引用白名单内的 Evidence ID；
-- 后端把 Evidence ID 物化为文档名、页码、Sheet、单元格范围和原始图片接口。
-
-因此一次上下文压缩不会删除原文件信息，也可以区分“解析失败、检索漏召回、视觉页未进入输入、模型理解错误和引用校验失败”。
-
-### 3. 混合检索与候选保真
-
-企业知识库采用：
-
-```text
-BM25 词法召回
-    + Qwen3-Embedding 本地向量召回
-    → Reciprocal Rank Fusion
-    → 显式保留 Lexical Top-8 / Dense-only Top-4
-    → Qwen3-Reranker Cross-Encoder 重排
-    → 任务与答案形态轻量加权
-```
-
-词法召回擅长产品型号、规范编号、节点名称和精确参数；向量召回补充同义表达。显式候选保留避免某一路的高质量结果在融合前被另一条召回流挤掉，并用共享 SHA 指纹验证词法与向量索引来自同一版证据快照。
-
-### 4. 产品图片不是“文本 Top-K 的附属品”
-
-产品图、案例图、节点图和工艺图分别标注视觉范围。模型 Planner 输出 `wants_visuals` 与 `visual_scope` 后，检索器按问题选择相关图库：
-
-- 产品总览：从完整审核图库返回代表性产品图；
-- 指定产品：只返回名称或别名明确匹配的产品图；
-- 未匹配产品：返回 0 张并说明缺少资料，不拿相似产品替代；
-- 案例／节点／工艺：结合标题、OCR、邻近文本、页码和已召回 Evidence 排序。
-
-返回的是企业资料中的原始图片或原始裁剪，而不是模型重新绘制的示意图。
-
-### 5. Model-first 的受约束 Agent
-
-基于 LangGraph 构建有限状态 Agent。Qwen3-VL Planner 一次性输出工具选择、业务意图、任务类型、检索改写、视觉范围和是否需要联网；后端只保留少量安全边界：
-
-- 客户附件存在时优先纳入证据；
-- 未上传的私有动态数据不得猜测；
-- 联网开关只是授权，不代表每轮都要搜索；
-- 普通问候、改写和企业资料可回答的问题不消耗联网额度；
-- 私有 Evidence 永不拼入公开搜索请求；
-- Planner 失败时采用保守本地兜底。
-
-可用工具：`general_chat`、`customer_documents`、`company_rag`、`visual_inspection`、`public_web_search`。
-
-### 6. 少量异构文件的跨文件问答
-
-客户单次最多上传 4 份文件。系统完整解析后，按问题对每份文件内部的页面、段落、表格行和图片进行召回，再在总 Token／像素预算下分配上下文。支持：
-
-- `redundant`：多份文件重复支持同一结论；
-- `complementary`：多份文件分别提供结论的一部分；
-- `conflicting`：不同来源冲突，显式并列，不替用户拍板；
-- `none`：候选均无足够证据，拒答。
-
-长文本采用约 768 Token、96 Token 重叠的结构窗口；当前客户附件检索预算为 5k Token，并可在显存安全上限内配置。系统保留按文件配额、零相关干扰抑制和最多 4 张相关图片等限制，完整 Canonical Evidence 不因单轮预算而删除。
-
-### 7. 本地多模态推理适配 16GB GPU
-
-- Qwen3-VL-8B-Instruct 使用 4-bit NF4、Batch Size 1；
-- 生成模型加载前将 Embedding／Reranker 移到 CPU，避免三模型同时争抢显存；
-- 对文本 Token、图片数量、总像素和生成长度设置预算；
-- 推理结束不保存 hidden states、attention 或生成分数；
-- 默认空闲 10 分钟卸载生成模型，检索服务仍可运行。
-
-这不是简单降低模型尺寸，而是通过模型生命周期管理在消费级显卡上保留完整 8B 多模态能力。
-
-### 8. 可控联网补充
-
-公开网页搜索只处理确实依赖时效性外部事实的问题。当前设计包含：
-
-- 问题级语义决策，而不是勾选联网后每轮强制调用；
-- 搜索结果相关性、来源域名和时效重排；
-- 对高价值页面做受限抓取与证据片段验证；
-- 本地 SQLite 缓存和每日业务／硬额度隔离；
-- 联网结果只能作为公开参考，不能证明企业产品参数。
-
-## 完整架构
+**核心问题：找对资料、保留关键关系、控制本机预算，并说明结论来自哪里。**
 
 ```mermaid
-flowchart TB
-    subgraph Offline[离线知识入库]
-        S1[产品画册 / 检测资料 / 施工方案 / 节点图集 / 案例资料]
-        S2[格式专用解析器\nMinerU / PyMuPDF / Word / Excel / OCR]
-        S3[Canonical Evidence\n文本块 + 表格行 + Visual Asset + Source Location]
-        S4[知识分类与审核\n产品 / 参数 / 工艺 / 节点 / 案例 / 内部口径]
-        S5[BM25 Index + Dense Index + Visual Gallery]
-        S1 --> S2 --> S3 --> S4 --> S5
-    end
-
-    subgraph Online[在线问答]
-        U[Next.js 前端\n问题 + 最多4份附件 + 图片 + 联网授权]
-        API[FastAPI]
-        P[Qwen3-VL Semantic Planner]
-        G[LangGraph Policy Guard]
-        T1[客户附件检索]
-        T2[企业混合 RAG]
-        T3[视觉理解]
-        T4[百度公开网页搜索]
-        T5[普通对话]
-        C[Context Composer\nToken/像素预算 + Input Snapshot]
-        M[Qwen3-VL-8B 4-bit]
-        V[JSON Schema + Evidence 白名单 + 数值/引用校验]
-        O[答案 + 引用 + 原始证据图片]
-        U --> API --> P --> G
-        G --> T1
-        G --> T2
-        G --> T3
-        G --> T4
-        G --> T5
-        T1 --> C
-        T2 --> C
-        T3 --> C
-        T4 --> C
-        T5 --> C
-        C --> M --> V --> O --> U
-        S5 --> T2
-    end
+flowchart TD
+    Q[问题 + 会话状态 + 附件/图片] --> P[语义规划与 Query 改写]
+    P --> G[权限 / 授权 / 工具可用性 / 时间预算]
+    G --> A[客户附件检索]
+    G --> R[企业 RAG]
+    G --> W[公开网页搜索]
+    G --> V[视觉输入选择]
+    A --> C[Query-aware Evidence Context]
+    R --> C
+    W --> C
+    V --> C
+    C --> M[本地 Qwen3-VL 图文生成]
+    M --> K[结构 / 引用身份 / 启发式支持校验]
+    K --> O[回答 + 来源位置 + 原始图片]
+    K -. 条件及预算允许 .-> B[有限恢复]
+    B -. 补检索或降低负载 .-> C
 ```
 
-详细数据流、组件职责和状态机见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)，检索与视觉算法见 [docs/ALGORITHMS.md](docs/ALGORITHMS.md)。
+图为逻辑数据流，不表示工具并行或每题执行所有分支。实际 LangGraph 条件路由，GPU推理串行；附件图片可在生成阶段联合读取。
 
-## 技术栈
+## 核心算法与代码
 
-| 层 | 技术 |
-|---|---|
-| 前端 | Next.js 16、React 19、TypeScript、静态导出 |
-| API / 工作流 | FastAPI、Pydantic、LangGraph |
-| 多模态模型 | Qwen3-VL-8B-Instruct、bitsandbytes 4-bit NF4 |
-| 文档解析 | MinerU、PyMuPDF、pypdf、python-docx、openpyxl、xlrd、OCR/PP-Structure 可选 |
-| 检索 | BM25、Qwen3-Embedding-0.6B、RRF、Qwen3-Reranker-0.6B |
-| 部署 | 腾讯云静态网站托管、Tailscale HTTPS 私网入口、本地 GPU FastAPI |
-| 质量保障 | CPU 回归测试、Evidence 审计、输入快照、结构化输出校验 |
+| 能力 | 实现重点 | 入口 |
+|---|---|---|
+| 有限 Agent | 结构化计划、Guard、真实阶段执行、有限重试、执行轨迹 | [Graph](backend/sales/answer_graph.py)、[Planner](backend/sales/tool_planner.py)、[阶段执行](backend/sales/staged_execution.py) |
+| Query-aware Context | 跨来源排名归一、去重、表格行/条件/数字单位关系保护、候选冲突成组、动态预算 | [Context Engine](backend/sales/context_engine.py) |
+| 混合检索 | BM25 + 本地Embedding、RRF、词法与Dense-only候选保留、Cross-Encoder重排、资源不足降级 | [Retriever](backend/sales/retriever.py)、[Dense/Reranker](backend/sales/dense_retrieval.py) |
+| 多格式证据化 | PDF、DOCX、XLSX/XLS/CSV、TXT、HTML/XML、ZIP表格包、常见图片；保留格式专用位置 | [解析器](backend/document_parsing)、[Evidence V2](backend/documents/evidence_v2.py) |
+| 附件隔离 | 最多4份文件；浏览器/账号绑定的进程内会话；TTL、容量限制、独立检索 | [会话](backend/documents/customer_sessions.py)、[Owner Guard](backend/documents/ownership.py) |
+| 视觉与溯源 | 原图与OCR候选并列、图片哈希去重、实际输入序号、来源绑定、签名原图接口 | [视觉输入](backend/documents/visual_inputs.py)、[布局](backend/documents/visual_layout.py) |
+| 校验与恢复 | Evidence白名单、服务端来源回填、数字支持审计、分阶段错误码、共享恢复预算 | [回答/校验](backend/app.py)、[错误协议](backend/sales/runtime_status.py)、[预算](backend/request_budget.py) |
+| 任务记忆 | 显式启用、用户/会话隔离、相关历史召回、状态修正与撤回；记忆不当技术事实 | [Task Memory](backend/sales/task_memory.py) |
 
-## 项目结构
+## Retrieval → Context → Model Input
 
 ```text
-backend/
-├─ app.py                     # FastAPI、模型生命周期、Grounded回答与校验
-├─ access_control.py          # SQLite账户、内部权限、Agent Trace与图片票据
-├─ auth_router.py             # 首次管理员初始化、登录与人员授权API
-├─ document_parsing/          # PDF/Word/Excel/图片等格式解析
-├─ documents/                 # 附件会话、Canonical Evidence、跨文件检索
-└─ sales/
-   ├─ tool_planner.py         # 模型语义计划与安全裁剪
-   ├─ answer_graph.py         # LangGraph 有限状态 Agent
-   ├─ retriever.py            # BM25 / Dense / RRF / Rerank / Visual Retrieval
-   ├─ dense_retrieval.py      # 本地 Embedding、Reranker 与 GPU 生命周期
-   ├─ baidu_search.py         # 配额、缓存、来源重排与页面验证
-   └─ ingestion_graph.py      # 审核优先的企业资料入库
-
-scripts/                      # 索引、视觉资产、知识分类与入库工具
-frontend/                     # 中文 Web 前端
-data/                         # 仅保留公开配置和空目录
-docs/                         # 架构、算法与评测协议
+企业资料 → BM25 + Dense → RRF → 候选保留 → Reranker ─┐
+客户附件 → 结构窗口/业务行召回 → 可选语义重排 ────────┤
+公开网页 → 去重、来源/时效排序、受限正文验证 ──────────┤
+图片资产 → 问题相关选择与来源绑定 ─────────────────────┘
+                        ↓
+        Context Engine：决定保留哪些证据和关系
+                        ↓
+        最终 Token / 图片预算：模型实际输入
 ```
 
-## 当前验证状态
+- Canonical Evidence与本轮输入审计分离，单轮压缩不删除原始解析结果。
+- 表格尽量按业务行召回，绑定紧凑表头，避免字段名与值分离。
+- 已识别的条件、否定关系与候选冲突组参与成组打包，防止丢掉限制条件。
+- 不直接比较各来源原始分数，先按来源内部排名归一，再结合问题与结构信息评分。
+- 热态8B预留GPU时，企业检索跳过Dense/Reranker使用词法路径；混合检索不是每次请求的保证。
 
-| 项目 | 当前结果 | 说明 |
-|---|---:|---|
-| 建材知识评测草案 | 100 题 | 70 文字 RAG、20 客户图片直读、10 拒答 |
-| 严格 Evidence Recall@5 | 65/70（92.86%） | 只认同一 Evidence ID；不是最终答案准确率 |
-| 图片题原始资产可用率 | 20/20 | 评测给定图片后的视觉理解，不等同图库召回 |
-| 公开仓库 CPU 回归测试 | 86 项通过，1 项按环境跳过 | 覆盖 Agent、Evidence、混合召回、附件检索、联网策略、访问控制、模型生命周期及产品图库等核心逻辑 |
+见 [算法设计](docs/ALGORITHMS.md)、[上下文策略](docs/CONTEXT_ENGINE.md)。
 
-评测集仍处于 `human_review_draft`，上述数字用于工程诊断，不作为未经审核的业务效果宣传。评测协议与指标见 [docs/EVALUATION.md](docs/EVALUATION.md)。
+## 多来源与多模态
 
-## 公开与内部权限
+一个请求可以组合客户附件、企业知识、公开网页及实际图片。重复支持、互补支持与冲突来源应分别表述；证据不足时拒答或说明局部覆盖。
 
-- 当前示例资料默认属于 `public`，匿名访客可直接查询；内部知识库初始为空。
-- `document_category` 只描述资料用途，不承担访问控制；未来内部资料必须显式设置 `access_scope=internal`。
-- 首个管理员使用本机 `runtime/admin_bootstrap_token.txt` 中的一次性令牌初始化，令牌成功使用后自动删除。
-- 管理员可创建成员并独立授予、撤销内部资料访问权限；停用账户会立即撤销其登录会话。
-- 浏览器只在当前会话保存Bearer令牌；原图使用5分钟签名票据，不把登录Token写入图片URL。
-- SQLite只保存账户、非正文请求状态、工具轨迹和Evidence Snapshot元数据；运行时数据库、令牌、会话和快照均被排除在Git之外。
+图片不是只有OCR文本：保留原始像素输入，附件路径可在一次Qwen3-VL调用中联合阅读图文。**图片被检索/返回前端，不代表像素已送入模型**，应以实际 `visual_input_manifest` 核对。
+
+## LangGraph 与有限恢复
+
+```text
+plan_request → guard_tools → 按需工具
+ → compose_evidence → generate_answer → validate_answer
+ → collect_response → assess_retry → 有限重试或 finalize_response
+```
+
+- 不是每题执行所有节点，普通对话与审核产品目录存在快捷路径。
+- 联网开关表示授权，不是强制搜索；失败后也不增加权限。
+- 附件仅召回索引且尚未生成时，可以扩大范围一次，无需再次调用Planner。
+- HTTP请求最多两次恢复、每阶段一次、不延长原deadline。
+- `finalize_response`不调用模型，也不补回已裁掉的信息。
+- Graph无跨进程Checkpointer，不宣传为持久化自主长任务Agent。
+
+见 [Agent节点与审计](docs/LANGGRAPH.md)。
+
+## 本地资源与部署
+
+| 部分 | 当前实现 |
+|---|---|
+| 推理 | Qwen3-VL-8B-Instruct，NF4 4-bit，Batch Size 1 |
+| 单卡预算 | GPU串行、检索/生成错峰、动态文本/图片/输出预算、部分OOM降载 |
+| 空闲卸载 | 默认20分钟，可配置 |
+| 前端 | Next.js / React / TypeScript；拖入、粘贴附件与自适应输入框 |
+| 部署 | 腾讯云静态前端 → Tailscale HTTPS入口 → 本地FastAPI/GPU |
+| 权限 | 匿名用户只查public；管理员授权internal；内部库可为空 |
+| 状态 | SQLite账号/审计/可选任务记忆；客户附件仍为进程内会话 |
+
+不包含生产地址、账号数据库、企业原始资料、客户文件、模型权重或私有索引。MIT仅覆盖代码，不授予企业资料或外部标准的使用权。
+
+当前实际知识资料均为公开资料，internal分区只是预留的权限架构，并不表示现有库含内部保密资料。为控制仓库体积与明确资料再分发边界，公开版提供配置、解析/入库代码及虚构示例，而非整份本地数据目录。
 
 ## 快速开始
 
-### 环境
-
-- Python 3.10+
-- Node.js 22+
-- NVIDIA GPU；8B 4-bit 建议约 16GB 显存
-- 本地 Qwen3-VL-8B-Instruct 权重
+Python 3.11、Node.js 22。生成需自行准备兼容的CUDA/PyTorch、bitsandbytes和模型权重。可选OCR/FlashAttention的Windows兼容性需另行验证。
 
 ```bash
-python -m venv .venv
-# Windows: .venv\Scripts\activate
-# Linux/macOS: source .venv/bin/activate
 pip install -r requirements.txt
+cp .env.example .env
+# 设置 FACADE_MODEL_PATH，真实Key仅保存在本地环境
+python -m uvicorn backend.app:app --host 127.0.0.1 --port 8000 --env-file .env
 ```
 
-复制 `.env.example` 为 `.env`，至少设置：
-
-```text
-FACADE_MODEL_PATH=/absolute/path/to/Qwen3-VL-8B-Instruct
-FACADE_PUBLIC_FRONTEND=http://localhost:3000
-```
-
-启动后端：
-
-```bash
-uvicorn backend.app:app --host 127.0.0.1 --port 8000 --env-file .env
-```
-
-启动前端：
+PowerShell用 `Copy-Item .env.example .env` 或 `./scripts/start_backend.ps1`。服务启动/健康检查不加载模型。
 
 ```bash
 cd frontend
-npm install
+npm ci
 npm run dev
 ```
 
-生产前端可静态导出到腾讯云；后端建议只通过 VPN／Tailscale 或身份认证网关访问，不直接暴露模型端口。
+空仓库 `/health/retrieval` 返回 `not_ready` 是预期行为，企业索引需自行从授权资料构建。
 
-## 公开仓库边界
+### 不加载模型的小规模校验
 
-本仓库公开的是架构、核心代码和可复现的工程方法。以下内容有意排除：企业产品原文、客户附件、私有索引、生产域名、API 密钥、模型权重和内部运行日志。构建自己的知识库时，请把已授权资料放入 `data/sales/raw/`，完成解析与人工审核后再生成本地索引。
+```bash
+python scripts/public_smoke.py
+python scripts/verify_public_release.py
+# 对已经启动的服务校验
+python scripts/public_smoke.py --base-url http://127.0.0.1:8000
+```
 
-## 工程文档
+脚本生成虚构PDF、DOCX、XLSX和PNG，验证上传、来源、原图、跨用户隔离、删除与健康接口。文件/报告在忽略的 `runtime/public_smoke/`。这不是模型答案准确率评测。
 
-- [系统架构](docs/ARCHITECTURE.md)：离线入库、在线 Agent、上下文编排与部署拓扑；
-- [算法设计](docs/ALGORITHMS.md)：结构感知切块、混合检索、视觉召回、可信输出与显存管理；
-- [评测协议](docs/EVALUATION.md)：解析、召回、回答、引用、拒答和 Agent 工具选择的分层指标；
-- [版本记录](CHANGELOG.md)：公开版本的功能变化。
+## 验证与边界
 
-## License
+见 [本地验证记录](docs/VALIDATION.md)、[评测协议](docs/EVALUATION.md)。企业历史评测数据未发布，因此不把旧召回数字作为本版可复现成绩。
 
-[MIT](LICENSE)。企业资料、模型权重和第三方数据不属于本许可证范围。
+- Schema、引用身份和接口200不代表语义正确；支持审计不是逐句事实证明。
+- 冲突分组是候选发现，主体、期间和业务口径未保证完全对齐。
+- 扫描与视觉有页数、批次、像素预算，不能保证任意文件100%无损。
+- 最终模型只读预算打包的子集，不读取全部原文件/历史。
+- 生成质量、真实图片匹配和端到端延迟需授权资料实测，无固定全题两分钟保证。
+
+[完整架构](docs/ARCHITECTURE.md) · [安全说明](SECURITY.md)

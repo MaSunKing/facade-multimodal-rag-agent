@@ -25,6 +25,7 @@ from datetime import datetime, timedelta, timezone
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any, Literal
+from backend.request_budget import check_budget, reserve_recovery
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qsl, urlencode, urljoin, urlsplit, urlunsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
@@ -56,6 +57,21 @@ _TRACKING_QUERY_KEYS = {"from", "spm", "source", "ref", "referrer"}
 
 class BaiduSearchError(RuntimeError):
     """Raised when the configured search endpoint cannot return results."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        error_code: str = "baidu_search_failed",
+        retryable: bool = False,
+        http_status: int | None = None,
+        attempts: int = 1,
+    ) -> None:
+        super().__init__(message)
+        self.error_code = error_code
+        self.retryable = retryable
+        self.http_status = http_status
+        self.attempts = max(1, int(attempts))
 
 
 class SearchQuotaExceeded(BaiduSearchError):
@@ -158,9 +174,9 @@ def quota_snapshot() -> dict[str, int]:
     }
 
 
-def _reserve_api_call() -> dict[str, int]:
+def _reserve_api_call(*, usage_date: str | None = None) -> dict[str, int]:
     business_limit, hard_limit = _daily_limits()
-    current_date = _china_date()
+    current_date = usage_date or _china_date()
     with _DB_LOCK, closing(_connect_state_db()) as connection:
         connection.execute("BEGIN IMMEDIATE")
         row = connection.execute(
@@ -175,6 +191,31 @@ def _reserve_api_call() -> dict[str, int]:
             """INSERT INTO web_search_usage(usage_date, api_calls) VALUES(?, ?)
             ON CONFLICT(usage_date) DO UPDATE SET api_calls = excluded.api_calls""",
             (current_date, used),
+        )
+        connection.commit()
+    return {
+        "business_limit": business_limit,
+        "hard_limit": hard_limit,
+        "used": used,
+        "remaining": max(0, business_limit - used),
+        "reserved": max(0, hard_limit - business_limit),
+    }
+
+
+def _release_api_call(*, usage_date: str) -> dict[str, int]:
+    """Release a local reservation when no usable API response was received."""
+
+    business_limit, hard_limit = _daily_limits()
+    with _DB_LOCK, closing(_connect_state_db()) as connection:
+        connection.execute("BEGIN IMMEDIATE")
+        row = connection.execute(
+            "SELECT api_calls FROM web_search_usage WHERE usage_date = ?", (usage_date,)
+        ).fetchone()
+        used = max(0, int(row[0]) - 1) if row else 0
+        connection.execute(
+            """INSERT INTO web_search_usage(usage_date, api_calls) VALUES(?, ?)
+            ON CONFLICT(usage_date) DO UPDATE SET api_calls = excluded.api_calls""",
+            (usage_date, used),
         )
         connection.commit()
     return {
@@ -573,14 +614,55 @@ def _call_baidu(full_question: str) -> dict[str, Any]:
             payload = json.loads(response.read().decode("utf-8"))
     except HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")[:400]
-        raise BaiduSearchError(f"Baidu search returned HTTP {exc.code}: {detail}") from exc
+        raise BaiduSearchError(
+            f"Baidu search returned HTTP {exc.code}: {detail}",
+            error_code=f"http_{exc.code}",
+            retryable=500 <= int(exc.code) < 600,
+            http_status=int(exc.code),
+        ) from exc
     except URLError as exc:
-        raise BaiduSearchError(f"Baidu search network error: {exc.reason}") from exc
-    except (TimeoutError, json.JSONDecodeError) as exc:
-        raise BaiduSearchError(f"Baidu search response could not be read: {type(exc).__name__}") from exc
+        raise BaiduSearchError(
+            f"Baidu search network error: {exc.reason}",
+            error_code="network_error",
+            retryable=True,
+        ) from exc
+    except TimeoutError as exc:
+        raise BaiduSearchError(
+            "Baidu search response timed out.",
+            error_code="timeout",
+            retryable=True,
+        ) from exc
+    except json.JSONDecodeError as exc:
+        raise BaiduSearchError(
+            "Baidu search response was not valid JSON.",
+            error_code="invalid_json",
+        ) from exc
     if payload.get("code"):
-        raise BaiduSearchError(str(payload.get("message") or payload["code"]))
+        raise BaiduSearchError(
+            str(payload.get("message") or payload["code"]),
+            error_code=f"api_{payload.get('code')}",
+        )
     return payload
+
+
+def _call_baidu_with_retry(full_question: str) -> tuple[dict[str, Any], int]:
+    """Retry only transient network, timeout and server-side failures once."""
+
+    max_attempts = max(1, min(2, int(os.getenv("WEB_SEARCH_MAX_ATTEMPTS", "2"))))
+    retry_delay = max(0.0, min(2.0, float(os.getenv("WEB_SEARCH_RETRY_DELAY_SECONDS", "0.35"))))
+    for attempt in range(1, max_attempts + 1):
+        try:
+            return _call_baidu(full_question), attempt
+        except BaiduSearchError as exc:
+            exc.attempts = attempt
+            if not exc.retryable or attempt >= max_attempts:
+                raise
+            if not reserve_recovery('public_web_search','retry_transient_network',minimum_seconds=22):
+                raise
+            check_budget()
+            if retry_delay:
+                time.sleep(retry_delay)
+    raise AssertionError("unreachable")
 
 
 def search_baidu_web(query: str, *, source_profile: str | None = None) -> dict[str, Any]:
@@ -600,8 +682,13 @@ def search_baidu_web(query: str, *, source_profile: str | None = None) -> dict[s
             "api_calls_for_query": 0,
         }
 
-    quota = _reserve_api_call()
-    payload = _call_baidu(full_question)
+    usage_date = _china_date()
+    quota = _reserve_api_call(usage_date=usage_date)
+    try:
+        payload, attempt_count = _call_baidu_with_retry(full_question)
+    except Exception:
+        _release_api_call(usage_date=usage_date)
+        raise
     sources = _rank_sources(full_question, _references_from_response(payload), profile)
     sources = _verify_top_sources(sources, full_question)
     sources = _rank_sources(full_question, sources, profile)
@@ -614,6 +701,7 @@ def search_baidu_web(query: str, *, source_profile: str | None = None) -> dict[s
         "ranking_strategy": "baidu_recall_plus_local_authority_relevance_recency_and_evidence_rerank",
         "source_quality": _source_quality_summary(sources[:5]),
         "api_calls_for_query": 1,
+        "api_attempts_for_query": attempt_count,
     }
     _write_cache(full_question, profile, result)
     return result

@@ -1,7 +1,16 @@
 "use client";
 /* eslint-disable @next/next/no-img-element -- source images are original, local RAG crops with dynamic dimensions. */
 
-import { ChangeEvent, FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
+import {
+  ChangeEvent,
+  ClipboardEvent,
+  DragEvent,
+  FormEvent,
+  KeyboardEvent,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   clearBrowserConversations,
   deleteBrowserConversation,
@@ -32,6 +41,16 @@ type ManagedUser = AuthPrincipal & {
 };
 
 const authSessionStorageKey = "facade-copilot-auth-token-v1";
+const browserClientStorageKey = "facade-copilot-browser-client-v1";
+
+function loadOrCreateBrowserClientId(): string {
+  if (typeof window === "undefined") return "server-render-client";
+  const existing = window.localStorage.getItem(browserClientStorageKey);
+  if (existing && /^[A-Za-z0-9_-]{16,80}$/.test(existing)) return existing;
+  const created = `web_${crypto.randomUUID().replace(/-/g, "")}`;
+  window.localStorage.setItem(browserClientStorageKey, created);
+  return created;
+}
 
 type SourceCitation = {
   evidence_id: string;
@@ -40,6 +59,7 @@ type SourceCitation = {
   section_heading?: string | null;
   sheet_name?: string | null;
   source_range?: string | null;
+  source_url?: string | null;
 };
 
 type VisualAsset = {
@@ -69,6 +89,7 @@ type VisualAsset = {
     source_page: number | null;
     sheet_name?: string | null;
     source_range?: string | null;
+    source_url?: string | null;
   };
 };
 
@@ -108,9 +129,11 @@ type SupportingResult = {
   document_name?: string | null;
   source_page?: number | null;
   section_heading?: string | null;
+  source_url?: string | null;
 };
 
 type RetrievalSummary = {
+  incomplete_visual_documents?: string[];
   result_count: number;
   supporting_results: SupportingResult[];
   visual_count: number;
@@ -153,6 +176,8 @@ type CopilotAnswer = {
   next_action: string;
   image_observations: string[];
   meta?: {
+    execution?: { request_id?: string; state?: string; errors?: Array<{ code: string; stage: string; message: string; action: string; retryable: boolean }> };
+    orchestration?: { tools?: string[] };
     model_used?: boolean;
     latency_ms?: number;
     wants_visuals?: boolean;
@@ -175,6 +200,17 @@ type CopilotAnswer = {
     };
   };
 };
+
+function answerSourceLabel(answer: CopilotAnswer): string {
+  const tools = answer.meta?.orchestration?.tools ?? [];
+  const labels: string[] = [];
+  if (tools.includes("customer_documents")) labels.push("附件分析");
+  if (tools.includes("company_rag")) labels.push("企业知识库");
+  if (tools.includes("visual_inspection")) labels.push("图片理解");
+  if ((answer.online_sources?.length ?? 0) > 0) labels.push("联网资料");
+  else if (tools.includes("public_web_search")) labels.push("联网未获得可用资料");
+  return labels.length ? labels.join(" + ") : "本地模型回答";
+}
 
 type AttachedImage = {
   name: string;
@@ -203,6 +239,12 @@ type ConversationContextTurn = {
 
 const legacyConversationSessionKey = "facade-copilot-conversation-v1";
 const MAX_MESSAGES_PER_CONVERSATION = 30;
+const MAX_ATTACHMENT_COUNT = 4;
+const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
+const acceptedAttachmentExtensions = new Set([
+  ".pdf", ".docx", ".xlsx", ".xls", ".csv", ".txt", ".html", ".htm", ".xml", ".zip",
+  ".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tif", ".tiff",
+]);
 
 const starterQuestions = [
   "旧楼改造有哪些安装方式？",
@@ -308,6 +350,7 @@ function visualLocation(asset: VisualAsset) {
   if (asset.citation.sheet_name) {
     return `Sheet：${asset.citation.sheet_name}${asset.citation.source_range ? ` · ${asset.citation.source_range}` : ""}`;
   }
+  if (asset.citation.source_url) return "官方网站原图";
   return "附件原图";
 }
 
@@ -579,21 +622,31 @@ function readImageAsDataUrl(file: File): Promise<string> {
 }
 
 export default function Home() {
+  const [browserClientId] = useState(loadOrCreateBrowserClientId);
   const [conversations, setConversations] = useState<LocalConversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [historyReady, setHistoryReady] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [requestStage, setRequestStage] = useState("");
+  const [coverageNotice, setCoverageNotice] = useState("");
   const [serviceState, setServiceState] = useState<ServiceState>("checking");
   const [activeImage, setActiveImage] = useState<VisualAsset | null>(null);
   const [attachedImage, setAttachedImage] = useState<AttachedImage | null>(null);
   const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
-  const [useOnlineSearch, setUseOnlineSearch] = useState(false);
+  const [isFileDragging, setIsFileDragging] = useState(false);
+  // This is permission, not a command: the local Planner still decides
+  // whether a turn genuinely needs the metered public-web tool.  Keeping the
+  // permission enabled makes current-fact questions work out of the box,
+  // while greetings and local product questions remain offline.
+  const [useOnlineSearch, setUseOnlineSearch] = useState(true);
+  const [useTaskMemory, setUseTaskMemory] = useState(false);
   const [authToken, setAuthToken] = useState<string | null>(() => (
     typeof window === "undefined" ? null : window.sessionStorage.getItem(authSessionStorageKey)
   ));
   const [authPrincipal, setAuthPrincipal] = useState<AuthPrincipal | null>(null);
+  const [authStatusResolved, setAuthStatusResolved] = useState(false);
   const [bootstrapRequired, setBootstrapRequired] = useState(false);
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
   const [adminPanelOpen, setAdminPanelOpen] = useState(false);
@@ -602,14 +655,31 @@ export default function Home() {
   const [authBusy, setAuthBusy] = useState(false);
   const [authForm, setAuthForm] = useState({ setupToken: "", username: "", displayName: "", password: "" });
   const [newUserForm, setNewUserForm] = useState({ username: "", displayName: "", password: "", canAccessInternal: true });
+  const historyScope = authPrincipal
+    ? `user:${authPrincipal.user_id}`
+    : authToken
+      ? "authenticated-pending"
+      : "anonymous";
   const activeConversation = conversations.find((conversation) => conversation.id === activeConversationId) ?? null;
   const messages = activeConversation?.messages.length ? activeConversation.messages : defaultConversationMessages;
   const endOfMessagesRef = useRef<HTMLDivElement | null>(null);
   const textAreaRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const dragDepthRef = useRef(0);
+
+  useEffect(() => {
+    const textarea = textAreaRef.current;
+    if (!textarea) return;
+    textarea.style.height = "auto";
+    const maximumHeight = 168;
+    const nextHeight = Math.min(Math.max(textarea.scrollHeight, 34), maximumHeight);
+    textarea.style.height = `${nextHeight}px`;
+    textarea.style.overflowY = textarea.scrollHeight > maximumHeight ? "auto" : "hidden";
+  }, [draft]);
 
   useEffect(() => {
     const controller = new AbortController();
+    setAuthStatusResolved(false);
     const timer = window.setTimeout(() => controller.abort(), 5000);
 
     fetch(`${publicModelApiBase}/health/live`, { signal: controller.signal })
@@ -629,7 +699,10 @@ export default function Home() {
 
   useEffect(() => {
     const controller = new AbortController();
-    const headers: HeadersInit = authToken ? { Authorization: `Bearer ${authToken}` } : {};
+    const headers: HeadersInit = {
+      "X-Facade-Client-ID": browserClientId,
+      ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+    };
     fetch(`${publicModelApiBase}/api/auth/status`, { headers, signal: controller.signal, cache: "no-store" })
       .then(async (response) => {
         if (!response.ok) throw new Error("auth_status_failed");
@@ -650,13 +723,15 @@ export default function Home() {
       .catch(() => {
         // Authentication is optional for public knowledge. A temporarily
         // unavailable status endpoint must not disable anonymous RAG.
-      });
+      })
+      .finally(() => setAuthStatusResolved(true));
     return () => controller.abort();
-  }, [authToken]);
+  }, [authToken, browserClientId]);
 
   function authenticatedFetch(input: string, init: RequestInit = {}) {
     const headers = new Headers(init.headers);
     if (authToken) headers.set("Authorization", `Bearer ${authToken}`);
+    headers.set("X-Facade-Client-ID", browserClientId);
     return fetch(input, { ...init, headers });
   }
 
@@ -665,6 +740,9 @@ export default function Home() {
     setAuthBusy(true);
     setAuthError("");
     try {
+      if (bootstrapRequired && authForm.setupToken.trim().length < 20) {
+        throw new Error("请粘贴本机 runtime/admin_bootstrap_token.txt 中的完整一次性令牌，不是自定义的短数字。");
+      }
       const endpoint = bootstrapRequired ? "/api/auth/bootstrap" : "/api/auth/login";
       const payload = bootstrapRequired
         ? {
@@ -676,16 +754,22 @@ export default function Home() {
         : { username: authForm.username, password: authForm.password };
       const response = await fetch(`${publicModelApiBase}${endpoint}`, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          "X-Facade-Client-ID": browserClientId,
+        },
         body: JSON.stringify(payload),
       });
       const body = await response.json().catch(() => ({})) as {
-        detail?: string;
+        detail?: string | Array<{ msg?: string }>;
         access_token?: string;
         principal?: AuthPrincipal;
       };
       if (!response.ok || !body.access_token || !body.principal) {
-        throw new Error(body.detail || "登录失败");
+        const detail = typeof body.detail === "string"
+          ? body.detail
+          : body.detail?.map((item) => item.msg).filter(Boolean).join("；");
+        throw new Error(detail || "登录失败");
       }
       window.sessionStorage.setItem(authSessionStorageKey, body.access_token);
       setAuthToken(body.access_token);
@@ -694,7 +778,10 @@ export default function Home() {
       setAuthDialogOpen(false);
       setAuthForm({ setupToken: "", username: "", displayName: "", password: "" });
     } catch (error) {
-      setAuthError(error instanceof Error ? error.message : "登录失败");
+      const message = error instanceof Error ? error.message : "登录失败";
+      setAuthError(message === "Failed to fetch"
+        ? "无法连接本地后端。请确认本机后端与 Tailscale Funnel 正在运行，然后重试。"
+        : message);
     } finally {
       setAuthBusy(false);
     }
@@ -771,15 +858,18 @@ export default function Home() {
   }
 
   useEffect(() => {
+    if (!authStatusResolved) return;
     let cancelled = false;
-    void loadBrowserConversations<ChatMessage>().then((savedConversations) => {
+    setHistoryReady(false);
+    documentSessionByConversation.clear();
+    void loadBrowserConversations<ChatMessage>(historyScope).then((savedConversations) => {
       if (cancelled) return;
       let initialConversations = savedConversations;
       if (initialConversations.length === 0) {
         const legacyMessages = loadLegacyConversation();
         const initial = makeConversation(legacyMessages);
         initialConversations = [initial];
-        void saveBrowserConversation(initial);
+        void saveBrowserConversation(initial, historyScope);
         // Move the previous single-session implementation forward once. It
         // remains local to this browser and is then removed from sessionStorage.
         window.sessionStorage.removeItem(legacyConversationSessionKey);
@@ -797,7 +887,7 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [authStatusResolved, historyScope]);
 
   useEffect(() => {
     endOfMessagesRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -820,8 +910,8 @@ export default function Home() {
       };
       const ordered = [updated, ...current.filter((conversation) => conversation.id !== targetConversationId)];
       const next = ordered.slice(0, 24);
-      void saveBrowserConversation(updated);
-      ordered.slice(24).forEach((conversation) => void deleteBrowserConversation(conversation.id));
+      void saveBrowserConversation(updated, historyScope);
+      ordered.slice(24).forEach((conversation) => void deleteBrowserConversation(conversation.id, historyScope));
       return next;
     });
   }
@@ -842,30 +932,48 @@ export default function Home() {
         attachmentNames: documentSessionId ? attachmentNames : [],
         updatedAt: Date.now(),
       };
-      void saveBrowserConversation(updated);
+      void saveBrowserConversation(updated, historyScope);
       return [updated, ...current.filter((conversation) => conversation.id !== conversationId)];
     });
   }
 
-  async function handleAttachmentSelection(event: ChangeEvent<HTMLInputElement>) {
-    const selected = Array.from(event.target.files ?? []);
-    event.target.value = "";
+  function attachmentExtension(file: File) {
+    const dot = file.name.lastIndexOf(".");
+    return dot >= 0 ? file.name.slice(dot).toLowerCase() : "";
+  }
+
+  async function queueAttachments(files: File[]) {
+    const selected = files.filter((file) => file.size > 0);
     if (selected.length === 0) return;
-    if (pendingAttachments.length + selected.length > 4) {
-      window.alert("一次最多上传 4 份文件。请先移除部分附件。");
+    const unsupported = selected.filter((file) => (
+      !acceptedAttachmentExtensions.has(attachmentExtension(file))
+      && !file.type.startsWith("image/")
+    ));
+    if (unsupported.length > 0) {
+      window.alert(`暂不支持：${unsupported.map((file) => file.name).join("、")}`);
       return;
     }
-    if (selected.some((file) => file.size > 25 * 1024 * 1024)) {
+    if (pendingAttachments.length + selected.length > MAX_ATTACHMENT_COUNT) {
+      window.alert(`一次最多上传 ${MAX_ATTACHMENT_COUNT} 份文件。请先移除部分附件。`);
+      return;
+    }
+    if (selected.some((file) => file.size > MAX_ATTACHMENT_BYTES)) {
       window.alert("单个文件请控制在 25 MB 以内。");
       return;
     }
-    const additions = selected.map((file) => ({
+    const existingKeys = new Set(
+      pendingAttachments.map(({ file }) => `${file.name}:${file.size}:${file.lastModified}`),
+    );
+    const additions = selected
+      .filter((file) => !existingKeys.has(`${file.name}:${file.size}:${file.lastModified}`))
+      .map((file) => ({
       id: makeId(),
       file,
       previewUrl: file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined,
-    }));
+      }));
+    if (additions.length === 0) return;
     setPendingAttachments((current) => [...current, ...additions]);
-    const firstVisual = selected.find((file) => /^image\/(jpeg|png|webp)$/.test(file.type));
+    const firstVisual = additions.map((item) => item.file).find((file) => /^image\/(jpeg|png|webp)$/.test(file.type));
     if (firstVisual && !attachedImage) {
       try {
         setAttachedImage({ name: firstVisual.name, dataUrl: await readImageAsDataUrl(firstVisual) });
@@ -873,6 +981,52 @@ export default function Home() {
         // The generic parser can still process the attachment without preview.
       }
     }
+  }
+
+  async function handleAttachmentSelection(event: ChangeEvent<HTMLInputElement>) {
+    const selected = Array.from(event.target.files ?? []);
+    event.target.value = "";
+    await queueAttachments(selected);
+  }
+
+  function isFileDrag(event: DragEvent<HTMLDivElement>) {
+    return Array.from(event.dataTransfer.types).includes("Files");
+  }
+
+  function handleFileDragEnter(event: DragEvent<HTMLDivElement>) {
+    if (!isFileDrag(event)) return;
+    event.preventDefault();
+    if (isSending) return;
+    dragDepthRef.current += 1;
+    setIsFileDragging(true);
+  }
+
+  function handleFileDragLeave(event: DragEvent<HTMLDivElement>) {
+    if (!isFileDrag(event)) return;
+    event.preventDefault();
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+    if (dragDepthRef.current === 0) setIsFileDragging(false);
+  }
+
+  function handleFileDragOver(event: DragEvent<HTMLDivElement>) {
+    if (!isFileDrag(event)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = isSending ? "none" : "copy";
+  }
+
+  function handleFileDrop(event: DragEvent<HTMLDivElement>) {
+    if (!isFileDrag(event)) return;
+    event.preventDefault();
+    dragDepthRef.current = 0;
+    setIsFileDragging(false);
+    if (!isSending) void queueAttachments(Array.from(event.dataTransfer.files ?? []));
+  }
+
+  function handleClipboardPaste(event: ClipboardEvent<HTMLDivElement>) {
+    const files = Array.from(event.clipboardData.files ?? []);
+    if (files.length === 0 || isSending) return;
+    event.preventDefault();
+    void queueAttachments(files);
   }
 
   function removePendingAttachment(id: string) {
@@ -905,6 +1059,10 @@ export default function Home() {
     attachmentsForRequest.forEach((item) => item.previewUrl && URL.revokeObjectURL(item.previewUrl));
     setPendingAttachments([]);
     setIsSending(true);
+    const requestController = new AbortController();
+    setRequestStage(attachmentsForRequest.length ? "正在上传并解析附件…" : "正在检查附件并准备回答…");
+    setCoverageNotice("");
+    let requestTimer = window.setTimeout(() => requestController.abort(), 300_000);
 
     try {
       let documentSessionId: string | null = null;
@@ -917,16 +1075,23 @@ export default function Home() {
         const uploadResponse = await authenticatedFetch(`${publicModelApiBase}/api/copilot/documents`, {
           method: "POST",
           body: form,
+          signal: requestController.signal,
         });
         if (!uploadResponse.ok) {
-          const failure = await uploadResponse.json().catch(() => null) as { detail?: string } | null;
-          throw new Error(failure?.detail || `附件上传失败（HTTP ${uploadResponse.status}）`);
+          const failure = await uploadResponse.json().catch(() => null) as { detail?: string; error?: {code?: string; action?: string}; request_id?: string } | null;
+          throw new Error([failure?.detail || `附件上传失败（HTTP ${uploadResponse.status}）`,
+            failure?.error?.action, failure?.error?.code,
+            failure?.request_id ? `请求编号：${failure.request_id}` : null].filter(Boolean).join(" · "));
         }
         const uploaded = (await uploadResponse.json()) as {
           session_id: string;
-          documents?: Array<{ file_name?: string }>;
+          documents?: Array<{ file_name?: string; visual_coverage?: { coverage_complete?: boolean; page_count?: number; rendered_page_numbers?: number[] } }>;
         };
         documentSessionId = uploaded.session_id;
+        const incomplete = (uploaded.documents ?? []).filter((doc) => doc.visual_coverage?.coverage_complete === false);
+        if (incomplete.length) {
+          setCoverageNotice(incomplete.map((doc) => `${doc.file_name ?? "附件"}：视觉页面尚未全部处理，后续回答仅基于已解析部分。`).join(" "));
+        }
         const uploadedNames = (uploaded.documents ?? [])
           .map((document) => document.file_name?.trim() ?? "")
           .filter(Boolean);
@@ -945,14 +1110,17 @@ export default function Home() {
         if (documentSessionId) {
           const sessionResponse = await authenticatedFetch(
             `${publicModelApiBase}/api/copilot/documents/${encodeURIComponent(documentSessionId)}`,
-            { method: "GET", cache: "no-store" },
+            { method: "GET", cache: "no-store", signal: requestController.signal },
           );
           if (!sessionResponse.ok) {
             updateConversationDocumentSession(requestConversationId, null);
-            throw new Error("该对话的附件临时会话已过期或后端已重启。请重新上传财报后再继续提问。");
+            throw new Error("该对话的附件临时会话已过期或后端已重启。请重新上传附件后再继续提问。");
           }
         }
       }
+      window.clearTimeout(requestTimer);
+      requestTimer = window.setTimeout(() => requestController.abort(), 115_000);
+      setRequestStage("正在检索证据并生成回答…");
       const response = await authenticatedFetch(`${publicModelApiBase}/api/copilot/answer`, {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -962,13 +1130,18 @@ export default function Home() {
           document_session_id: documentSessionId,
           project_context: { customer_type: "客户/销售" },
           conversation_context: buildConversationContext(messages),
+          conversation_id: activeConversationId,
+          memory_enabled: useTaskMemory && Boolean(activeConversationId),
           use_online_search: useOnlineSearch,
         }),
+        signal: requestController.signal,
       });
 
       if (!response.ok) {
-        const failure = await response.json().catch(() => null) as { detail?: string } | null;
-        throw new Error(failure?.detail || `模型回答失败（HTTP ${response.status}）`);
+        const failure = await response.json().catch(() => null) as { detail?: string; error?: {code?: string; action?: string}; request_id?: string } | null;
+        throw new Error([failure?.detail || `模型回答失败（HTTP ${response.status}）`, failure?.error?.action,
+          failure?.error?.code ? `错误代码：${failure.error.code}` : '',
+          failure?.request_id ? `排查编号：${failure.request_id}` : ''].filter(Boolean).join(' '));
       }
 
       const answer = normalizeAnswerForDisplay((await response.json()) as CopilotAnswer);
@@ -983,20 +1156,25 @@ export default function Home() {
         },
       ], requestConversationId);
     } catch (error) {
+      const isTimeout = error instanceof DOMException && error.name === "AbortError";
       const isNetworkFailure = error instanceof TypeError;
-      setServiceState(isNetworkFailure ? "offline" : "available");
+      setServiceState(isNetworkFailure && !isTimeout ? "offline" : "available");
       updateActiveConversationMessages((current) => [
         ...current,
         {
           id: makeId(),
           role: "assistant",
-          content: isNetworkFailure
+          content: isTimeout
+            ? "本次等待已超时。若附件已解析成功，可在当前临时会话中缩小问题范围后重试；上传未完成时请重新上传。"
+            : isNetworkFailure
             ? "本地模型服务暂时没有连接。请确认电脑已开机，并启动本地知识库服务后再重试。"
-            : `附件处理失败：${error instanceof Error ? error.message : "未知错误"}`,
+            : `本次请求未完成：${error instanceof Error ? error.message : "未知错误"}`,
         },
       ], requestConversationId);
     } finally {
+      window.clearTimeout(requestTimer);
       setIsSending(false);
+      setRequestStage("");
       window.setTimeout(() => textAreaRef.current?.focus(), 0);
     }
   }
@@ -1022,7 +1200,7 @@ export default function Home() {
     setAttachedImage(null);
     setPendingAttachments([]);
     setSidebarOpen(false);
-    void saveBrowserConversation(conversation);
+    void saveBrowserConversation(conversation, historyScope);
     window.setTimeout(() => textAreaRef.current?.focus(), 0);
   }
 
@@ -1040,7 +1218,7 @@ export default function Home() {
     if (isSending) return;
     const remaining = conversations.filter((conversation) => conversation.id !== conversationId);
     documentSessionByConversation.delete(conversationId);
-    void deleteBrowserConversation(conversationId);
+    void deleteBrowserConversation(conversationId, historyScope);
     if (conversationId !== activeConversationId) {
       setConversations(remaining);
       return;
@@ -1053,11 +1231,21 @@ export default function Home() {
     const replacement = makeConversation();
     setConversations([replacement]);
     setActiveConversationId(replacement.id);
-    void saveBrowserConversation(replacement);
+    void saveBrowserConversation(replacement, historyScope);
   }
 
-  function clearAllConversations() {
-    if (isSending || !window.confirm("清除本浏览器中的全部对话记录？此操作无法恢复。")) return;
+  async function clearAllConversations() {
+    if (isSending || !window.confirm("清除本浏览器中的全部对话及对应服务器任务记忆？此操作无法恢复。")) return;
+    try {
+      for (const conversation of conversations) {
+        const result = await authenticatedFetch(`${publicModelApiBase}/api/copilot/memory/${encodeURIComponent(conversation.id)}`, { method: "DELETE" });
+        if (!result.ok) throw new Error("memory_delete_failed");
+      }
+    } catch {
+      setCoverageNotice("服务器任务记忆未能全部清除。为保留重试入口，暂未删除浏览器聊天记录，请连接恢复后重试。");
+      return;
+    }
+    setUseTaskMemory(false);
     const replacement = makeConversation();
     documentSessionByConversation.clear();
     setConversations([replacement]);
@@ -1065,7 +1253,7 @@ export default function Home() {
     setDraft("");
     setAttachedImage(null);
     setPendingAttachments([]);
-    void clearBrowserConversations().then(() => saveBrowserConversation(replacement));
+    void clearBrowserConversations(historyScope).then(() => saveBrowserConversation(replacement, historyScope));
   }
 
   const statusLabel = {
@@ -1117,7 +1305,14 @@ export default function Home() {
         </button>
       </aside>
       {sidebarOpen && <button className="sidebar-scrim" type="button" aria-label="关闭对话侧边栏" onClick={() => setSidebarOpen(false)} />}
-      <div className="chat-workspace">
+      <div
+        className={`chat-workspace sales-workspace-dropzone${isFileDragging ? " is-dragging" : ""}`}
+        onDragEnter={handleFileDragEnter}
+        onDragOver={handleFileDragOver}
+        onDragLeave={handleFileDragLeave}
+        onDrop={handleFileDrop}
+        onPaste={handleClipboardPaste}
+      >
       <header className="topbar">
         <button className="mobile-sidebar-toggle" type="button" aria-label="打开历史对话" onClick={() => setSidebarOpen(true)}>
           ☰
@@ -1179,7 +1374,7 @@ export default function Home() {
               <div className="message-body">
                 {message.role === "assistant" && message.answer?.meta?.model_used && (
                   <div className="answer-meta">
-                    本地 RAG 回答{message.answer.meta.latency_ms ? ` · ${Math.round(message.answer.meta.latency_ms / 100) / 10}s` : ""}
+                    {answerSourceLabel(message.answer)}{message.answer.meta.latency_ms ? ` · ${Math.round(message.answer.meta.latency_ms / 100) / 10}s` : ""}
                   </div>
                 )}
                 {message.role === "assistant" ? (
@@ -1214,6 +1409,7 @@ export default function Home() {
           {isSending && (
             <article className="message assistant">
               <div className="avatar assistant-avatar">材</div>
+              <span role="status">{requestStage}</span>
               <div className="thinking" aria-label="正在检索资料并生成回答">
                 <i />
                 <i />
@@ -1222,6 +1418,7 @@ export default function Home() {
             </article>
           )}
           <div ref={endOfMessagesRef} />
+          {coverageNotice && <p role="status">{coverageNotice}</p>}
         </div>
       </section>
 
@@ -1235,7 +1432,7 @@ export default function Home() {
             accept=".pdf,.docx,.xlsx,.xls,.csv,.txt,.html,.htm,.xml,.zip,image/jpeg,image/png,image/webp,image/gif,image/bmp,image/tiff"
             onChange={handleAttachmentSelection}
           />
-          <div className="composer-input-area">
+          <div className="composer-input-area" title="可点击＋、拖入文件，或从剪贴板粘贴文件和图片">
             {pendingAttachments.map((attachment) => (
               <div className="pending-image" key={attachment.id} aria-label={`待发送附件：${attachment.file.name}`}>
                 {attachment.previewUrl ? <img src={attachment.previewUrl} alt="附件预览" /> : <strong>文件</strong>}
@@ -1256,8 +1453,8 @@ export default function Home() {
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isSending}
-                aria-label="上传项目或施工图片"
-                title="上传项目、施工、节点或产品图片"
+                aria-label="上传文件或图片"
+                title="点击选择文件，也可直接拖入或粘贴"
               >
                 <span aria-hidden="true">＋</span>
               </button>
@@ -1266,7 +1463,7 @@ export default function Home() {
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="输入问题，或上传项目、施工、节点图片…"
+                placeholder="输入问题；文件可点击＋、拖入或粘贴…"
                 rows={1}
                 aria-label="输入问题"
               />
@@ -1277,6 +1474,23 @@ export default function Home() {
                 <small>{activeConversation.attachmentNames.join("、")}</small>
               </div>
             )}
+            <label className="online-search-toggle">
+              <input type="checkbox" checked={useTaskMemory} disabled={isSending}
+                onChange={(event) => setUseTaskMemory(event.target.checked)} />
+              <span>任务记忆</span>
+              <small>开启后将本会话问答与条件保存在本地服务器，7天后失效并在后续访问时清理；不作为技术证据。不同项目请新建对话。</small>
+            </label>
+            <button type="button" disabled={isSending || !activeConversationId} onClick={async () => {
+              if (!activeConversationId) return;
+              try {
+                const result = await authenticatedFetch(`${publicModelApiBase}/api/copilot/memory/${encodeURIComponent(activeConversationId)}`, { method: "DELETE" });
+                if (!result.ok) throw new Error("delete_failed");
+                setUseTaskMemory(false);
+                setCoverageNotice("已清除此会话的服务器任务记忆。聊天记录保留，近期消息仍可用于当前对话；如需完全重新开始，请新建对话。");
+              } catch {
+                setCoverageNotice("任务记忆清除失败，请检查连接后重试。");
+              }
+            }}>清除此会话任务记忆</button>
             <label className="online-search-toggle">
               <input
                 type="checkbox"
@@ -1294,6 +1508,11 @@ export default function Home() {
         </form>
         <p className="composer-note">上传图片仅发送至本机模型并在处理后删除；技术结论仍以本地资料页与项目条件为准。</p>
       </div>
+      {isFileDragging && (
+        <div className="sales-workspace-drop-overlay" aria-hidden="true">
+          <div><b>松开以上传文件</b><span>支持 PDF、Word、Excel、文本、网页文件和常见图片</span></div>
+        </div>
+      )}
 
       {activeImage && (
         <div className="image-lightbox" role="dialog" aria-modal="true" aria-label="查看资料原图" onClick={() => setActiveImage(null)}>
@@ -1301,7 +1520,7 @@ export default function Home() {
             <div className="lightbox-header">
               <div>
                 <strong>{activeImage.customer_title}</strong>
-                <span>{activeImage.citation.document_name} · 第 {activeImage.citation.source_page} 页</span>
+                <span>{activeImage.citation.document_name} · {visualLocation(activeImage)}</span>
               </div>
               <button type="button" onClick={() => setActiveImage(null)} aria-label="关闭原图">×</button>
             </div>
@@ -1319,7 +1538,7 @@ export default function Home() {
             </div>
             {bootstrapRequired && (
               <>
-                <label>一次性初始化令牌<input value={authForm.setupToken} onChange={(event) => setAuthForm({ ...authForm, setupToken: event.target.value })} required /></label>
+                <label>一次性初始化令牌<input value={authForm.setupToken} onChange={(event) => setAuthForm({ ...authForm, setupToken: event.target.value })} minLength={20} autoComplete="off" spellCheck={false} required /></label>
                 <p className="access-hint">令牌保存在本机 runtime/admin_bootstrap_token.txt，成功初始化后自动删除。</p>
                 <label>显示名称<input value={authForm.displayName} onChange={(event) => setAuthForm({ ...authForm, displayName: event.target.value })} placeholder="管理员姓名" /></label>
               </>
@@ -1419,6 +1638,18 @@ function AnswerDetails({
 
   return (
     <div className="answer-details">
+      {!!answer.meta?.execution?.errors?.length && (
+        <section role="status" aria-label="处理状态">
+          <p>处理状态：{answer.meta.execution.state === "failed" ? "未完成" : "部分能力受限"}</p>
+          {answer.meta.execution.errors.slice(0, 4).map((error, index) => (
+            <p key={`${error.code}-${index}`}>{error.message} {error.action}（{error.code}）</p>
+          ))}
+          <small>排查编号：{answer.meta.execution.request_id}</small>
+        </section>
+      )}
+      {!!answer.retrieval?.incomplete_visual_documents?.length && (
+        <p role="status">以下附件视觉页面尚未全部处理，回答仅基于已解析部分：{answer.retrieval.incomplete_visual_documents.join("、")}</p>
+      )}
       {imageIdentity && imageIdentity.status !== "not_provided" && (
         <section className={`image-identity ${imageIdentity.status}`}>
           <div className="detail-heading">
@@ -1471,7 +1702,7 @@ function AnswerDetails({
             <span>联网参考来源</span>
             <small>
               {onlineSearchStatus?.cache_hit ? "已复用联网缓存" : "公开网页信息，仅作补充核验"}
-              {typeof onlineSearchStatus?.quota?.remaining === "number" ? ` · 今日剩余 ${onlineSearchStatus.quota.remaining} 次` : ""}
+              {typeof onlineSearchStatus?.quota?.remaining === "number" ? ` · 本地今日搜索预算剩余 ${onlineSearchStatus.quota.remaining} 次（非平台余额）` : ""}
             </small>
           </div>
           <ol>
@@ -1523,7 +1754,9 @@ function AnswerDetails({
                   <li className="retrieval-result" key={item.result_id}>
                     <span className="result-id">{item.result_id}</span>
                     <div>
-                      <b>{item.document_name || "本地资料"}</b>
+                      {item.source_url ? (
+                        <a href={item.source_url} target="_blank" rel="noreferrer"><b>{item.document_name || "官方网站资料"}</b></a>
+                      ) : <b>{item.document_name || "本地资料"}</b>}
                       <span>
                         {item.source_page ? `第 ${item.source_page} 页` : "资料页码待确认"}
                         {item.section_heading ? ` · ${item.section_heading}` : ""}
@@ -1560,7 +1793,9 @@ function AnswerDetails({
               <ol className="sources">
                 {answer.citations.map((citation, index) => (
                   <li key={`${citation.evidence_id}-${citation.document_name}-${index}`}>
-                    <b>{citation.document_name}</b>
+                    {citation.source_url ? (
+                      <a href={citation.source_url} target="_blank" rel="noreferrer"><b>{citation.document_name}</b></a>
+                    ) : <b>{citation.document_name}</b>}
                     <span>
                       {citation.source_page ? `第 ${citation.source_page} 页` : ""}
                       {citation.sheet_name ? `${citation.source_page ? " · " : ""}Sheet：${citation.sheet_name}` : ""}

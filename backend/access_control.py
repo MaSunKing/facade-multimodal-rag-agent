@@ -486,21 +486,55 @@ def finish_agent_request(
     tools = orchestration.get("tools") if isinstance(orchestration, dict) else []
     retrieval = response.get("retrieval") if isinstance(response.get("retrieval"), dict) else {}
     result_count = int(retrieval.get("result_count") or 0) if isinstance(retrieval, dict) else 0
+    online_search = meta.get("online_search") if isinstance(meta.get("online_search"), dict) else {}
     now = _iso(_utc_now())
     with _connect() as connection:
         for tool_name in [str(item) for item in (tools or []) if str(item)]:
+            tool_status = "completed"
+            tool_error_type = None
+            tool_result_count = result_count if tool_name in {"company_rag", "customer_documents"} else None
+            tool_summary: dict[str, object] = {
+                "planned": True,
+                "workflow": orchestration.get("workflow"),
+            }
+            if tool_name == "public_web_search":
+                search_status = str(online_search.get("status") or "unknown")
+                tool_status = "completed" if search_status == "ok" else "failed"
+                tool_error_type = (
+                    None
+                    if search_status == "ok"
+                    else str(online_search.get("error_code") or search_status)
+                )
+                tool_result_count = len(response.get("online_sources") or [])
+                tool_summary["online_search"] = {
+                    key: online_search.get(key)
+                    for key in (
+                        "status",
+                        "trigger",
+                        "message",
+                        "error_code",
+                        "retryable",
+                        "http_status",
+                        "attempts",
+                        "cache_hit",
+                        "api_calls_for_query",
+                        "source_profile",
+                    )
+                    if online_search.get(key) is not None
+                }
             connection.execute(
                 """INSERT INTO tool_runs(
                        tool_run_id, request_id, tool_name, status, result_count,
-                       summary_json, created_at
-                   ) VALUES(?,?,?,?,?,?,?)""",
+                       summary_json, error_type, created_at
+                   ) VALUES(?,?,?,?,?,?,?,?)""",
                 (
                     "tool_" + uuid.uuid4().hex,
                     request_id,
                     tool_name,
-                    "completed",
-                    result_count if tool_name in {"company_rag", "customer_documents"} else None,
-                    json.dumps({"planned": True, "workflow": orchestration.get("workflow")}, ensure_ascii=False),
+                    tool_status,
+                    tool_result_count,
+                    json.dumps(tool_summary, ensure_ascii=False),
+                    tool_error_type,
                     now,
                 ),
             )
@@ -512,8 +546,49 @@ def finish_agent_request(
         ).fetchone()
         attachment_session_id = str(row[0]) if row and row[0] else None
     supporting = retrieval.get("supporting_results") if isinstance(retrieval, dict) else []
+    generation_audit = (
+        meta.get("generation_input_audit")
+        if isinstance(meta, dict) and isinstance(meta.get("generation_input_audit"), dict)
+        else {}
+    )
+    context_audit = (
+        generation_audit.get("context_engine")
+        if isinstance(generation_audit.get("context_engine"), dict)
+        else meta.get("context_engine")
+        if isinstance(meta, dict) and isinstance(meta.get("context_engine"), dict)
+        else {}
+    )
+    integrity = (
+        generation_audit.get("integrity_check")
+        if isinstance(generation_audit.get("integrity_check"), dict)
+        else {}
+    )
+    context_snapshot_audit = {
+        "engine": context_audit.get("engine"),
+        "candidate_count": context_audit.get("candidate_count"),
+        "after_dedup_count": context_audit.get("after_dedup_count"),
+        "source_candidate_counts": context_audit.get("source_candidate_counts") or {},
+        "protected_relation_counts": context_audit.get("protected_relation_counts") or {},
+        "conflict_group_count": len(context_audit.get("conflict_groups") or []),
+        "missing_target_term_count": len(context_audit.get("missing_target_terms") or []),
+        "coverage_sufficient_before_generation": context_audit.get(
+            "coverage_sufficient_before_generation"
+        ),
+        "max_prompt_tokens": generation_audit.get("max_prompt_tokens"),
+        "actual_prompt_tokens": generation_audit.get("actual_prompt_tokens"),
+        "candidate_evidence_ids": generation_audit.get("candidate_evidence_ids") or [],
+        "kept_evidence_ids": generation_audit.get("kept_evidence_ids") or [],
+        "removed_evidence_ids": generation_audit.get("removed_evidence_ids") or [],
+        "integrity_valid": integrity.get("valid"),
+        "integrity_violation_count": integrity.get("violation_count"),
+        "repair_attempted": bool(
+            (generation_audit.get("repair_retrieval") or {}).get("attempted")
+            if isinstance(generation_audit.get("repair_retrieval"), dict)
+            else False
+        ),
+    }
     snapshot_payload = {
-        "snapshot_version": "answer_evidence_v1",
+        "snapshot_version": "answer_evidence_v2",
         "request_id": request_id,
         "access_scopes": (meta.get("access_control") or {}).get("access_scopes", ["public"])
         if isinstance(meta, dict)
@@ -529,6 +604,24 @@ def finish_agent_request(
             if isinstance(item, dict)
         ],
         "online_sources": response.get("online_sources") or [],
+        "online_search": {
+            key: online_search.get(key)
+            for key in (
+                "status",
+                "trigger",
+                "message",
+                "error_code",
+                "retryable",
+                "http_status",
+                "attempts",
+                "cache_hit",
+                "api_calls_for_query",
+                "source_profile",
+                "quota",
+            )
+            if online_search.get(key) is not None
+        },
+        "context_snapshot_audit": context_snapshot_audit,
         "supporting_results": (
             [
                 {
@@ -568,15 +661,16 @@ def finish_agent_request(
         connection.execute(
             """INSERT INTO evidence_snapshots(
                    snapshot_id, request_id, snapshot_version, snapshot_hash,
-                   snapshot_path, evidence_count, created_at
-               ) VALUES(?,?,?,?,?,?,?)""",
+                   snapshot_path, evidence_count, total_tokens, created_at
+               ) VALUES(?,?,?,?,?,?,?,?)""",
             (
                 "snap_" + uuid.uuid4().hex,
                 request_id,
-                "answer_evidence_v1",
+                "answer_evidence_v2",
                 snapshot_hash,
                 str(snapshot_path.relative_to(ROOT)),
                 evidence_count,
+                int(generation_audit.get("actual_prompt_tokens") or 0) or None,
                 now,
             ),
         )

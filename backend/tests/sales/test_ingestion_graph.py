@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+import json
 from pathlib import Path
 
 from backend.sales.ingestion_graph import IntakeOptions, LocalIntakeOperations, build_knowledge_intake_graph
@@ -51,20 +52,14 @@ class KnowledgeIntakeGraphTests(unittest.TestCase):
             "build_review_package",
         ])
 
-    def test_document_classification_uses_a_public_fixture_taxonomy(self) -> None:
+    def test_known_document_uses_existing_taxonomy(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            source = Path(temporary) / "外墙保温装饰板粘锚施工工艺.pdf"
+            source = Path(temporary) / "真岩®无机仿石材粘锚工艺2026年.pdf"
             source.write_bytes(b"placeholder")
-            taxonomy_path = Path(temporary) / "taxonomy.json"
-            taxonomy_path.write_text(
-                '{"documents":{"外墙保温装饰板粘锚施工工艺":{'
-                '"knowledge_domain":"03_construction_method",'
-                '"document_category":"enterprise_construction_method",'
-                '"source_authority":"enterprise_document",'
-                '"customer_fact_policy":"construction_reference"}}}',
-                encoding="utf-8",
-            )
-            options = IntakeOptions(source_path=source, taxonomy_path=taxonomy_path)
+            taxonomy = Path(temporary) / "taxonomy.json"
+            taxonomy.write_text(json.dumps({"documents": {source.stem: {
+                "knowledge_domain": "03_construction_method"}}}), encoding="utf-8")
+            options = IntakeOptions(source_path=source, taxonomy_path=taxonomy)
             run = LocalIntakeOperations().validate_source(options)
             classification = LocalIntakeOperations().classify_document(options, run)
 

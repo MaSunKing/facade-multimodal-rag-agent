@@ -895,6 +895,222 @@ class LocalRagRetriever:
         return int(page) if isinstance(page, int) else None
 
     @staticmethod
+    def _normalised_evidence_text(text: str) -> str:
+        """Normalise only formatting when comparing two retrieved passages.
+
+        Evidence is never rewritten for generation or citation.  This compact
+        representation exists solely to prevent the same catalogue paragraph
+        (often repeated on adjacent pages) consuming several top-k slots.
+        """
+
+        return re.sub(r"[^a-z0-9\u4e00-\u9fff]+", "", text.lower())
+
+    @classmethod
+    def _is_near_duplicate_evidence(
+        cls,
+        document: dict[str, Any],
+        selected_documents: list[dict[str, Any]],
+    ) -> bool:
+        """Detect exact repeats and same-source overlapping chunks.
+
+        Cross-source corroboration is retained unless the normalised passages
+        are exactly identical.  Within one source, a 90% containment ratio is
+        enough to suppress an overlapping window while preserving adjacent
+        passages that add substantive new content.
+        """
+
+        candidate = cls._normalised_evidence_text(cls._document_text(document))
+        if not candidate:
+            return True
+        candidate_source = cls._primary_document_id(document)
+        for selected in selected_documents:
+            existing = cls._normalised_evidence_text(cls._document_text(selected))
+            if not existing:
+                continue
+            if candidate == existing:
+                return True
+            if candidate_source and candidate_source == cls._primary_document_id(selected):
+                shorter, longer = sorted((candidate, existing), key=len)
+                if len(shorter) >= 48 and shorter in longer and len(shorter) / len(longer) >= 0.9:
+                    return True
+        return False
+
+    @staticmethod
+    def _support_query_terms(query_tokens: list[str]) -> set[str]:
+        """Return auditable terms without treating Chinese singletons as proof."""
+
+        return {
+            str(token)
+            for token in query_tokens
+            if len(str(token)) >= 2
+            or bool(re.search(r"[a-z0-9]", str(token), re.IGNORECASE))
+        }
+
+    @classmethod
+    def _evidence_support_audit(
+        cls,
+        query_tokens: list[str],
+        document: dict[str, Any],
+        *,
+        score: float,
+    ) -> dict[str, Any]:
+        """Expose retrieval facts for downstream claim-support validation.
+
+        These fields are descriptive, not a claim that the passage entails a
+        generated sentence.  The answer layer can use them to distinguish
+        lexical/dense recall, inspect query overlap and bind a claim to the
+        exact source document before semantic validation.
+        """
+
+        query_terms = cls._support_query_terms(query_tokens)
+        document_terms = set(document.get("tokens") or tokenize(cls._document_text(document)))
+        overlap = sorted(query_terms & document_terms, key=lambda item: (-len(item), item))
+        access_scope = str(
+            document.get("access_scope") or document.get("visibility") or "public"
+        )
+        channels = document.get("_retrieval_channels")
+        if not isinstance(channels, list) or not channels:
+            channels = ["lexical"]
+        return {
+            "source_document_id": cls._primary_document_id(document) or None,
+            "source_page": cls._primary_source_page(document),
+            "access_scope": access_scope,
+            "retrieval_score": round(float(score), 6),
+            "retrieval_score_mode": str(
+                document.get("_retrieval_score_mode") or "lexical"
+            ),
+            "retrieval_channels": [str(channel) for channel in channels],
+            "hybrid_skip_reason": str(document.get("_hybrid_skip_reason") or "") or None,
+            "reranker_score": (
+                round(float(document["_reranker_score"]), 6)
+                if isinstance(document.get("_reranker_score"), (int, float))
+                else None
+            ),
+            "fusion_score": (
+                round(float(document["_fusion_score"]), 6)
+                if isinstance(document.get("_fusion_score"), (int, float))
+                else None
+            ),
+            "query_overlap_terms": overlap[:20],
+            "query_term_count": len(query_terms),
+            "query_overlap_ratio": round(len(overlap) / max(len(query_terms), 1), 4),
+            "semantic_entailment_checked": False,
+        }
+
+    @classmethod
+    def _select_diverse_text_candidates(
+        cls,
+        query_tokens: list[str],
+        scored: list[tuple[float, dict[str, Any]]],
+        *,
+        limit: int,
+        threshold: float,
+        excluded_ids: set[str],
+        already_selected: list[dict[str, Any]],
+    ) -> tuple[list[tuple[float, dict[str, Any]]], dict[str, Any]]:
+        """Select relevant, non-duplicate passages with score-gated diversity.
+
+        Diversity is not triggered by a product-name route.  It is applied
+        only when another source has a substantively matching passage whose
+        score remains competitive with the best candidate.  This prevents one
+        long PDF from monopolising every slot while avoiding weak-source quota
+        filling for a precise single-source question.
+        """
+
+        eligible: list[tuple[float, dict[str, Any]]] = []
+        duplicate_ids: list[str] = []
+        selected_seed = list(already_selected)
+        candidate_scan_limit = max(96, limit * 32)
+        scanned_text_candidates = 0
+        candidate_scan_truncated = False
+        for score, document in scored:
+            document_id = str(document.get("id") or "")
+            if document.get("kind") != "text" or not document_id or document_id in excluded_ids:
+                continue
+            if score < threshold or not cls._has_substantive_query_overlap(query_tokens, document):
+                continue
+            if scanned_text_candidates >= candidate_scan_limit:
+                candidate_scan_truncated = True
+                break
+            scanned_text_candidates += 1
+            if cls._is_near_duplicate_evidence(document, selected_seed):
+                duplicate_ids.append(document_id)
+                continue
+            eligible.append((score, document))
+            selected_seed.append(document)
+
+        if not eligible or limit <= 0:
+            return [], {
+                "eligible_candidate_count": len(eligible),
+                "removed_duplicate_chunk_ids": duplicate_ids,
+                "competitive_source_count": 0,
+                "source_diversity_applied": False,
+                "scanned_text_candidate_count": scanned_text_candidates,
+                "candidate_scan_limit": candidate_scan_limit,
+                "candidate_scan_truncated": candidate_scan_truncated,
+            }
+
+        best_score = float(eligible[0][0])
+        # Scores may be negative after calibrated reranking.  Rank-based
+        # selection is safer in that case; all already passed the weak-match
+        # threshold.  For positive scores, require at least 35% of the leader.
+        competitive_floor = best_score * 0.35 if best_score > 0 else -math.inf
+        first_by_source: dict[str, tuple[float, dict[str, Any]]] = {}
+        for item in eligible:
+            score, document = item
+            if float(score) < competitive_floor:
+                continue
+            source_id = cls._primary_document_id(document) or f"chunk:{document.get('id')}"
+            first_by_source.setdefault(source_id, item)
+
+        # Preserve the two strongest passages before applying diversity.  A
+        # precise answer and its supporting continuation often live in the
+        # same standard; replacing rank 2 merely to maximise document count
+        # damages answer quality.  At most two remaining slots are reserved
+        # for competitive sources, then ordinary score order fills the rest.
+        selected: list[tuple[float, dict[str, Any]]] = list(eligible[: min(2, limit)])
+        selected_ids: set[str] = {
+            str(item[1].get("id")) for item in selected
+        }
+        selected_source_ids = {
+            cls._primary_document_id(item[1]) or f"chunk:{item[1].get('id')}"
+            for item in selected
+        }
+        diversity_slots = min(2, max(0, limit - len(selected)))
+        diversity_added = 0
+        for source_id, item in sorted(
+            first_by_source.items(), key=lambda value: value[1][0], reverse=True
+        ):
+            if diversity_added >= diversity_slots:
+                break
+            if source_id in selected_source_ids:
+                continue
+            selected.append(item)
+            selected_ids.add(str(item[1].get("id")))
+            selected_source_ids.add(source_id)
+            diversity_added += 1
+        source_diversity_applied = diversity_added > 0
+
+        for item in eligible:
+            if len(selected) >= limit:
+                break
+            document_id = str(item[1].get("id"))
+            if document_id not in selected_ids:
+                selected.append(item)
+                selected_ids.add(document_id)
+
+        selected.sort(key=lambda item: item[0], reverse=True)
+        return selected, {
+            "eligible_candidate_count": len(eligible),
+            "removed_duplicate_chunk_ids": duplicate_ids,
+            "competitive_source_count": len(first_by_source),
+            "source_diversity_applied": source_diversity_applied,
+            "scanned_text_candidate_count": scanned_text_candidates,
+            "candidate_scan_limit": candidate_scan_limit,
+            "candidate_scan_truncated": candidate_scan_truncated,
+        }
+
+    @staticmethod
     def _is_construction_step(document: dict[str, Any]) -> bool:
         labels = set(document.get("content_labels") or [])
         domains = set(document.get("knowledge_domains") or [])
@@ -1044,6 +1260,33 @@ class LocalRagRetriever:
         if not self._hybrid_validation.get("ready"):
             return lexical
 
+        # On the 16 GB single-GPU workstation, Qwen3-VL-8B owns CUDA during
+        # planning/generation.  Loading the two 0.6B retrieval models on CPU in
+        # that phase is technically possible but operationally wrong: the
+        # cross-encoder can consume tens of GB of RAM and take longer than the
+        # whole customer latency budget.  The lexical index remains complete
+        # and source-audited, so use it for this query and resume hybrid
+        # retrieval lazily after the generation model is unloaded.
+        try:
+            from backend.sales.dense_retrieval import retrieval_runtime_status
+
+            if retrieval_runtime_status().get("generation_gpu_reserved"):
+                return [
+                    (
+                        score,
+                        {
+                            **document,
+                            "_retrieval_score_mode": "lexical",
+                            "_hybrid_skip_reason": "generation_gpu_reserved",
+                        },
+                    )
+                    for score, document in lexical
+                ]
+        except Exception:
+            # Runtime introspection is advisory.  The guarded hybrid branch
+            # below still has its established lexical fallback.
+            pass
+
         try:
             from backend.sales.dense_retrieval import (
                 RETRIEVAL_INFERENCE_LOCK,
@@ -1091,13 +1334,27 @@ class LocalRagRetriever:
                 for score, document in candidate_pairs
             }
             reranked: list[tuple[float, dict[str, Any]]] = []
+            lexical_candidate_ids = {
+                str(document.get("id"))
+                for _, document in lexical_for_candidates[:48]
+            }
+            dense_candidate_ids = {str(document_id) for document_id in dense_ranked_ids}
             for reranker_score, document in zip(rerank_scores, candidates):
+                document_id = str(document.get("id") or "")
                 fusion_score = fusion_by_id.get(str(document.get("id")), 0.0)
                 combined_score = 0.85 * float(reranker_score) + 0.15 * fusion_score
                 tagged_document = dict(document)
                 tagged_document["_retrieval_score_mode"] = "hybrid"
                 tagged_document["_reranker_score"] = float(reranker_score)
                 tagged_document["_fusion_score"] = float(fusion_score)
+                tagged_document["_retrieval_channels"] = [
+                    channel
+                    for channel, present in (
+                        ("lexical", document_id in lexical_candidate_ids),
+                        ("dense", document_id in dense_candidate_ids),
+                    )
+                    if present
+                ]
                 reranked.append((combined_score, tagged_document))
             reranked.sort(
                 key=lambda item: (
@@ -1116,7 +1373,17 @@ class LocalRagRetriever:
         except Exception:
             # The sales assistant remains available if an optional local
             # retrieval model is updating or temporarily lacks GPU memory.
-            return lexical
+            return [
+                (
+                    score,
+                    {
+                        **document,
+                        "_retrieval_score_mode": "lexical",
+                        "_hybrid_skip_reason": "hybrid_inference_failed",
+                    },
+                )
+                for score, document in lexical
+            ]
 
     @staticmethod
     def _public_sources(source_refs: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -1130,6 +1397,7 @@ class LocalRagRetriever:
                 "source_sheet": source.get("source_sheet"),
                 "source_range": source.get("source_range"),
                 "source_paragraph_range": source.get("source_paragraph_range"),
+                "source_url": source.get("source_url"),
             }
             for source in source_refs
         ]
@@ -1628,9 +1896,19 @@ class LocalRagRetriever:
 
         text_evidence: list[dict[str, Any]] = []
         selected_text_chunk_ids: set[str] = set()
+        selected_text_documents: list[dict[str, Any]] = []
         text_threshold = self._weak_match_threshold(scored, "text")
         case_threshold = self._weak_match_threshold(scored, "project_case")
         selected_procedure_document_ids: set[str] = set()
+        text_selection_audit: dict[str, Any] = {
+            "eligible_candidate_count": 0,
+            "removed_duplicate_chunk_ids": [],
+            "competitive_source_count": 0,
+            "source_diversity_applied": False,
+            "scanned_text_candidate_count": 0,
+            "candidate_scan_limit": 0,
+            "candidate_scan_truncated": False,
+        }
 
         def append_text_evidence(score: float, document: dict[str, Any]) -> None:
             """Append one text row once while preserving its public provenance."""
@@ -1647,9 +1925,20 @@ class LocalRagRetriever:
                     "citations": self._public_sources(document.get("source_refs") or []),
                     "source_taxonomy": document.get("source_taxonomy") or [],
                     "sales_playbook_use": document.get("sales_playbook_use"),
+                    "access_scope": str(
+                        document.get("access_scope")
+                        or document.get("visibility")
+                        or "public"
+                    ),
+                    "support_audit": self._evidence_support_audit(
+                        query_tokens,
+                        document,
+                        score=score,
+                    ),
                 }
             )
             selected_text_chunk_ids.add(chunk_id)
+            selected_text_documents.append(document)
 
         if procedure_request:
             for score, document in self._procedure_sequence(query, scored, top_k):
@@ -1673,38 +1962,25 @@ class LocalRagRetriever:
                 ):
                     append_text_evidence(score, document)
 
+        if not procedure_request and len(text_evidence) < text_evidence_limit:
+            selected_candidates, text_selection_audit = self._select_diverse_text_candidates(
+                query_tokens,
+                scored,
+                limit=text_evidence_limit - len(text_evidence),
+                threshold=text_threshold,
+                excluded_ids=selected_text_chunk_ids,
+                already_selected=selected_text_documents,
+            )
+            for score, document in selected_candidates:
+                append_text_evidence(score, document)
+
         project_cases: list[dict[str, Any]] = []
         selected_case_names: set[str] = set()
-        selected_source_documents: set[str] = set()
         visual_candidates: list[tuple[float, dict[str, Any]]] = []
         for score, document in scored:
-            if document.get("kind") == "text" and not procedure_request and len(text_evidence) < text_evidence_limit:
-                if str(document.get("id") or "") in selected_text_chunk_ids:
-                    continue
-                approved_overview = bool(
-                    product_overview_request
-                    and document.get("sales_playbook_use") == "approved_product_master_profile"
-                )
-                if not approved_overview and (
-                    score < text_threshold
-                    or not self._has_substantive_query_overlap(query_tokens, document)
-                ):
-                    continue
-                source_refs = document.get("source_refs") or []
-                primary_document_id = str(source_refs[0].get("document_id") or "") if source_refs else ""
-                # Only project-fit questions should cover distinct schemes.
-                # A procedure request needs adjacent evidence from one scheme.
-                if (
-                    project_fit_request
-                    and primary_document_id
-                    and primary_document_id in selected_source_documents
-                    and len(selected_source_documents) < 3
-                ):
-                    continue
-                append_text_evidence(score, document)
-                if primary_document_id:
-                    selected_source_documents.add(primary_document_id)
-            elif document.get("kind") == "project_case" and len(project_cases) < case_k:
+            if document.get("kind") == "text":
+                continue
+            if document.get("kind") == "project_case" and len(project_cases) < case_k:
                 if (
                     score < case_threshold
                     or not self._has_substantive_query_overlap(query_tokens, document)
@@ -1738,6 +2014,7 @@ class LocalRagRetriever:
                             "source_page": case.get("source_page"),
                             "section_heading": "应用案例",
                             "bbox": None,
+                            "source_url": case.get("source_url"),
                         },
                         "visual_asset_ids": case.get("visual_asset_ids") or [],
                     }
@@ -1845,20 +2122,56 @@ class LocalRagRetriever:
                     )
                 )
 
+        selected_source_ids = [
+            self._primary_document_id(document)
+            for document in selected_text_documents
+            if self._primary_document_id(document)
+        ]
+        text_selection_audit.update(
+            {
+                "selected_evidence_count": len(text_evidence),
+                "selected_source_document_ids": list(dict.fromkeys(selected_source_ids)),
+                "selected_source_document_count": len(set(selected_source_ids)),
+                "allowed_access_scopes": sorted(
+                    getattr(self, "allowed_access_scopes", {"public"})
+                ),
+            }
+        )
+        result_meta = self._meta(
+            query_tokens,
+            matched_document_count=len(scored),
+            node_atlas_request=node_atlas_request,
+            standard_request=standard_request,
+            product_overview_request=product_overview_request,
+            retrieval_mode=retrieval_mode,
+            wants_visuals=wants_visuals,
+            visual_scope="case" if effective_case_scope else visual_scope,
+        )
+        execution_modes = sorted(
+            {
+                str((item.get("support_audit") or {}).get("retrieval_score_mode") or "lexical")
+                for item in text_evidence
+                if isinstance(item, dict)
+            }
+        )
+        hybrid_skip_reasons = sorted(
+            {
+                str((item.get("support_audit") or {}).get("hybrid_skip_reason") or "")
+                for item in text_evidence
+                if isinstance(item, dict)
+                and (item.get("support_audit") or {}).get("hybrid_skip_reason")
+            }
+        )
+        if hybrid_skip_reasons:
+            result_meta["strategy"] = "local_bm25_lexical_single_gpu_budget"
+        result_meta["query_retrieval_execution_modes"] = execution_modes
+        result_meta["hybrid_query_skip_reasons"] = hybrid_skip_reasons
+        result_meta["text_selection_audit"] = text_selection_audit
         return {
             "text_evidence": text_evidence,
             "visual_assets": visual_assets,
             "project_cases": project_cases,
-            "meta": self._meta(
-                query_tokens,
-                matched_document_count=len(scored),
-                node_atlas_request=node_atlas_request,
-                standard_request=standard_request,
-                product_overview_request=product_overview_request,
-                retrieval_mode=retrieval_mode,
-                wants_visuals=wants_visuals,
-                visual_scope="case" if effective_case_scope else visual_scope,
-            ),
+            "meta": result_meta,
         }
 
     def _meta(

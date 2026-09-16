@@ -3,7 +3,8 @@ from __future__ import annotations
 import json
 import unittest
 
-from backend.sales.tool_planner import guard_plan
+from backend.sales.tool_planner import fallback_plan, guard_plan
+from backend.sales.context_engine import ContextBudget
 from backend.app import (
     DraftRequest,
     VISUAL_NUMERIC_REVIEW_WARNING,
@@ -15,12 +16,114 @@ from backend.app import (
     normalise_nonfactual_output_fields,
     parse_json,
     recover_truncated_grounded_json,
+    repair_session_visual_citations,
     repair_uploaded_attachment_availability_claims,
     remove_unsupported_numeric_sentences,
+    sanitize_customer_document_presentation,
+    _select_customer_visual_inputs,
 )
 
 
 class ToolPlannerPolicyTests(unittest.TestCase):
+    def test_global_multi_image_question_keeps_all_four_selected_visuals(self) -> None:
+        budget = ContextBudget(
+            candidate_text_tokens=6000,
+            max_prompt_tokens=4650,
+            max_images=2,
+            max_output_tokens=720,
+            components={},
+        )
+        visuals = [{"visual_id": f"image:{index}"} for index in range(1, 5)]
+        selected = _select_customer_visual_inputs(
+            {
+                "selected_visuals": visuals,
+                "input_snapshot": {"global_document_question": True},
+            },
+            budget,
+        )
+        self.assertEqual([item["visual_id"] for item in selected], [f"image:{index}" for index in range(1, 5)])
+
+    def test_local_visual_lookup_keeps_normal_gpu_image_budget(self) -> None:
+        budget = ContextBudget(
+            candidate_text_tokens=6000,
+            max_prompt_tokens=4200,
+            max_images=2,
+            max_output_tokens=560,
+            components={},
+        )
+        visuals = [{"visual_id": f"image:{index}"} for index in range(1, 5)]
+        selected = _select_customer_visual_inputs(
+            {
+                "selected_visuals": visuals,
+                "input_snapshot": {"global_document_question": False},
+            },
+            budget,
+        )
+        self.assertEqual(len(selected), 2)
+
+    def test_customer_document_presentation_hides_ids_and_preserves_column_semantics(self) -> None:
+        result = {
+            "customer_reply": "U1为《预算表》。U9中墙面乳胶漆单价119.8元/m²，公式未执行。",
+            "key_points": ["U10显示乳胶漆单价119.8元/m²。"],
+            "risk_warnings": [],
+        }
+        evidence = {
+            "U9": {
+                "document_name": "预算.xlsx",
+                "text": (
+                    "[COLUMNS] A=序号 | B=项目名称 | C=单位 | D=工程量 | "
+                    "E=单价（元） | F=合计（元） | G=备注\n"
+                    "[ROW] A10[序号]='1' | B10[项目名称]='乳胶漆' | C10[单位]='m²' | "
+                    "D10[工程量]='119.8' | E10[单价（元）]='' | F10[合计（元）]='0'"
+                )
+            }
+        }
+
+        sanitized = sanitize_customer_document_presentation(result, evidence)
+
+        self.assertNotRegex(sanitized["customer_reply"], r"\bU\d+\b")
+        self.assertNotIn("119.8元/m²", sanitized["customer_reply"])
+        self.assertIn("工程量为119.8m²（单价未填写）", sanitized["customer_reply"])
+        self.assertNotIn("公式未执行", sanitized["customer_reply"])
+        self.assertIn("工程量与单价", sanitized["risk_warnings"][-1])
+
+    def test_customer_document_presentation_repairs_sheet_count_and_signed_pair(self) -> None:
+        result = {
+            "customer_reply": "第三份为行政费用表。3月、4月利润为正（6978.88元、-14140.71元）。",
+            "key_points": [],
+            "risk_warnings": [],
+        }
+        evidence = {
+            "U1": {"document_name": "财务.xlsx", "text": "利润表"},
+            "U2": {"document_name": "预算.xlsx", "text": "预算表"},
+        }
+
+        sanitized = sanitize_customer_document_presentation(result, evidence)
+
+        self.assertIn("另一个工作表为行政费用表", sanitized["customer_reply"])
+        self.assertIn("3月利润为正（6978.88元）", sanitized["customer_reply"])
+        self.assertIn("4月利润为负（-14140.71元）", sanitized["customer_reply"])
+
+    def test_customer_document_presentation_neutralizes_unbenchmarked_judgements(self) -> None:
+        result = {
+            "customer_reply": "行政费用占比过高，建议拆分高成本项目。",
+            "key_points": ["行政费用支出占比高"],
+            "risk_warnings": ["大额工资报销，利润持续亏损"],
+        }
+        sanitized = sanitize_customer_document_presentation(
+            result, {"U1": {"document_name": "经营表.xlsx", "text": "行政费用 工资报销 利润"}}
+        )
+
+        combined = "\n".join([
+            sanitized["customer_reply"],
+            *sanitized["key_points"],
+            *sanitized["risk_warnings"],
+        ])
+        self.assertNotIn("占比过高", combined)
+        self.assertNotIn("高成本项目", combined)
+        self.assertNotIn("大额工资报销", combined)
+        self.assertNotIn("持续亏损", combined)
+
     def test_parsed_attachment_is_not_described_as_missing(self) -> None:
         result = {
             "answerable": False,
@@ -85,6 +188,28 @@ class ToolPlannerPolicyTests(unittest.TestCase):
         self.assertIn("业务费用212,604.39元", filtered["customer_reply"])
         self.assertNotIn("79.5%", filtered["customer_reply"])
         self.assertNotIn("2. 费用", filtered["customer_reply"])
+
+    def test_numeric_filter_removes_complete_numbered_item_without_leaving_fragments(self) -> None:
+        result = {
+            "customer_reply": (
+                "初步分析：1）收入下降；2）预算缺少单价；"
+                "3）行政费用约11.88万元，建议优化成本。"
+                "优化建议：1）复核亏损月份；2）补充市场报价；"
+                "3）某项占比13.22%，建议核验。"
+            ),
+            "key_points": [],
+            "risk_warnings": [],
+        }
+
+        filtered = remove_unsupported_numeric_sentences(result, ["11.88", "13.22%"])
+
+        self.assertIn("收入下降", filtered["customer_reply"])
+        self.assertIn("预算缺少单价", filtered["customer_reply"])
+        self.assertIn("复核亏损月份", filtered["customer_reply"])
+        self.assertIn("补充市场报价", filtered["customer_reply"])
+        self.assertNotRegex(filtered["customer_reply"], r"(?:^|[；;。:：])\s*[23][）.]" )
+        self.assertNotIn("优化成本", filtered["customer_reply"])
+        self.assertNotIn("13.22%", filtered["customer_reply"])
 
     def test_grounded_payload_compaction_uses_real_prompt_budget_without_mutating_source(self) -> None:
         class FakeTokenizer:
@@ -195,6 +320,93 @@ class ToolPlannerPolicyTests(unittest.TestCase):
             ["U1", "U2"],
         )
 
+    def test_cross_document_compaction_keeps_content_from_each_file(self) -> None:
+        class FakeTokenizer:
+            def apply_chat_template(self, messages, **_kwargs):
+                return "\n".join(str(message["content"]) for message in messages)
+
+            def __call__(self, text, **_kwargs):
+                return {"input_ids": list(range(text.count("TOKEN") + 20))}
+
+        payload = {
+            "attachment_context": {"global_document_question": True},
+            "evidence": [
+                {
+                    "evidence_id": "A1",
+                    "document_name": "A.xlsx",
+                    "evidence_scope": "document_index",
+                    "text": "A index " + "TOKEN" * 20,
+                },
+                {
+                    "evidence_id": "A2",
+                    "document_name": "A.xlsx",
+                    "evidence_scope": "content",
+                    "source_group": "A-sheet-1",
+                    "text": "A values " + "TOKEN" * 40,
+                },
+                {
+                    "evidence_id": "A3",
+                    "document_name": "A.xlsx",
+                    "evidence_scope": "content",
+                    "source_group": "A-sheet-2",
+                    "text": "A more values " + "TOKEN" * 40,
+                },
+                {
+                    "evidence_id": "B1",
+                    "document_name": "B.xlsx",
+                    "evidence_scope": "document_index",
+                    "text": "B index " + "TOKEN" * 20,
+                },
+                {
+                    "evidence_id": "B2",
+                    "document_name": "B.xlsx",
+                    "evidence_scope": "content",
+                    "source_group": "B-sheet-1",
+                    "text": "B values " + "TOKEN" * 40,
+                },
+            ],
+        }
+
+        payload_text, audit = compact_grounded_payload_for_generation(
+            payload,
+            FakeTokenizer(),
+            max_prompt_tokens=105,
+        )
+
+        compacted = json.loads(payload_text)
+        kept_content_documents = {
+            item["document_name"]
+            for item in compacted["evidence"]
+            if item.get("evidence_scope") == "content"
+        }
+        self.assertEqual(kept_content_documents, {"A.xlsx", "B.xlsx"})
+        self.assertEqual(audit["kept_document_count"], 2)
+
+    def test_cross_document_compaction_interleaves_sheet_representatives_before_indexes(self) -> None:
+        class FakeTokenizer:
+            def apply_chat_template(self, messages, **_kwargs):
+                return "\n".join(str(message["content"]) for message in messages)
+
+            def __call__(self, text, **_kwargs):
+                return {"input_ids": list(range(text.count("TOKEN") + 10))}
+
+        payload = {
+            "attachment_context": {"global_document_question": True},
+            "evidence": [
+                {"evidence_id": "A0", "document_name": "A.xlsx", "evidence_scope": "document_index", "text": "TOKEN"},
+                {"evidence_id": "A1", "document_name": "A.xlsx", "evidence_scope": "content", "source_group": "费用", "text": "TOKEN"},
+                {"evidence_id": "A2", "document_name": "A.xlsx", "evidence_scope": "content", "source_group": "利润", "text": "TOKEN"},
+                {"evidence_id": "B0", "document_name": "B.xlsx", "evidence_scope": "document_index", "text": "TOKEN"},
+                {"evidence_id": "B1", "document_name": "B.xlsx", "evidence_scope": "content", "source_group": "预算", "text": "TOKEN"},
+            ],
+        }
+
+        payload_text, _audit = compact_grounded_payload_for_generation(
+            payload, FakeTokenizer(), max_prompt_tokens=100
+        )
+        ids = [item["evidence_id"] for item in json.loads(payload_text)["evidence"]]
+        self.assertEqual(ids[:3], ["A2", "B1", "A1"])
+
     def test_json_parser_uses_first_complete_object_when_model_adds_commentary(self) -> None:
         parsed = parse_json(
             'Here is the plan: {"tools":["general_chat"],"reason":"ordinary question"}'
@@ -229,6 +441,24 @@ class ToolPlannerPolicyTests(unittest.TestCase):
             [{"term": "黄金麻", "normalized": "黄金麻"}],
         )
 
+    def test_omitted_presentation_only_lists_are_safely_added(self) -> None:
+        value = normalise_nonfactual_output_fields(
+            {
+                "intent": "application_condition",
+                "answerable": True,
+                "citations": [{"evidence_id": "T1"}],
+                "customer_reply": "旧楼改造需先核验基层。",
+                "key_points": [],
+                "missing_information": [],
+                "risk_warnings": [],
+                "next_action": "补充基层检测资料。",
+            }
+        )
+
+        self.assertEqual(value["normalized_terms"], [])
+        self.assertEqual(value["image_observations"], [])
+        self.assertTrue(is_safe_grounded_answer(value, {"T1"}))
+
     def test_explicit_missing_information_can_fill_empty_refusal_reply(self) -> None:
         value = normalise_nonfactual_output_fields(
             {
@@ -252,9 +482,43 @@ class ToolPlannerPolicyTests(unittest.TestCase):
         )
         self.assertEqual(plan.tools, ["company_rag"])
 
-    def test_uploaded_documents_are_not_silently_ignored(self) -> None:
+    def test_attachment_availability_does_not_override_semantic_plan(self) -> None:
         plan = guard_plan(
-            {"tools": ["general_chat"], "reason": "bad proposal"},
+            {"tools": ["general_chat"], "reason": "unrelated current question"},
+            has_documents=True,
+            has_image=False,
+            facade_related=False,
+            web_allowed=False,
+        )
+        self.assertEqual(plan.tools, ["general_chat"])
+
+    def test_fallback_does_not_treat_an_old_document_session_as_relevant(self) -> None:
+        plan = fallback_plan(
+            has_documents=True,
+            has_image=False,
+            facade_related=False,
+            web_requested=False,
+        )
+        self.assertEqual(plan.tools, ["general_chat"])
+
+    def test_fallback_uses_document_when_semantic_scope_is_known(self) -> None:
+        plan = fallback_plan(
+            has_documents=True,
+            has_image=False,
+            facade_related=False,
+            web_requested=False,
+            document_scope="local_lookup",
+        )
+        self.assertEqual(plan.tools, ["customer_documents"])
+
+    def test_explicit_document_scope_repairs_missing_document_tool(self) -> None:
+        plan = guard_plan(
+            {
+                "tools": ["general_chat"],
+                "document_scope": "whole_document",
+                "retrieval_query": "summarise the uploaded report",
+                "reason": "uploaded report analysis",
+            },
             has_documents=True,
             has_image=False,
             facade_related=False,
@@ -360,6 +624,51 @@ class ToolPlannerPolicyTests(unittest.TestCase):
         self.assertEqual(audit["unsupported_numeric_claims"], ["123"])
         self.assertFalse(audit["passed"])
 
+    def test_support_audit_rejects_uncited_promotional_superlative(self) -> None:
+        audit = evidence_support_audit(
+            {
+                "customer_reply": "该方案维护成本更低，是市场最佳选择。",
+                "key_points": [],
+                "citations": [{"evidence_id": "T1"}],
+            },
+            {"T1": {"text": "该系统可用于外墙装饰，具体选型应结合项目条件。"}},
+        )
+        self.assertEqual(
+            audit["unsupported_promotional_claims"],
+            ["维护成本更低", "最佳"],
+        )
+        self.assertFalse(audit["passed"])
+
+    def test_support_audit_rejects_fire_energy_standard_conflation(self) -> None:
+        audit = evidence_support_audit(
+            {
+                "customer_reply": "防火依据建筑节能工程施工质量验收标准执行。",
+                "key_points": [],
+                "citations": [{"evidence_id": "T1"}, {"evidence_id": "T2"}],
+            },
+            {
+                "T1": {"text": "GB 50411-2019 是建筑节能工程施工质量验收标准。"},
+                "T2": {"text": "GB 55037-2022 是建筑防火通用规范。"},
+            },
+        )
+        self.assertEqual(
+            audit["incompatible_standard_scope_claims"],
+            ["fire_claim_bound_to_energy_standard"],
+        )
+        self.assertFalse(audit["passed"])
+
+    def test_support_audit_ignores_numbered_recommendation_markers(self) -> None:
+        audit = evidence_support_audit(
+            {
+                "customer_reply": "建议：1）核验预算；2）复核合同；3. 建立月度台账。",
+                "key_points": [],
+                "citations": [{"evidence_id": "U1"}],
+            },
+            {"U1": {"text": "预算 合同 月度台账"}},
+        )
+
+        self.assertEqual(audit["unsupported_numeric_claims"], [])
+
     def test_support_audit_accepts_thousands_separator_and_source_rounding_only(self) -> None:
         audit = evidence_support_audit(
             {
@@ -438,6 +747,55 @@ class ToolPlannerPolicyTests(unittest.TestCase):
         }
         self.assertTrue(
             is_safe_grounded_answer(result, {"V1"}, allow_image_only=True)
+        )
+
+    def test_multi_image_answer_can_keep_visually_grounded_key_points(self) -> None:
+        result = {
+            "intent": "document_qa",
+            "normalized_terms": [],
+            "answerable": True,
+            "customer_reply": "四张截图均为概率论材料，分别涉及集合、样本空间和概率计算。",
+            "key_points": ["材料主题为概率论", "包含集合与概率计算"],
+            "citations": [],
+            "missing_information": [],
+            "risk_warnings": [],
+            "next_action": "可继续逐题讲解。",
+            "image_observations": ["四张图片中均可见英文数学文字与公式。"],
+        }
+        self.assertTrue(
+            is_safe_grounded_answer(result, {"V1", "V2", "V3", "V4"}, allow_image_only=True)
+        )
+        self.assertFalse(
+            is_safe_grounded_answer(result, {"V1", "V2", "V3", "V4"}, allow_image_only=False)
+        )
+
+    def test_dropped_document_wrapper_citation_maps_to_same_shown_visual(self) -> None:
+        result = {
+            "citations": [
+                {"evidence_id": "U1"},
+                {"evidence_id": "U3"},
+                {"evidence_id": "UNKNOWN"},
+            ]
+        }
+        repaired = repair_session_visual_citations(
+            result,
+            model_visible_evidence_ids={"U1", "V1", "V2"},
+            evidence_by_id={
+                "U1": {"document_name": "第一页.png"},
+                "U3": {"document_name": "第二页.png"},
+            },
+            selected_visuals=[
+                {"document_name": "第一页.png"},
+                {"document_name": "第二页.png"},
+            ],
+        )
+        self.assertEqual(
+            repaired["citations"],
+            [
+                {"evidence_id": "U1"},
+                {"evidence_id": "V2"},
+                {"evidence_id": "UNKNOWN"},
+            ],
         )
 
     def test_session_visual_counts_as_visual_grounding_without_resending_base64(self) -> None:

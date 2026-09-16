@@ -80,6 +80,34 @@ class BaiduSearchPolicyTests(unittest.TestCase):
                 baidu_search.search_baidu_web("第二个不同查询")
         self.assertEqual(api_call.call_count, 1)
 
+    def test_transient_failure_retries_once_and_releases_local_quota(self) -> None:
+        failure = baidu_search.BaiduSearchError(
+            "temporary network failure",
+            error_code="network_error",
+            retryable=True,
+        )
+        with patch.object(baidu_search, "_call_baidu", side_effect=failure) as api_call:
+            with self.assertRaises(baidu_search.BaiduSearchError) as raised:
+                baidu_search.search_baidu_web("哈尔滨今天的天气")
+
+        self.assertEqual(api_call.call_count, 2)
+        self.assertEqual(raised.exception.attempts, 2)
+        self.assertEqual(baidu_search.quota_snapshot()["used"], 0)
+
+    def test_auth_failure_is_not_retried_and_releases_local_quota(self) -> None:
+        failure = baidu_search.BaiduSearchError(
+            "authentication failed",
+            error_code="http_401",
+            retryable=False,
+            http_status=401,
+        )
+        with patch.object(baidu_search, "_call_baidu", side_effect=failure) as api_call:
+            with self.assertRaises(baidu_search.BaiduSearchError):
+                baidu_search.search_baidu_web("哈尔滨今天的天气")
+
+        self.assertEqual(api_call.call_count, 1)
+        self.assertEqual(baidu_search.quota_snapshot()["used"], 0)
+
     def test_private_network_url_is_rejected(self) -> None:
         with self.assertRaises(ValueError):
             baidu_search._assert_public_url("http://127.0.0.1/internal")

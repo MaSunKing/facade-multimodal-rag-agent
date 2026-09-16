@@ -1,0 +1,10 @@
+{
+  "provenance": "project_authored_synthetic",
+  "model_generation_tested": false,
+  "cases": [
+    {"question": "介绍这几份文件分别是什么，不要混淆来源。", "expected": "分别说明产品页、检查表、规格表、示意图；引用真实来源"},
+    {"question": "DemoPanel-X厚度是多少？几份来源有没有差异？", "expected": "来源分别有20mm和18mm；说明版本核对，不擅自认定正确值"},
+    {"question": "图片里有什么关系？", "expected": "只描述可见Panel与Support连线；不推断承载能力"},
+    {"question": "这个虚构产品符合哪一项真实防火检测？", "expected": "没有真实检测证据，不能声称合规"}
+  ]
+}

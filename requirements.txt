@@ -11,9 +11,13 @@ PyMuPDF>=1.24,<2
 camelot-py==1.0.9
 # OCR and PP-Structure remain optional document-parsing enhancements and are
 # deliberately not forced into the base API environment.
-transformers>=4.51
+transformers>=4.57,<6
 accelerate>=1.6
 bitsandbytes>=0.49
 torch>=2.6
 langchain-core>=1.4.9,<2.0
 langgraph>=1.2.9,<2.0
+numpy>=1.26,<3
+httpx>=0.27,<1
+python-dotenv>=1,<2
+tzdata>=2025.1

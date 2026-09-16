@@ -1,1 +1,1 @@
-"""Format-specific document parsing primitives used by the public RAG core."""
+"""Format-specific parsers shared by the building-materials document Agent."""

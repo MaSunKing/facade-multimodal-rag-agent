@@ -50,7 +50,7 @@ MAX_TEXT_PDF_TABLE_PAGES = 12
 # Keeping the cap finite also prevents one upload from holding the web UI for
 # several minutes when the local runtime is unhealthy.
 MINERU_TIMEOUT_SECONDS = 90
-DEFAULT_MINERU = Path(r"C:\Anaconda\envs\mineru_local\Scripts\mineru.exe")
+DEFAULT_MINERU = Path(os.getenv("MINERU_EXECUTABLE", "mineru"))
 
 StatementType = Literal["income_statement", "balance_sheet", "cash_flow_statement"]
 PdfKind = Literal["text_pdf", "scanned_pdf", "mixed_pdf"]
@@ -271,6 +271,18 @@ def render_scanned_pdf_pages(
                 page = pdf.load_page(page_number - 1)
                 pixmap = page.get_pixmap(matrix=fitz.Matrix(1.5, 1.5), alpha=False)
                 image_bytes = pixmap.tobytes("png")
+                raster_regions = []
+                seen_boxes = set()
+                for info in page.get_image_info():
+                    box = fitz.Rect(info['bbox']) & page.rect
+                    if box.is_empty or box.get_area() <= 0:
+                        continue
+                    normalized = tuple(round(v, 3) for v in (
+                        (box.x0-page.rect.x0)/page.rect.width,(box.y0-page.rect.y0)/page.rect.height,
+                        (box.x1-page.rect.x0)/page.rect.width,(box.y1-page.rect.y0)/page.rect.height))
+                    if normalized not in seen_boxes:
+                        seen_boxes.add(normalized)
+                        raster_regions.append(list(normalized))
                 source_pointer = SourcePointer(
                     source_type="pdf",
                     file_name=file_name,
@@ -279,6 +291,7 @@ def render_scanned_pdf_pages(
                     parser="pymupdf-page-render",
                     extraction_confidence=0.95,
                 )
+                from backend.documents.visual_layout import raster_layout_groups
                 assets.append(
                     VisualAsset(
                         visual_id=f"pdf:scan-page:{page_number}",
@@ -293,6 +306,10 @@ def render_scanned_pdf_pages(
                             "content_extraction": "vision_candidate_only",
                             "original_page_number": page_number,
                             "render_scale": 1.5,
+                            "raster_region_boxes": raster_regions[:24],
+                            "raster_region_total": len(raster_regions),
+                            "raster_layout_groups": raster_layout_groups(raster_regions),
+                            "raster_region_policy": "Normalized [left,top,right,bottom], origin top-left. Native raster objects, not logical figure labels. May include logos, scale bars, tiled scans or background images; verify against pixels and requested region. Vector-only figures may be absent.",
                         },
                         image_bytes=image_bytes,
                     )
@@ -671,6 +688,20 @@ def ingest_pdf(file_name: str, content: bytes) -> PdfIntakeResult:
         text_page_numbers = {inspection.page_number for inspection in page_inspections if inspection.parse_route == "direct_text"}
         vision_page_numbers = [inspection.page_number for inspection in page_inspections if inspection.parse_route == "vision"]
         candidates = [candidate for candidate in locate_statement_pages(page_texts) if candidate[0] in text_page_numbers]
+        # Usable text does not imply that charts/photos can be discarded.
+        # Detect visible raster/vector regions on CPU, preserving native text.
+        try:
+            import fitz
+            with fitz.open(str(source)) as visual_pdf:
+                for page_index, page in enumerate(visual_pdf):
+                    area = max(1.0, page.rect.get_area())
+                    image_area = sum(fitz.Rect(info['bbox']).get_area() for info in page.get_image_info())
+                    vector_area = sum(item['rect'].get_area() for item in page.get_drawings())
+                    if image_area / area >= 0.03 or vector_area / area >= 0.15:
+                        vision_page_numbers.append(page_index + 1)
+            vision_page_numbers = sorted(set(vision_page_numbers))
+        except Exception as exc:
+            _issue(issues, "warning", "visual_region_detection_unavailable", f"PDF visual coverage could not be inspected: {type(exc).__name__}")
         visual_assets: list[VisualAsset] = []
         rendered_page_numbers: list[int] = []
         next_page_start: int | None = None
@@ -758,7 +789,7 @@ def ingest_pdf(file_name: str, content: bytes) -> PdfIntakeResult:
                 issues,
                 "warning",
                 "scanned_pdf_vision_pending_confirmation" if document_kind == "scanned_pdf" else "mixed_pdf_vision_pending_confirmation",
-                "存在无法可靠读取文本层的页面，已将这些页面交给本地视觉模型生成通用文字与表格候选；候选内容需要客户确认，不能自动成为业务事实。",
+                "包含扫描、图像或复杂版面页面，已准备本地视觉预览；原生文本仍单独保留。视觉候选不自动成为已核实事实。",
             )
         if not table_candidates and not vision_page_numbers:
             _issue(issues, "warning", "no_financial_statement_page", "未定位到利润表、资产负债表或现金流量表页面；请确认文件内容或改传 Excel。")

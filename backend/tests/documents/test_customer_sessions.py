@@ -8,15 +8,72 @@ from backend.documents.customer_sessions import (
     _estimate_text_tokens,
     _semantic_rerank_customer_windows,
     add_files,
+    bind_session_owner,
     delete_session,
     get_session,
     get_visual_asset,
+    issue_customer_visual_ticket,
     retrieve,
     temporary_visual_files,
 )
 
 
 class CustomerDocumentSessionTests(unittest.TestCase):
+    def test_owner_bound_session_cannot_be_read_appended_or_deleted_by_another_owner(self) -> None:
+        owner_a = "browser:" + "a" * 64
+        owner_b = "browser:" + "b" * 64
+        result = add_files([("private.txt", b"private evidence")], owner_id=owner_a)
+        session_id = result["session_id"]
+        self.sessions = [session_id]
+
+        self.assertIsNotNone(get_session(session_id, owner_id=owner_a))
+        self.assertIsNone(get_session(session_id, owner_id=owner_b))
+        with self.assertRaisesRegex(PermissionError, "owner_mismatch"):
+            add_files([("foreign.txt", b"foreign")], session_id=session_id, owner_id=owner_b)
+        self.assertFalse(delete_session(session_id, owner_id=owner_b))
+        self.assertIsNotNone(get_session(session_id, owner_id=owner_a))
+
+        with bind_session_owner(owner_b):
+            self.assertIsNone(get_session(session_id))
+            self.assertEqual(retrieve(session_id, "private evidence")["status"], "session_not_found")
+        with bind_session_owner(owner_a):
+            self.assertIsNotNone(get_session(session_id))
+        self.assertTrue(delete_session(session_id, owner_id=owner_a))
+        self.sessions = []
+
+    def test_visual_ticket_is_scoped_and_allows_headerless_image_fetch(self) -> None:
+        from PIL import Image
+
+        owner = "browser:" + "c" * 64
+        stream = BytesIO()
+        Image.new("RGB", (80, 60), color=(210, 220, 230)).save(stream, format="PNG")
+        result = add_files([("private.png", stream.getvalue())], owner_id=owner)
+        session_id = result["session_id"]
+        self.sessions = [session_id]
+        with bind_session_owner(owner):
+            session = get_session(session_id)
+            self.assertIsNotNone(session)
+            assert session is not None
+            document = session.documents[0]
+            visual = document.visuals[0]
+            ticket = issue_customer_visual_ticket(session_id, document.document_id, visual.visual_id)
+        self.assertTrue(ticket)
+        self.assertIsNone(
+            get_visual_asset(session_id, document.document_id, visual.visual_id, owner_id="browser:" + "d" * 64)
+        )
+        ticketed = get_visual_asset(
+            session_id,
+            document.document_id,
+            visual.visual_id,
+            access_ticket=ticket,
+        )
+        self.assertIsNotNone(ticketed)
+        self.assertIsNone(
+            get_visual_asset(session_id, "another-document", visual.visual_id, access_ticket=ticket)
+        )
+        self.assertTrue(delete_session(session_id, owner_id=owner))
+        self.sessions = []
+
     def test_generic_global_overview_uses_structure_sampling_without_loading_reranker(self) -> None:
         candidates = [
             {
@@ -105,6 +162,18 @@ class CustomerDocumentSessionTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "maximum_four_files"):
             add_files([(f"{index}.txt", b"test") for index in range(5)])
 
+    def test_existing_session_bytes_count_toward_total_limit(self) -> None:
+        with patch("backend.documents.customer_sessions.MAX_FILE_BYTES", 1_000), patch(
+            "backend.documents.customer_sessions.MAX_SESSION_BYTES", 1_000
+        ):
+            result = add_files([("first.txt", b"A" * 700)])
+            self.sessions = [result["session_id"]]
+            with self.assertRaisesRegex(ValueError, "session_files_too_large"):
+                add_files(
+                    [("second.txt", b"B" * 400)],
+                    session_id=result["session_id"],
+                )
+
     def test_excel_evidence_returns_sheet_and_row_range(self) -> None:
         from openpyxl import Workbook
 
@@ -164,6 +233,51 @@ class CustomerDocumentSessionTests(unittest.TestCase):
         self.assertGreater(snapshot["selected_document_index_window_count"], 0)
         self.assertGreater(snapshot["selected_content_window_count"], 0)
         self.assertEqual(snapshot["semantic_rerank"]["status"], "structure_aware_global_sampling")
+
+    def test_cross_document_analysis_keeps_structure_and_content_from_each_file(self) -> None:
+        from openpyxl import Workbook
+
+        files = []
+        for file_name, sheet_name, rows in (
+            (
+                "经营表.xlsx",
+                "利润表",
+                [["项目", "本期"], ["营业收入", 120], ["营业支出", 90], ["利润", 30]],
+            ),
+            (
+                "预算表.xlsx",
+                "工程预算",
+                [["项目", "预算"], ["材料费", 60], ["人工费", 25], ["其他", 15]],
+            ),
+        ):
+            workbook = Workbook()
+            sheet = workbook.active
+            sheet.title = sheet_name
+            for row in rows:
+                sheet.append(row)
+            stream = BytesIO()
+            workbook.save(stream)
+            files.append((file_name, stream.getvalue()))
+
+        result = add_files(files)
+        self.sessions = [result["session_id"]]
+        selected = retrieve(
+            result["session_id"],
+            "详细分析这两个文件并分别提出优化建议",
+            document_scope="cross_document",
+        )
+
+        snapshot = selected["input_snapshot"]
+        self.assertTrue(snapshot["global_document_question"])
+        self.assertEqual(snapshot["planner_document_scope"], "cross_document")
+        self.assertGreaterEqual(snapshot["selected_document_index_window_count"], 2)
+        self.assertGreaterEqual(snapshot["selected_content_window_count"], 2)
+        content_documents = {
+            item["document_name"]
+            for item in selected["evidence"]
+            if item["evidence_scope"] == "content"
+        }
+        self.assertEqual(content_documents, {"经营表.xlsx", "预算表.xlsx"})
 
     def test_image_asset_is_retained_and_selected_for_local_vlm(self) -> None:
         from PIL import Image

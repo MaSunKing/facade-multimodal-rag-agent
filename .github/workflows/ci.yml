@@ -14,6 +14,23 @@ jobs:
           python-version: "3.11"
       - run: python -m compileall -q backend scripts
 
+  cpu-core-tests:
+    runs-on: ubuntu-latest
+    env:
+      CUSTOMER_DOCUMENT_OCR_ENABLED: "0"
+      CUSTOMER_ATTACHMENT_SEMANTIC_RERANK: "0"
+      RAG_HYBRID_ENABLED: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install torch --index-url https://download.pytorch.org/whl/cpu
+      - run: pip install -r requirements-test.txt
+      - run: python scripts/verify_public_release.py
+      - run: python scripts/public_smoke.py
+      - run: python scripts/audit_public_sources.py
+
   frontend-build:
     runs-on: ubuntu-latest
     defaults:
