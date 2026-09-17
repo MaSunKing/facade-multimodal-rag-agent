@@ -894,7 +894,7 @@ def _compact_row_formulas(row: str) -> str:
     return pattern.sub(replace, row) + '\n[FORMULA_TEMPLATES substitute {cell} with each cell address] ' + json.dumps({key:template for template,key in shared.items()},ensure_ascii=False)
 
 
-def _window_chunk(text: str, chunk_id: str, *, window_tokens: int, overlap_tokens: int, _table_rows: bool = True, header_context: str = "") -> list[dict[str, Any]]:
+def _window_chunk(text: str, chunk_id: str, *, window_tokens: int, overlap_tokens: int, _table_rows: bool = True, header_context: str = "", table_contexts: dict | None = None) -> list[dict[str, Any]]:
     """Split a canonical chunk into auditable, overlapping retrieval views."""
 
     if not text:
@@ -910,7 +910,7 @@ def _window_chunk(text: str, chunk_id: str, *, window_tokens: int, overlap_token
             if end > cursor:
                 segment = text[cursor:end]
                 for window in _window_chunk(segment, chunk_id, window_tokens=window_tokens,
-                    overlap_tokens=overlap_tokens, _table_rows=_table_rows, header_context=header_context):
+                    overlap_tokens=overlap_tokens, _table_rows=_table_rows, header_context=header_context, table_contexts=table_contexts):
                     window['start_character'] += cursor
                     window['end_character'] += cursor
                     window['window_id'] = f'{chunk_id}:window:{len(output)+1}'
@@ -922,15 +922,22 @@ def _window_chunk(text: str, chunk_id: str, *, window_tokens: int, overlap_token
     if _table_rows and text.startswith("[TABLE ") and ' sheet=' in text.split('\n',1)[0] and rows:
         window_tokens = min(window_tokens, 384)
         prefix = text[:rows[0].start()] + header_context
+        if table_contexts:
+            # Geometry inventory stays in Canonical; lean view keeps native
+            # table identity and the cell headers actually needed by this row.
+            prefix = text.split('\n', 1)[0] + '\n'
         # Read-only context; keep headers with values without indexing their
         # repeated words as extra relevance. Canonical source is untouched.
         from backend.sales.evidence_packing import compact_source_text
+        from backend.documents.table_context import row_context_cells
         output = []
         above_cells: dict[str, str] = {}
         above_offsets: dict[str, int] = {}
         for row in rows:
             raw_row = re.sub(r'^\[ROW[^\]]*\]\s*', '', row.group())
             cells = re.split(r'\s+\|\s+(?=[A-Z]{1,3}\d+(?:\[[^\]]*\])?=)', raw_row)
+            row_match = re.search(r'\b[A-Z]+(\d+)(?:\[[^\]]*\])?=', raw_row)
+            row_number = int(row_match[1]) if row_match else 0
             identities = cells[:2] if len(cells) > 2 else []
             groups: list[list[str]] = []
             group: list[str] = []
@@ -939,6 +946,9 @@ def _window_chunk(text: str, chunk_id: str, *, window_tokens: int, overlap_token
                 body = '[ROW] ' + ' | '.join(values)
                 # Previous source cells are context, not asserted headers.
                 cols = re.findall(r'\b([A-Z]{1,3})\d+(?:\[[^\]]*\])?=', body)
+                native_context = row_context_cells((table_contexts or {}).get(row_number, {}), cols)
+                if native_context:
+                    return compact_source_text(prefix + body + '\n[TABLE_CONTEXT native_cells_not_inferred] ' + ' | '.join(native_context))
                 adjacent = list(dict.fromkeys(above_cells[col] for col in cols if col in above_cells))
                 value = compact_source_text(prefix + _compact_row_formulas(body))
                 if adjacent:
@@ -959,9 +969,10 @@ def _window_chunk(text: str, chunk_id: str, *, window_tokens: int, overlap_token
                                  if col in above_offsets and '[ABOVE_CELLS' in value]])
                 output.append({'original_chunk_id':chunk_id,
                     'window_id': f'{chunk_id}:row:{len(output)+1}',
-                    'text': value, 'ranking_text': value,
+                    'text': value, 'ranking_text': prefix + '[ROW] ' + ' | '.join(parts) + '\n' + ' | '.join((table_contexts or {}).get(row_number, {}).get('section', [])) if table_contexts else value,
                     'start_character': span_start, 'end_character': row.end(),
-                    'source_span_scope': 'whole_row_with_neighbor_context',
+                    'source_span_scope': 'native_row_with_source_linked_table_context' if table_contexts else 'whole_row_with_neighbor_context',
+                    'context_source_row_indices': sorted({int(n) for n in re.findall(r'\b[A-Z]+(\d+)(?:\[[^\]]*\])?=', value.split('[TABLE_CONTEXT', 1)[-1])}) if '[TABLE_CONTEXT' in value else [],
                     'estimated_tokens': _estimate_text_tokens(value), 'windowed': True,
                     'oversized_atomic_field': _estimate_text_tokens(value) > window_tokens})
             for cell in cells:
@@ -1253,6 +1264,8 @@ def retrieve(
     per_document_raw_tokens: dict[str, int] = {document.document_id: 0 for document in session.documents}
     order = 0
     for document in session.documents:
+        from backend.documents.table_context import native_table_contexts
+        source_table_contexts = native_table_contexts(document.chunks)
         table_headers: dict[str, str] = {}
         for source_chunk in document.chunks:
             source_text = str(source_chunk.get('text') or '')
@@ -1290,11 +1303,13 @@ def retrieve(
             header_context = table_headers.get(match.group(1), '') if (match := re.match(r'\[TABLE id=([^\n]*?) sheet=', text)) else ''
             window_size = min(window_token_budget,384) if prose_pdf else window_token_budget
             overlap_size = min(overlap_token_budget,64) if prose_pdf else overlap_token_budget
-            cache_key = (chunk_id, hashlib.sha256(text.encode()).hexdigest(), window_size, overlap_size, header_context)
+            row_context = source_table_contexts.get(match.group(1), {}) if (match := re.match(r'\[TABLE id=([^\n]*?) sheet=', text)) else {}
+            cache_key = (chunk_id, hashlib.sha256(text.encode()).hexdigest(), window_size, overlap_size, header_context,
+                         hashlib.sha256(repr(row_context).encode()).hexdigest())
             cached = document.window_cache.get(cache_key)
             if cached is None:
                 cached = _window_chunk(text, chunk_id, window_tokens=window_size,
-                    overlap_tokens=overlap_size, header_context=header_context)
+                    overlap_tokens=overlap_size, header_context=header_context, table_contexts=row_context)
                 # Retain at most two complete segmentation profiles. Large
                 # documents must not accumulate unlimited request budgets.
                 size = sum(4*len(w.get('text','')) + 1024 for w in cached)
@@ -1357,7 +1372,7 @@ def retrieve(
     reserved_index_windows_per_document = 1
     for window in window_records:
         overlap = query_terms & window["terms"]
-        lowered = str(window["text"]).lower()
+        lowered = str(window.get('ranking_text', window['text'])).lower()
         score = sum(
             math.log1p((window_total + 1) / (document_frequency.get(term, 0) + 1))
             * (1.0 + lowered.count(term.lower()) / (lowered.count(term.lower()) + 1.5))
@@ -1624,9 +1639,18 @@ def retrieve(
         document = candidate["document"]
         chunk = candidate["chunk"]
         excerpt = str(candidate["text"])
-        citations = _citation(document, chunk)
         source_refs = list(chunk.get('source_refs') or [])
-        if '[ROW ' in excerpt:
+        # Native table context may come from an earlier parser chunk. Bind
+        # those real locators too; no fabricated cell source or gold is read.
+        table_sheet = re.search(r'\[TABLE[^\n]*? sheet=(.*?) state=', excerpt)
+        if table_sheet:
+            for context_row in candidate.get('context_source_row_indices', []):
+                ref = f'excel:{table_sheet[1]}:row:{context_row}'
+                if ref in document.source_locations:
+                    source_refs.append(ref)
+        source_refs = list(dict.fromkeys(source_refs))
+        citations = _citation(document, {**chunk, 'source_refs': source_refs})
+        if '[ROW' in excerpt:
             visible_rows = {int(number) for number in re.findall(r"\b[A-Z]+(\d+)(?:\[[^\]]*\])?=", excerpt)}
             if visible_rows:
                 citations = [citation for citation in citations
@@ -1643,6 +1667,7 @@ def retrieve(
                 "chunk_id": str(candidate["original_chunk_id"]),
                 "original_chunk_id": str(candidate["original_chunk_id"]),
                 "window_id": str(candidate["window_id"]),
+                "ranking_text": str(candidate.get('ranking_text', excerpt)),
                 "window_offset": {
                     "start_character": int(candidate["start_character"]),
                     "end_character": int(candidate["end_character"]),

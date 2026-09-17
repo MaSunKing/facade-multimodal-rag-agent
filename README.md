@@ -6,6 +6,14 @@
 
 **核心问题：找对资料、保留关键关系、控制本机预算，并说明结论来自哪里。**
 
+核心设计是：**三类来源分别取证 → Context决定模型看到什么 → LangGraph控制过程如何执行。** 不把所有文件塞入模型，也不把不同来源强行套入同一条检索链。
+
+| 来源 | 处理方式 | 回答中的作用 |
+|---|---|---|
+| 企业本地资料 | 授权资料预先解析、分类、审核，建立长期索引和图库 | 产品参数、施工方法、项目案例 |
+| 客户临时附件 | 上传后独立解析、Owner绑定、会话隔离、TTL/删除；不自动进入企业库 | 当前客户的项目条件和具体材料 |
+| 公开网页 | 获得联网授权后按需搜索，去重并受限核验正文 | 外部公开事实与时效信息 |
+
 ```mermaid
 flowchart TD
     Q[问题 + 会话状态 + 附件/图片] --> P[语义规划与 Query 改写]
@@ -27,7 +35,21 @@ flowchart TD
 
 图为逻辑数据流，不表示工具并行或每题执行所有分支。实际 LangGraph 条件路由，GPU推理串行；附件图片可在生成阶段联合读取。
 
-## 核心算法与代码
+## 两项核心设计
+
+### Context：原始证据与本轮模型输入分离
+
+系统保留原始解析内容及来源位置，只筛选当前问题的候选证据。Context Engine在CPU上结合**来源内排名、问题目标和结构关系**评分，过滤导航索引、去重，并为不同回答维度保留代表证据；随后在文本、图片和输出预算内打包已识别的表格行、数值单位、条件与冲突关系。模型读取的是本轮证据子集，不是全部原文件。这是组合评分与关系保护，不是额外压缩模型，也不保证语义无损。
+
+机制示意（人工构造，非实测答案）：问题同时要求“厚度、适用条件及资料差异”。目录索引只用于展开正文；参数行`20 mm`与另一来源`18 mm`在实体/范围相同且冲突被识别时成组保留；“不得用于持续浸水环境”与适用条件一起打包。低相关介绍可被裁掉；若关键组也因预算被移除，应报告覆盖缺口，而不是声称完成所有分析。
+
+### LangGraph：模型规划，后端约束执行
+
+Planner输出工具计划、检索目标与回答要求；后端检查权限、联网许可、工具可用性及预算。`WorkflowStep`携带实际操作，`WorkflowCursor`推进阶段，LangGraph按下一阶段条件路由并执行真实工具。执行结果再进入证据整理、生成与校验。单请求最多两个恢复动作、每阶段一次，Graph最多一轮工具重执行；不会无限自主重规划，也不会通过重试扩大权限。
+
+快捷路径可跳过模型规划；附件图片也可能直接在生成节点联合读取。SQLite会话记忆和审计不等于Graph跨进程断点恢复。
+
+## 支撑模块与源码入口
 
 | 能力 | 实现重点 | 入口 |
 |---|---|---|
@@ -59,7 +81,7 @@ flowchart TD
 - 表格尽量按业务行召回，绑定紧凑表头，避免字段名与值分离。
 - 已识别的条件、否定关系与候选冲突组参与成组打包，防止丢掉限制条件。
 - 导航索引用于定位和展开正文，不应替代回答证据；多目标请求按目标相关性选择实际业务行/段落。
-- 数值、单位和条件保护仍依赖正确召回与关系识别，公开原生文件评测发现缺口，见下文。
+- 数值、单位和条件保护仍依赖正确召回与关系识别；修复后原题回归与剩余缺口均公开，见下文。
 - 不直接比较各来源原始分数，先按来源内部排名归一，再结合问题与结构信息评分。
 - 热态8B预留GPU时，企业检索跳过Dense/Reranker使用词法路径；混合检索不是每次请求的保证。
 
@@ -88,6 +110,67 @@ plan_request → guard_tools → 按需工具
 
 见 [Agent节点与审计](docs/LANGGRAPH.md)。
 
+## 75题统一条件开发回归
+
+同一批题目全部重跑：召回24窗口、5000 Token候选预算、768/96窗口与重叠、同一个Qwen3-VL Tokenizer、5000 Token完整Prompt预算。多证据题按**全部金标支持**计算Recall/MRR，不能命中一条就算成功；75/75打包预算通过，运行错误0。未更换失败题，不使用改写变体。
+
+**Evidence Recall@5定义：前5条证据完整覆盖金标支持的问题比例。** 需要三条支持而只找到两条时，此题不计命中；MRR取首次获得完整支持的排名倒数。文本保留和关系识别分开测量，不宣称仅凭这些结果证明算法显著提升。
+
+| 指标 | 统一条件实测 |
+|---|---|
+| 完整支持 Evidence Recall@5 | 38/45，84.44% |
+| MRR（首次完整支持） | 0.5733 |
+| 原生数值、目标行与单位绑定保留 | 10/10 |
+| 条件/否定文本保留 | 10/10 |
+| 条件保护标记 | 8/10 |
+| 原生冲突检测 / 双方保留 | 5/5、5/5 |
+| 人工Evidence冲突控制：检测 / 双方保留 | 5/5、5/5 |
+
+75题包含70条原生文件案例与5条人工Evidence控制。打包条件一致，但输入类型不同，控制题不冒充原生解析成功。以上为附件检索与Context回归，**不是8B答案准确率或完整Agent成绩**。
+
+独立补测：企业库5次真实BM25＋Dense＋RRF＋Cross-Encoder执行5/5，指定金标Top-5为4/5（已知开发探针，不是未见准确率）；扫描PDF一页识别出`CARD-DELTA`和`17 mm`、保留原图，OCR候选进入召回；5道原生负冲突控制误报0/5且双方记录保留5/5。补测不混入主集合分母。
+
+[统一协议和结果](docs/UNIFIED_EVALUATION.md) · [逐题结果](evaluation/results/unified_75_v1.json) · [冻结配置](evaluation/results/unified_75_protocol_v1.json)
+
+```bash
+# 不需模型或下载原始文件，重算已发布指标并核对题目、代码指纹
+python scripts/verify_unified_publication.py
+```
+
+以上仅核算已发布结果与指纹，不重新检索。原始链路复跑：
+
+```bash
+python scripts/prepare_public_eval.py --download
+python scripts/run_unified_public_eval.py --track offline --tokenizer-path /path/to/Qwen3-VL-8B-Instruct --output outputs/public_eval/new_run
+python scripts/verify_unified_public_eval.py --output outputs/public_eval/new_run
+```
+
+### 历史运行汇总（不作为当前统一结果）
+
+后续已修复数值单位与原生TXT实体绑定，并单独复跑原题，见[修复回归](docs/NATIVE_RELATION_REPAIR.md)。下表保持历史冻结结果，不用修复后的部分重测结果替换旧分数。
+
+新增[75题公开开发评测](evaluation/README.md)：检索45、数值10、条件10、冲突10。统一发布题目、标签、逐题结果及复现入口，保留失败题，不加入旧问题改写变体。
+
+以下为不同历史预算（650/1800/5000）和测试链路的开发汇总，不是同配置端到端基准。Evidence Recall@5指前5条证据完整覆盖金标支持的问题比例，多窗口题只覆盖一部分不算命中；MRR取首次完整支持的排名倒数。文本保留不等于关系识别正确。
+
+| 离线指标 | 实测结果 |
+|---|---|
+| Evidence Recall@5 | 38/45，84.44% |
+| MRR | 0.6146 |
+| 目标行与数值保留 | 8/10，80% |
+| 条件关系文本保留 | 10/10，100% |
+| 冲突组检测 | 5/10 |
+| 冲突双方证据保留 | 10/10 |
+| 新增原生数值＋单位绑定 | 0/5 |
+
+这是CPU附件词法检索和Context/tokenizer打包开发回归，**不是模型答案准确率、完整混合企业RAG或未见测试成绩**。集合保留不同历史预算；旧冲突为人工Evidence控制，新原生TXT冲突实际检测0/5。单位漏召回、表格重排和实体绑定缺陷公开记录，不以合并高分掩盖。
+
+```bash
+python scripts/verify_evaluation_results.py
+```
+
+见[指标与已知问题](docs/EVALUATION_RESULTS.md)、[本地验证记录](docs/VALIDATION.md)、[评测协议](docs/EVALUATION.md)。企业历史评测数据未发布，旧企业召回数字不作为当前公开成绩。原生来源提供URL/SHA；再分发许可未核验的官方文件不随仓库上传。
+
 ## 本地资源与部署
 
 | 部分 | 当前实现 |
@@ -108,6 +191,12 @@ plan_request → guard_tools → 按需工具
 
 Python 3.11、Node.js 22。生成需自行准备兼容的CUDA/PyTorch、bitsandbytes和模型权重。可选OCR/FlashAttention的Windows兼容性需另行验证。
 
+| 用途 | 入口及边界 |
+|---|---|
+| 校验源码、接口和已发布结果 | `verify_public_release.py`、`public_smoke.py`、`verify_unified_publication.py`；不证明生成质量 |
+| 复跑公开附件检索与Context | 准备来源文件和本地Tokenizer，再运行统一评测；不加载8B生成权重 |
+| 启动完整问答 | 需要生成权重、业务索引及相应依赖；实际混合检索仍受GPU运行状态影响 |
+
 ```bash
 pip install -r requirements.txt
 cp .env.example .env
@@ -119,11 +208,16 @@ PowerShell用 `Copy-Item .env.example .env` 或 `./scripts/start_backend.ps1`。
 
 ```bash
 cd frontend
+cp .env.example .env.local
 npm ci
 npm run dev
 ```
 
 空仓库 `/health/retrieval` 返回 `not_ready` 是预期行为，企业索引需自行从授权资料构建。
+
+公开`.env.example`已默认开启`RAG_HYBRID_ENABLED=1`和`CUSTOMER_DOCUMENT_OCR_ENABLED=1`，检索设备为CUDA；需要本地Embedding/Reranker、指纹匹配的向量索引及缓存的OCR模型，依赖缺失时保留原文/原图并报告降级。本次另做真实混合检索和扫描页验收。8B热态预留GPU时仍可能按显存策略跳过Dense/Reranker，开启配置不代表每次都实际执行。
+
+前端单独读取`frontend/.env.local`，PowerShell可执行`Copy-Item .env.example .env.local`；后端的`--env-file .env`不会替前端加载配置。部署时先填写HTTPS API地址，再运行`npm run build`并上传`frontend/out/`静态产物；后端`FACADE_PUBLIC_FRONTEND`填写实际前端Origin。`NEXT_PUBLIC_*`为构建期公开值，不能存放密钥。更改API地址后必须重新构建。
 
 ### 不加载模型的小规模校验
 
@@ -136,26 +230,9 @@ python scripts/public_smoke.py --base-url http://127.0.0.1:8000
 
 脚本生成虚构PDF、DOCX、XLSX和PNG，验证上传、来源、原图、跨用户隔离、删除与健康接口。文件/报告在忽略的 `runtime/public_smoke/`。这不是模型答案准确率评测。
 
-## 验证与边界
+## 当前验证范围与限制
 
-新增[75题公开开发评测](evaluation/README.md)：检索45、数值10、条件10、冲突10。统一发布题目、标签、逐题结果及复现入口，保留失败题，不加入旧问题改写变体。
-
-| 离线指标 | 实测结果 |
-|---|---|
-| Evidence Recall@5 | 38/45，84.44% |
-| MRR | 0.6146 |
-| 目标行与数值保留 | 8/10，80% |
-| 条件关系文本保留 | 10/10，100% |
-| 冲突组检测 / 双方证据保留 | 5/10 / 10/10 |
-| 新增原生数值＋单位绑定 | 0/5 |
-
-这是CPU附件词法检索和Context/tokenizer打包开发回归，**不是模型答案准确率、完整混合企业RAG或未见测试成绩**。集合保留不同历史预算；旧冲突为人工Evidence控制，新原生TXT冲突实际检测0/5。单位漏召回、表格重排和实体绑定缺陷公开记录，不以合并高分掩盖。
-
-```bash
-python scripts/verify_evaluation_results.py
-```
-
-见[指标与已知问题](docs/EVALUATION_RESULTS.md)、[本地验证记录](docs/VALIDATION.md)、[评测协议](docs/EVALUATION.md)。企业历史评测数据未发布，旧企业召回数字不作为当前公开成绩。原生来源提供URL/SHA；再分发许可未核验的官方文件不随仓库上传。
+公开范围包括源码/接口校验、75题检索与Context回归，以及独立的混合检索、单页OCR和负冲突控制。`examples/demo_queries.json`仍是场景与预期，不是实际生成记录；本轮没有新增8B端到端演示，不能用界面截图或离线分数代替真实回答验证。
 
 - Schema、引用身份和接口200不代表语义正确；支持审计不是逐句事实证明。
 - 冲突分组是候选发现，主体、期间和业务口径未保证完全对齐。

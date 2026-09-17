@@ -34,7 +34,7 @@ BM25词法 + Qwen3-Embedding向量 → RRF → 候选保留 → Qwen3-Reranker
 
 冲突候选通过启发式指标/值/单位发现，主体、期间及业务口径尚未完全对齐；当前跨来源条件也可能漏掉同来源冲突。冲突应向用户说明并核对原文，而非自动认定哪方正确。
 
-当前Fact normalization明确使用`entity + canonical metric + scope + version + normalized unit`构建事实键，并对显式数值做单位换算。只在相同事实键出现不同值时建立候选组，来源ID参与校验；不是把所有“厚度”值都归为冲突。原生TXT的解析wrapper仍会导致实体绑定漏检，新增公开控制5/5漏检，不宣传为可靠通用冲突推理。
+当前Fact normalization明确使用`entity + canonical metric + scope + version + normalized unit`构建事实键，并对显式数值做单位换算。只在相同事实键出现不同值时建立候选组，来源ID参与校验；不是把所有“厚度”值都归为冲突。历史原生TXT控制曾因解析wrapper导致5/5漏检；现已在匹配视图中只移除识别出的解析标记，保留原始Evidence，未知实体仍不强行绑定。统一原题回归原生冲突检测5/5，另测负冲突误报0/5；规模小且是已知开发题，不宣传为可靠通用冲突推理。完整口径见[统一评测](UNIFIED_EVALUATION.md)。
 
 Planner同时输出`retrieval_queries`、`search_targets`、`answer_goals/answer_aspects`，检索消费来源语言目标，Context/目标重排围绕多个回答维度保留证据。检索字段长度、用户问题长度与最终模型Token预算分离，避免把语义要求裁成一个短检索字段。导航Evidence与回答Evidence分开，导航命中后可展开正文/业务行；这些机制不等于保证跨语言与多要求覆盖。
 

@@ -1,0 +1,47 @@
+{
+  "version": "unified_protocol_v1",
+  "created_at": "2026-09-17T06:48:33.518476+00:00",
+  "prompt_token_budget": 5000,
+  "retrieval_token_budget": 5000,
+  "max_chunks": 24,
+  "tokenizer": "Qwen3-VL-8B-Instruct",
+  "system_prompt": "Answer only from evidence.",
+  "environment": {
+    "PUBLIC_EVAL_HYBRID_ENABLED": "1",
+    "PUBLIC_EVAL_PROMPT_BUDGET": "5000",
+    "RAG_HYBRID_ENABLED": "1",
+    "RAG_RETRIEVAL_DEVICE": "cuda",
+    "CUSTOMER_ATTACHMENT_TEXT_WINDOW_TOKENS": "768",
+    "CUSTOMER_ATTACHMENT_TEXT_WINDOW_OVERLAP_TOKENS": "96"
+  },
+  "question_sha256": {
+    "evaluation\\public_v1\\public_eval.json": "2e3f2c43ee41407a0518a9eb3355cd6902b8ae4939ffd9146b44c81c5390a0ea",
+    "evaluation\\fresh_english_native_20260917\\english_questions.json": "7546385fc5060a23f1d312dc4758a81aba116c52255ee8f21e0f8ebfa5b0d475",
+    "evaluation\\basic_capabilities_extra_20260917\\questions.json": "93fbd929a5e5efaf9fbb9ff31441db68742fc527f749cfa74deb2fd9b47fff1b"
+  },
+  "code_sha256": {
+    "scripts\\run_unified_public_eval.py": "014b4f1bb52026a6a587e173a427514ac7b3ed1f2ee1163a23eb4dee5c5422ab",
+    "scripts\\run_public_eval.py": "7ac4ca0fa15d21bf4b208ba3dc1fad1840bec89e78def436490602671d14c5c7",
+    "scripts\\run_fresh_english_native_eval.py": "3ce9e45404f148ebd35e951843a5e5309d6f4d91fabf2758f62bed3eafb87eb6",
+    "scripts\\run_basic_capabilities_extra_eval.py": "2bd47a5f1fa915779a6b4a27103f8594199625d79d99475e153144f015c87a2f",
+    "backend\\documents\\customer_sessions.py": "d17230072cc9e240ddd3fc3496c2302ccbe836c8343e427e3dd5c68edd2b35cc",
+    "backend\\sales\\context_engine.py": "48e8bd0bd6a72760cefdceefce9b07a05496b5ecec9ce5221a9df6963cec2a71",
+    "backend\\sales\\retriever.py": "f0001cf4204d825ddac0bd8de0727f6740ef95710dfe66aecc1e86e48dc62e58",
+    "backend\\app.py": "9135dff2dcb46f603228b98fd1fa8b8537d1698f27b488044103f2c3e174d558"
+  },
+  "exclusions": [
+    "No 8B generation or Planner",
+    "No variant questions",
+    "No OCR claim from native-text inputs",
+    "Hybrid GPU protection retained"
+  ],
+  "code_hash_scope": "Source workspace execution. Public mechanical namespace conversion has separate hashes.",
+  "public_code_hash_normalization": "CRLF_to_LF",
+  "public_code_sha256": {
+    "scripts\\run_unified_public_eval.py": "014b4f1bb52026a6a587e173a427514ac7b3ed1f2ee1163a23eb4dee5c5422ab",
+    "backend\\documents\\customer_sessions.py": "acc3d3514362a3ffd7ea4fafd21d914fcd5c7fd895756e54047c67ada55bae04",
+    "backend\\sales\\retriever.py": "f0001cf4204d825ddac0bd8de0727f6740ef95710dfe66aecc1e86e48dc62e58",
+    "backend\\sales\\context_engine.py": "48e8bd0bd6a72760cefdceefce9b07a05496b5ecec9ce5221a9df6963cec2a71",
+    "backend\\app.py": "729ad8fa8cc03717409e02f8f192bfa62a6d1640f2345cae9c7669d5fe693f95"
+  }
+}

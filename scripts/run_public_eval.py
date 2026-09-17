@@ -68,11 +68,11 @@ def load_tokenizer(path):
     from transformers import AutoTokenizer
     return AutoTokenizer.from_pretrained(path,local_files_only=True)
 
-def offline(folder,dataset,output,tokenizer_path):
+def offline(folder,dataset,output,tokenizer_path, *, prompt_budget=None):
     # Explicit CPU track: no embeddings, OCR, model weights, planner or network.
     os.environ['CUSTOMER_DOCUMENT_OCR_ENABLED']='0'
     os.environ['CUSTOMER_ATTACHMENT_SEMANTIC_RERANK']='0'
-    os.environ['RAG_HYBRID_ENABLED']='0'
+    os.environ['RAG_HYBRID_ENABLED']=os.getenv('PUBLIC_EVAL_HYBRID_ENABLED','0')
     from backend.documents.customer_sessions import add_files,bind_session_owner,delete_session,get_session,retrieve
     from backend.sales.context_engine import optimise_evidence_context,validate_packed_evidence
     from backend.app import compact_grounded_payload_for_generation
@@ -95,11 +95,14 @@ def offline(folder,dataset,output,tokenizer_path):
             ranked,context_audit=optimise_evidence_context(sample['question'],evidence,target_terms=sample.get('target_terms',[]))
             top5=ranked[:5]
             gold=sample.get('gold',[])
-            hits=[i+1 for i,item in enumerate(ranked) if any(matches(item,g) for g in gold)]
+            # Multi-source questions need ALL gold support, not one matching
+            # window. MRR is the first rank at which support becomes complete.
+            hits=[i+1 for i in range(len(ranked)) if gold and all(
+                any(matches(item,g) for item in ranked[:i+1]) for g in gold)]
             row.update({'top5':top5,'retrieval_audit':input_audit,'context_audit':context_audit,
                         'gold_evidence_ids':[g['stable_id'] for g in gold],
                         'evidence_hit_at_5':any(i<=5 for i in hits),'reciprocal_rank':1/min(hits) if hits else 0})
-            budget=sample.get('packed_token_budget',1800)
+            budget=prompt_budget if prompt_budget is not None else sample.get('packed_token_budget',1800)
             if tokenizer:
                 payload,audit=compact_grounded_payload_for_generation({'customer_question':sample['question'],'evidence':ranked},
                     tokenizer,max_prompt_tokens=budget,system_prompt='Answer only from evidence.')
@@ -113,14 +116,18 @@ def offline(folder,dataset,output,tokenizer_path):
                 row['packing_audit']={'mode':'estimated_CPU_only_not_exact_prompt','estimated_tokens':total}
             text='\n'.join(item.get('text','') for item in packed)
             row['packed_evidence']=packed
-            row['packed_gold_covered']=any(matches(item,g) for item in packed for g in gold)
+            # Packing strips some navigation fields, never restore removed text.
+            back={item['evidence_id']:item for item in ranked}
+            scored=[dict(back.get(item['evidence_id'],{}),**item) for item in packed]
+            row['packed_gold_covered']=bool(gold) and all(any(matches(item,g) for item in scored) for g in gold)
+            row['input_kind']='authored_evidence_control' if sample.get('evidence') is not None else 'native_file'
             row['expected_values_retained']=all(compact(v) in compact(text) for v in sample.get('expected_values',[]))
             row['protected_text_retained']=all(compact(v) in compact(text) for v in sample.get('protected_text',[]))
             expected=sample.get('expected_relation')
             row['protected_relation_marked']=bool(not expected or any(expected in item.get('protected_relation_types',[]) and any(matches(item,g) for g in gold) for item in packed))
             required=set(sample.get('required_ids',[])); packed_ids={item['evidence_id'] for item in packed}
             row['conflict_all_members_retained']=required.issubset(packed_ids)
-            row['conflict_group_detected']=bool(context_audit.get('conflict_groups'))
+            row['conflict_group_detected']=bool(required) and any(required.issubset(set(group.get('evidence_ids',[]))) for group in context_audit.get('conflict_groups',[]))
             row['integrity']=validate_packed_evidence(ranked,packed)
             if sample['category']=='retrieval': row['passed']=row['evidence_hit_at_5']
             elif sample['category']=='numeric': row['passed']=row['packed_gold_covered'] and row['expected_values_retained']

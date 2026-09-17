@@ -3,3 +3,8 @@
 *.docx binary
 *.xlsx binary
 *.png binary
+# Frozen evaluation inputs carry byte-level SHA256; do not change their EOL.
+evaluation/public_v1/public_eval.json -text
+evaluation/**/english_questions.json -text
+evaluation/**/questions.json -text
+evaluation/**/assets/** -text

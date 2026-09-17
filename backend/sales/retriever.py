@@ -391,7 +391,7 @@ class LocalRagRetriever:
         match the loaded lexical index before hybrid retrieval is enabled.
         """
 
-        requested = os.getenv("RAG_HYBRID_ENABLED", "0").strip() == "1"
+        requested = os.getenv("RAG_HYBRID_ENABLED", "1").strip() == "1"
         lexical_fingerprint = str(
             self.metadata.get("index_fingerprint")
             or self.metadata.get("lexical_index_fingerprint")

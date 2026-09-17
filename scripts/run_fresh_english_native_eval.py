@@ -143,14 +143,16 @@ def main():
     encoded = json.dumps(rows, ensure_ascii=False, indent=2)+'\n'
     if frozen.exists() and frozen.read_text(encoding='utf-8') != encoded:
         raise ValueError('Frozen question list differs; create a new version')
-    frozen.write_text(encoded, encoding='utf-8')
+    if not frozen.exists():
+        frozen.write_text(encoded, encoding='utf-8')
     old_hashes = set()
     for folder in [ROOT/'evaluation/public_v1/assets', ROOT/'evaluation/independent_native_20260917/assets', ROOT/'runtime/public_file_smoke_20260908/originals']:
         if folder.exists():
             old_hashes.update(digest(p) for p in folder.iterdir() if p.is_file())
     overlap = [s['file'] for s in sources if s['sha256'] in old_hashes]
     if overlap: raise ValueError('Previously tested source hash overlap: '+str(overlap))
-    for key in ['CUSTOMER_DOCUMENT_OCR_ENABLED', 'CUSTOMER_ATTACHMENT_SEMANTIC_RERANK', 'RAG_HYBRID_ENABLED']: os.environ[key]='0'
+    for key in ['CUSTOMER_DOCUMENT_OCR_ENABLED', 'CUSTOMER_ATTACHMENT_SEMANTIC_RERANK']: os.environ[key]='0'
+    os.environ['RAG_HYBRID_ENABLED']=os.getenv('PUBLIC_EVAL_HYBRID_ENABLED','0')
     from backend.documents.customer_sessions import add_files, bind_session_owner, delete_session, get_session, retrieve
     from backend.sales.context_engine import optimise_evidence_context, validate_packed_evidence
     from backend.app import compact_grounded_payload_for_generation
@@ -173,7 +175,7 @@ def main():
                 ranks = [i+1 for i in range(len(ranked)) if support_set(ranked[:i+1], sample)]
                 payload, packing_audit = compact_grounded_payload_for_generation(
                     {'customer_question':sample['question'], 'evidence':ranked}, tokenizer,
-                    max_prompt_tokens=1800, system_prompt='Answer only from evidence.')
+                    max_prompt_tokens=int(os.getenv('PUBLIC_EVAL_PROMPT_BUDGET','1800')), system_prompt='Answer only from evidence.')
                 packed = json.loads(payload)['evidence']
                 # Score compacted text, but retain the exact source backpointer.
                 # Never restore text removed by packing when checking coverage.

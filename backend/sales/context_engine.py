@@ -256,7 +256,10 @@ def optimise_evidence_context(
         source_ranks[source] = source_ranks.get(source, 0) + 1
         local_rank = source_ranks[source]
         text = str(item.get("text") or "")
-        text_terms = _terms(text)
+        # Window construction separates factual row/section relevance from
+        # repeated native headers. Keep those headers in text, but do not let
+        # their duplicated keywords dominate the second-stage score.
+        text_terms = _terms(str(item.get('ranking_text') or text))
         overlap = query_terms & text_terms
         relation_types = _protected_relations(item, query_terms)
         exact_target_hits = sum(1 for term in explicit_targets if _target_anchor_present(term, text))
@@ -265,6 +268,17 @@ def optimise_evidence_context(
         # that heterogeneous raw retrieval scores share one probability scale.
         rrf = 60.0 / (60.0 + local_rank)
         semantic_bonus = min(0.90, sum(0.08 + math.log1p(len(term)) * 0.04 for term in overlap))
+        # A field name in a header plus an actual matching entity/row value is
+        # stronger support than a header alone. This feature is format-based,
+        # not tied to particular metrics, products or benchmark questions.
+        binding_bonus = 0.0
+        if '[TABLE_CONTEXT' in text:
+            body, headers = text.split('[TABLE_CONTEXT', 1)
+            row_values = re.findall(r"='([^']*)'", '\n'.join(line for line in body.splitlines() if line.startswith('[ROW')))
+            has_number = any(re.fullmatch(r'-?\d+(?:,\d{3})*(?:\.\d+)?', value.strip()) for value in row_values)
+            row_terms = _terms(' '.join(value for value in row_values if not re.fullmatch(r'[\d., -]+', value)))
+            if has_number and query_terms & _terms(headers):
+                binding_bonus = min(1.2, 0.4 * len(query_terms & row_terms))
         target_bonus = min(
             0.90,
             exact_target_hits * 0.30
@@ -286,6 +300,7 @@ def optimise_evidence_context(
                 "semantic_context_score": round(
                     rrf
                     + semantic_bonus
+                    + binding_bonus
                     + semantic_goal_bonus
                     + target_bonus
                     + relation_bonus

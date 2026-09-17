@@ -4727,6 +4727,11 @@ def compact_grounded_payload_for_generation(
                 else:
                     seen.add(name); first.append(item)
             return [*first, *remaining, *other, *indexes]
+        scope = dict(payload.get('attachment_context') or {}).get('global_document_question')
+        if scope is False or (scope is None and any('semantic_context_score' in item for item in evidence)):
+            # Context-ranked table lookups keep topical order. Explicit
+            # overviews and unranked legacy inputs retain structure policies.
+            return [*content, *other, *indexes]
         grouped: dict[tuple[str, str], list[dict[str, Any]]] = {}
         group_order: list[tuple[str, str]] = []
         for item in content:

@@ -106,7 +106,8 @@ def prepare_and_audit(rows):
     if not all(a['valid'] for a in audit): raise ValueError('Independent source audit failed')
     frozen=FOLDER/'questions.json'
     if frozen.exists() and json.loads(frozen.read_text(encoding='utf-8'))!=rows: raise ValueError('Questions changed')
-    save(frozen,rows)
+    if not frozen.exists():
+        save(frozen,rows)
     save(FOLDER/'source_manifest.json',[dict(file=p.name,sha256=sha(p),source_kind='synthetic' if p.suffix=='.txt' else 'official_document_reused_new_fact') for p in sorted(assets.iterdir())])
     save(OUTPUT/'independent_gold_audit.json',audit)
 
@@ -139,10 +140,13 @@ def main():
     global OUTPUT
     parser=argparse.ArgumentParser()
     parser.add_argument('--prompt-budget',type=int,default=5000)
+    parser.add_argument('--output-dir',type=Path,default=None,
+                        help='Separate rerun output; never overwrite published historical results.')
     args=parser.parse_args()
-    OUTPUT=OUTPUT/f'budget_{args.prompt_budget}'
+    OUTPUT=args.output_dir if args.output_dir is not None else OUTPUT/f'budget_{args.prompt_budget}'
     rows=cases(); prepare_and_audit(rows)
-    for key in ['CUSTOMER_DOCUMENT_OCR_ENABLED','CUSTOMER_ATTACHMENT_SEMANTIC_RERANK','RAG_HYBRID_ENABLED']: os.environ[key]='0'
+    for key in ['CUSTOMER_DOCUMENT_OCR_ENABLED','CUSTOMER_ATTACHMENT_SEMANTIC_RERANK']: os.environ[key]='0'
+    os.environ['RAG_HYBRID_ENABLED']=os.getenv('PUBLIC_EVAL_HYBRID_ENABLED','0')
     from backend.documents.customer_sessions import add_files,bind_session_owner,delete_session,retrieve
     from backend.sales.context_engine import optimise_evidence_context,validate_packed_evidence
     from backend.app import compact_grounded_payload_for_generation

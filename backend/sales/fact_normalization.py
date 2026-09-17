@@ -51,6 +51,10 @@ def extract_facts(item: dict[str, Any]) -> list[dict[str, Any]]:
         for column, label in re.findall(r'(?:^|\|)\s*([A-Z]+)=([^|]+)', header):
             headers[column] = label.strip()
     for line in text.splitlines():
+        # Strip only recognised parser wrappers from the fact-matching view.
+        # Keep canonical text unchanged; an arbitrary bracketed prefix is NOT
+        # evidence of an entity and must remain ineligible.
+        line = re.sub(r'^\s*\[BLOCK\s+id=[^\n]*?\]\s*', '', line)
         cells = [(label or headers.get(column, ''), value)
                  for column, label, value in re.findall(r"\b([A-Z]+)\d+(?:\[([^\]]+)\])?='([^']*)'", line)]
         row = {key.strip().casefold(): value for key, value in cells}

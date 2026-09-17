@@ -1,0 +1,1745 @@
+{
+  "version": "common_conditions_75_v1",
+  "unique_questions": 75,
+  "native_file_cases": 70,
+  "authored_evidence_controls": 5,
+  "config_sha256": "ec2c20d8a25fb718df5174faec647bbf2862b6d6a815cdc487de300b8972b868",
+  "errors": [],
+  "metrics": {
+    "evidence_recall_at_5": {
+      "hits": 38,
+      "total": 45,
+      "rate": 0.8444444444444444
+    },
+    "mrr": 0.5733333333333335,
+    "numeric_row_value_unit_retention": {
+      "hits": 10,
+      "total": 10,
+      "rate": 1.0
+    },
+    "condition_text_retention": {
+      "hits": 10,
+      "total": 10,
+      "rate": 1.0
+    },
+    "condition_protection_tagging": {
+      "hits": 8,
+      "total": 10,
+      "rate": 0.8
+    },
+    "native_conflict_detection": {
+      "hits": 5,
+      "total": 5,
+      "rate": 1.0
+    },
+    "native_conflict_both_sources": {
+      "hits": 5,
+      "total": 5,
+      "rate": 1.0
+    },
+    "authored_conflict_detection": {
+      "hits": 5,
+      "total": 5,
+      "rate": 1.0
+    },
+    "authored_conflict_both_sources": {
+      "hits": 5,
+      "total": 5,
+      "rate": 1.0
+    }
+  },
+  "definitions": {
+    "retrieval": "Complete source-grounded support set in Top5, not merely a matching number.",
+    "numeric": "Entity, target value and explicit native unit are bound to the source row/header, not global substring matches.",
+    "condition": "All labelled limiting/negative text retained; protection annotation is reported separately.",
+    "authored_controls": "Original five authored Evidence cases bypass parsing/retrieval and are NOT native-file success."
+  },
+  "model_generation_tested": false,
+  "attachment_semantic_reranker_tested": false,
+  "hybrid_metrics_included": false,
+  "ocr_metrics_included": false,
+  "details": [
+    {
+      "id": "retrieval_001",
+      "category": "retrieval",
+      "question": "地球近地面大气中氮气占多少？",
+      "gold_evidence_ids": [
+        "doc-490df77963cc8ff1/evidence:1",
+        "doc-490df77963cc8ff1/table-1:1",
+        "doc-490df77963cc8ff1/table-2:1"
+      ],
+      "evidence_hit_at_5": false,
+      "reciprocal_rank": 0,
+      "packed_gold_covered": false,
+      "input_kind": "native_file",
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_all_members_retained": true,
+      "conflict_group_detected": false,
+      "passed": false,
+      "elapsed_seconds": 1.683
+    },
+    {
+      "id": "retrieval_002",
+      "category": "retrieval",
+      "question": "What is the average depth of the global ocean?",
+      "gold_evidence_ids": [
+        "doc-490df77963cc8ff1/evidence:1",
+        "doc-490df77963cc8ff1/table-1:1",
+        "doc-490df77963cc8ff1/table-2:1"
+      ],
+      "evidence_hit_at_5": false,
+      "reciprocal_rank": 0,
+      "packed_gold_covered": false,
+      "input_kind": "native_file",
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_all_members_retained": true,
+      "conflict_group_detected": false,
+      "passed": false,
+      "elapsed_seconds": 1.146
+    },
+    {
+      "id": "retrieval_003",
+      "category": "retrieval",
+      "question": "地球的公转周期是多少天？",
+      "gold_evidence_ids": [
+        "doc-490df77963cc8ff1/evidence:1",
+        "doc-490df77963cc8ff1/table-1:1",
+        "doc-490df77963cc8ff1/table-2:1"
+      ],
+      "evidence_hit_at_5": false,
+      "reciprocal_rank": 0,
+      "packed_gold_covered": false,
+      "input_kind": "native_file",
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_all_members_retained": true,
+      "conflict_group_detected": false,
+      "passed": false,
+      "elapsed_seconds": 1.065
+    },
+    {
+      "id": "retrieval_004",
+      "category": "retrieval",
+      "question": "这份申请表用于申请什么工作安排？",
+      "gold_evidence_ids": [
+        "doc-055fe6227daa62d6/evidence:1"
+      ],
+      "evidence_hit_at_5": false,
+      "reciprocal_rank": 0.1,
+      "packed_gold_covered": false,
+      "input_kind": "native_file",
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_all_members_retained": true,
+      "conflict_group_detected": false,
+      "passed": false,
+      "elapsed_seconds": 1.033
+    },
+    {
+      "id": "retrieval_005",
+      "category": "retrieval",
+      "question": "What should the employee read before completing the flexible working form?",
+      "gold_evidence_ids": [
+        "doc-055fe6227daa62d6/evidence:1"
+      ],
+      "evidence_hit_at_5": true,
+      "reciprocal_rank": 0.5,
+      "packed_gold_covered": true,
+      "input_kind": "native_file",
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_all_members_retained": true,
+      "conflict_group_detected": false,
+      "passed": true,
+      "elapsed_seconds": 0.057
+    },
+    {
+      "id": "retrieval_006",
+      "category": "retrieval",
+      "question": "How many hours does Earth take to rotate?",
+      "gold_evidence_ids": [
+        "doc-7059a8f0b7ca121a/evidence:3"
+      ],
+      "evidence_hit_at_5": true,
+      "reciprocal_rank": 0.3333333333333333,
+      "packed_gold_covered": true,
+      "input_kind": "native_file",
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_all_members_retained": true,
+      "conflict_group_detected": false,
+      "passed": true,
+      "elapsed_seconds": 0.297
+    },
+    {
+      "id": "retrieval_007",
+      "category": "retrieval",
+      "question": "地球是距离太阳第几颗行星？",
+      "gold_evidence_ids": [
+        "doc-7059a8f0b7ca121a/evidence:3",
+        "doc-7059a8f0b7ca121a/evidence:4"
+      ],
+      "evidence_hit_at_5": false,
+      "reciprocal_rank": 0.08333333333333333,
+      "packed_gold_covered": false,
+      "input_kind": "native_file",
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_all_members_retained": true,
+      "conflict_group_detected": false,
+      "passed": false,
+      "elapsed_seconds": 0.304
+    },
+    {
+      "id": "retrieval_008",
+      "category": "retrieval",
+      "question": "Data - population Scotland 1992 total population",
+      "gold_evidence_ids": [
+        "doc-d6fbd83d0244a2fa/table-4:2"
+      ],
+      "evidence_hit_at_5": true,
+      "reciprocal_rank": 1.0,
+      "packed_gold_covered": true,
+      "input_kind": "native_file",
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_all_members_retained": true,
+      "conflict_group_detected": false,
+      "passed": true,
+      "elapsed_seconds": 0.744
+    },
+    {
+      "id": "retrieval_009",
+      "category": "retrieval",
+      "question": "What thickness is specified in the synthetic Word checklist?",
+      "gold_evidence_ids": [
+        "doc-9463887c81766699/table-1:1"
+      ],
+      "evidence_hit_at_5": true,
+      "reciprocal_rank": 0.5,
+      "packed_gold_covered": true,
+      "input_kind": "native_file",
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_all_members_retained": true,
+      "conflict_group_detected": false,
+      "passed": true,
+      "elapsed_seconds": 0.017
+    },
+    {
+      "id": "retrieval_010",
+      "category": "retrieval",
+      "question": "Current工作表DemoPanel-X的厚度是多少？",
+      "gold_evidence_ids": [
+        "doc-072944edc7ef8992/table-1:1"
+      ],
+      "evidence_hit_at_5": true,
+      "reciprocal_rank": 0.5,
+      "packed_gold_covered": true,
+      "input_kind": "native_file",
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_all_members_retained": true,
+      "conflict_group_detected": false,
+      "passed": true,
+      "elapsed_seconds": 0.025
+    },
+    {
+      "id": "retrieval_011",
+      "category": "retrieval",
+      "question": "Other source sheet DemoPanel-X thickness",
+      "gold_evidence_ids": [
+        "doc-072944edc7ef8992/table-2:1"
+      ],
+      "evidence_hit_at_5": true,
+      "reciprocal_rank": 1.0,
+      "packed_gold_covered": true,
+      "input_kind": "native_file",
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_all_members_retained": true,
+      "conflict_group_detected": false,
+      "passed": true,
+      "elapsed_seconds": 0.024
+    },
+    {
+      "id": "retrieval_012",
+      "category": "retrieval",
+      "question": "RainPanel的安装限制是什么？",
+      "gold_evidence_ids": [
+        "doc-88068298dedfcb7c/evidence:1",
+        "doc-88068298dedfcb7c/table-1:1"
+      ],
+      "evidence_hit_at_5": true,
+      "reciprocal_rank": 0.5,
+      "packed_gold_covered": true,
+      "input_kind": "native_file",
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_all_members_retained": true,
+      "conflict_group_detected": false,
+      "passed": true,
+      "elapsed_seconds": 0.014
+    },
+    {
+      "id": "retrieval_013",
+      "category": "retrieval",
+      "question": "AnchorPanel的安装限制是什么？",
+      "gold_evidence_ids": [
+        "doc-b3507fd3420357ea/evidence:1",
+        "doc-b3507fd3420357ea/table-1:1"
+      ],
+      "evidence_hit_at_5": true,
+      "reciprocal_rank": 0.5,
+      "packed_gold_covered": true,
+      "input_kind": "native_file",
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_all_members_retained": true,
+      "conflict_group_detected": false,
+      "passed": true,
+      "elapsed_seconds": 0.014
+    },
+    {
+      "id": "retrieval_014",
+      "category": "retrieval",
+      "question": "ColdPanel的安装限制是什么？",
+      "gold_evidence_ids": [
+        "doc-6c4a86889b94bd33/evidence:1",
+        "doc-6c4a86889b94bd33/table-1:1"
+      ],
+      "evidence_hit_at_5": true,
+      "reciprocal_rank": 0.5,
+      "packed_gold_covered": true,
+      "input_kind": "native_file",
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_all_members_retained": true,
+      "conflict_group_detected": false,
+      "passed": true,
+      "elapsed_seconds": 0.014
+    },
+    {
+      "id": "retrieval_015",
+      "category": "retrieval",
+      "question": "IndoorPanel的安装限制是什么？",
+      "gold_evidence_ids": [
+        "doc-16f9e72ca7e8d5fc/evidence:1",
+        "doc-16f9e72ca7e8d5fc/table-1:1"
+      ],
+      "evidence_hit_at_5": true,
+      "reciprocal_rank": 0.5,
+      "packed_gold_covered": true,
+      "input_kind": "native_file",
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_all_members_retained": true,
+      "conflict_group_detected": false,
+      "passed": true,
+      "elapsed_seconds": 0.014
+    },
+    {
+      "id": "numeric_001",
+      "category": "numeric",
+      "question": "BeamY 2025 thickness value and unit",
+      "gold_evidence_ids": [
+        "doc-ebbc6df3e8153578/table-1:1"
+      ],
+      "evidence_hit_at_5": true,
+      "reciprocal_rank": 1.0,
+      "packed_gold_covered": true,
+      "input_kind": "native_file",
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_all_members_retained": true,
+      "conflict_group_detected": false,
+      "passed": true,
+      "elapsed_seconds": 0.023
+    },
+    {
+      "id": "numeric_002",
+      "category": "numeric",
+      "question": "MeshZ 2024 weight value and unit",
+      "gold_evidence_ids": [
+        "doc-ebbc6df3e8153578/table-1:1"
+      ],
+      "evidence_hit_at_5": true,
+      "reciprocal_rank": 1.0,
+      "packed_gold_covered": true,
+      "input_kind": "native_file",
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_all_members_retained": true,
+      "conflict_group_detected": false,
+      "passed": true,
+      "elapsed_seconds": 0.004
+    },
+    {
+      "id": "numeric_003",
+      "category": "numeric",
+      "question": "TrimK 2023 length value and unit",
+      "gold_evidence_ids": [
+        "doc-ebbc6df3e8153578/table-1:1"
+      ],
+      "evidence_hit_at_5": true,
+      "reciprocal_rank": 1.0,
+      "packed_gold_covered": true,
+      "input_kind": "native_file",
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_all_members_retained": true,
+      "conflict_group_detected": false,
+      "passed": true,
+      "elapsed_seconds": 0.004
+    },
+    {
+      "id": "numeric_004",
+      "category": "numeric",
+      "question": "JointM 2022 width value and unit",
+      "gold_evidence_ids": [
+        "doc-ebbc6df3e8153578/table-1:1"
+      ],
+      "evidence_hit_at_5": true,
+      "reciprocal_rank": 1.0,
+      "packed_gold_covered": true,
+      "input_kind": "native_file",
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_all_members_retained": true,
+      "conflict_group_detected": false,
+      "passed": true,
+      "elapsed_seconds": 0.004
+    },
+    {
+      "id": "numeric_005",
+      "category": "numeric",
+      "question": "CoatN 2021 cost value and unit",
+      "gold_evidence_ids": [
+        "doc-ebbc6df3e8153578/table-1:1"
+      ],
+      "evidence_hit_at_5": true,
+      "reciprocal_rank": 1.0,
+      "packed_gold_covered": true,
+      "input_kind": "native_file",
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_all_members_retained": true,
+      "conflict_group_detected": false,
+      "passed": true,
+      "elapsed_seconds": 0.004
+    },
+    {
+      "id": "conflict_001",
+      "category": "conflict",
+      "question": "Conflict1 thickness是否一致？",
+      "gold_evidence_ids": [],
+      "evidence_hit_at_5": false,
+      "reciprocal_rank": 0,
+      "packed_gold_covered": false,
+      "input_kind": "authored_evidence_control",
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_all_members_retained": true,
+      "conflict_group_detected": true,
+      "passed": true,
+      "elapsed_seconds": 0.001
+    },
+    {
+      "id": "conflict_002",
+      "category": "conflict",
+      "question": "Conflict2 length是否一致？",
+      "gold_evidence_ids": [],
+      "evidence_hit_at_5": false,
+      "reciprocal_rank": 0,
+      "packed_gold_covered": false,
+      "input_kind": "authored_evidence_control",
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_all_members_retained": true,
+      "conflict_group_detected": true,
+      "passed": true,
+      "elapsed_seconds": 0.0
+    },
+    {
+      "id": "conflict_003",
+      "category": "conflict",
+      "question": "Conflict3 weight是否一致？",
+      "gold_evidence_ids": [],
+      "evidence_hit_at_5": false,
+      "reciprocal_rank": 0,
+      "packed_gold_covered": false,
+      "input_kind": "authored_evidence_control",
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_all_members_retained": true,
+      "conflict_group_detected": true,
+      "passed": true,
+      "elapsed_seconds": 0.001
+    },
+    {
+      "id": "conflict_004",
+      "category": "conflict",
+      "question": "Conflict4 width是否一致？",
+      "gold_evidence_ids": [],
+      "evidence_hit_at_5": false,
+      "reciprocal_rank": 0,
+      "packed_gold_covered": false,
+      "input_kind": "authored_evidence_control",
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_all_members_retained": true,
+      "conflict_group_detected": true,
+      "passed": true,
+      "elapsed_seconds": 0.0
+    },
+    {
+      "id": "conflict_005",
+      "category": "conflict",
+      "question": "Conflict5 cost是否一致？",
+      "gold_evidence_ids": [],
+      "evidence_hit_at_5": false,
+      "reciprocal_rank": 0,
+      "packed_gold_covered": false,
+      "input_kind": "authored_evidence_control",
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_all_members_retained": true,
+      "conflict_group_detected": true,
+      "passed": true,
+      "elapsed_seconds": 0.001
+    },
+    {
+      "id": "context_001",
+      "category": "context",
+      "question": "RainPanel的使用限制和前提是什么？",
+      "gold_evidence_ids": [
+        "doc-88068298dedfcb7c/evidence:1",
+        "doc-88068298dedfcb7c/table-1:1"
+      ],
+      "evidence_hit_at_5": true,
+      "reciprocal_rank": 0.5,
+      "packed_gold_covered": true,
+      "input_kind": "native_file",
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_all_members_retained": true,
+      "conflict_group_detected": false,
+      "passed": true,
+      "elapsed_seconds": 0.002
+    },
+    {
+      "id": "context_002",
+      "category": "context",
+      "question": "AnchorPanel的使用限制和前提是什么？",
+      "gold_evidence_ids": [
+        "doc-b3507fd3420357ea/evidence:1",
+        "doc-b3507fd3420357ea/table-1:1"
+      ],
+      "evidence_hit_at_5": true,
+      "reciprocal_rank": 0.5,
+      "packed_gold_covered": true,
+      "input_kind": "native_file",
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_all_members_retained": true,
+      "conflict_group_detected": false,
+      "passed": true,
+      "elapsed_seconds": 0.002
+    },
+    {
+      "id": "context_003",
+      "category": "context",
+      "question": "ColdPanel的使用限制和前提是什么？",
+      "gold_evidence_ids": [
+        "doc-6c4a86889b94bd33/evidence:1",
+        "doc-6c4a86889b94bd33/table-1:1"
+      ],
+      "evidence_hit_at_5": true,
+      "reciprocal_rank": 0.5,
+      "packed_gold_covered": true,
+      "input_kind": "native_file",
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_all_members_retained": true,
+      "conflict_group_detected": false,
+      "passed": true,
+      "elapsed_seconds": 0.002
+    },
+    {
+      "id": "context_004",
+      "category": "context",
+      "question": "IndoorPanel的使用限制和前提是什么？",
+      "gold_evidence_ids": [
+        "doc-16f9e72ca7e8d5fc/evidence:1",
+        "doc-16f9e72ca7e8d5fc/table-1:1"
+      ],
+      "evidence_hit_at_5": true,
+      "reciprocal_rank": 0.5,
+      "packed_gold_covered": true,
+      "input_kind": "native_file",
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_all_members_retained": true,
+      "conflict_group_detected": false,
+      "passed": true,
+      "elapsed_seconds": 0.002
+    },
+    {
+      "id": "context_005",
+      "category": "context",
+      "question": "CurePanel的使用限制和前提是什么？",
+      "gold_evidence_ids": [
+        "doc-9fe8abf097a43bb0/evidence:1",
+        "doc-9fe8abf097a43bb0/table-1:1"
+      ],
+      "evidence_hit_at_5": true,
+      "reciprocal_rank": 0.5,
+      "packed_gold_covered": true,
+      "input_kind": "native_file",
+      "expected_values_retained": true,
+      "protected_text_retained": true,
+      "protected_relation_marked": true,
+      "conflict_all_members_retained": true,
+      "conflict_group_detected": false,
+      "passed": true,
+      "elapsed_seconds": 0.014
+    },
+    {
+      "id": "fresh_en_001",
+      "file": "ofgem_data_dictionary.pdf",
+      "question": "In what file format must the declaration notification be submitted?",
+      "expected_answer": ".csv",
+      "hit_at_5": true,
+      "reciprocal_rank": 1.0,
+      "packed_support": true,
+      "unit_retained": true,
+      "canonical_support": true,
+      "elapsed_seconds": 2.334
+    },
+    {
+      "id": "fresh_en_002",
+      "file": "ofgem_data_dictionary.pdf",
+      "question": "What does the first section of the LA unique reference number represent?",
+      "expected_answer": "The 9-digit ONS code assigned to the local authority.",
+      "hit_at_5": true,
+      "reciprocal_rank": 1.0,
+      "packed_support": true,
+      "unit_retained": true,
+      "canonical_support": true,
+      "elapsed_seconds": 0.109
+    },
+    {
+      "id": "fresh_en_003",
+      "file": "ofgem_data_dictionary.pdf",
+      "question": "How many digits must an ECO4 Flex Route 4 application number contain?",
+      "expected_answer": "5 digits",
+      "hit_at_5": true,
+      "reciprocal_rank": 1.0,
+      "packed_support": true,
+      "unit_retained": true,
+      "canonical_support": true,
+      "elapsed_seconds": 0.115
+    },
+    {
+      "id": "fresh_en_004",
+      "file": "ofgem_third_party_facts.pdf",
+      "question": "Does an ECO4 or GBIS Flex third-party referral guarantee that measures will be installed?",
+      "expected_answer": "No.",
+      "hit_at_5": true,
+      "reciprocal_rank": 0.3333333333333333,
+      "packed_support": true,
+      "unit_retained": true,
+      "canonical_support": true,
+      "elapsed_seconds": 1.792
+    },
+    {
+      "id": "fresh_en_005",
+      "file": "ofgem_third_party_facts.pdf",
+      "question": "What signed document must Citizens Advice produce when referring a household struggling to pay energy bills?",
+      "expected_answer": "A signed referral letter to the local authority confirming the evidence of difficulty paying gas or electricity bills.",
+      "hit_at_5": true,
+      "reciprocal_rank": 0.3333333333333333,
+      "packed_support": true,
+      "unit_retained": true,
+      "canonical_support": true,
+      "elapsed_seconds": 0.057
+    },
+    {
+      "id": "fresh_en_006",
+      "file": "ofgem_third_party_facts.pdf",
+      "question": "For Flex Route 2 Proxy 3, is an NHS referral letter mandatory?",
+      "expected_answer": "No; alternative evidence such as hospital diagnosis letters or prescriptions can be used.",
+      "hit_at_5": true,
+      "reciprocal_rank": 0.3333333333333333,
+      "packed_support": true,
+      "unit_retained": true,
+      "canonical_support": true,
+      "elapsed_seconds": 0.095
+    },
+    {
+      "id": "fresh_en_007",
+      "file": "gmfrs_information_box.pdf",
+      "question": "What colours should the lobby sector and fire sector folders be?",
+      "expected_answer": "Lobby: yellow; fire: red.",
+      "hit_at_5": true,
+      "reciprocal_rank": 0.3333333333333333,
+      "packed_support": true,
+      "unit_retained": true,
+      "canonical_support": true,
+      "elapsed_seconds": 1.218
+    },
+    {
+      "id": "fresh_en_008",
+      "file": "gmfrs_information_box.pdf",
+      "question": "How many copies of the Building Emergency Evacuation Plan should be kept in the secure information box?",
+      "expected_answer": "Three copies.",
+      "hit_at_5": true,
+      "reciprocal_rank": 0.5,
+      "packed_support": true,
+      "unit_retained": true,
+      "canonical_support": true,
+      "elapsed_seconds": 0.113
+    },
+    {
+      "id": "fresh_en_009",
+      "file": "gmfrs_information_box.pdf",
+      "question": "What is the minimum number of riser outlet keys recommended in the fire sector folder?",
+      "expected_answer": "At least 2, ideally 4.",
+      "hit_at_5": true,
+      "reciprocal_rank": 0.3333333333333333,
+      "packed_support": true,
+      "unit_retained": true,
+      "canonical_support": true,
+      "elapsed_seconds": 0.107
+    },
+    {
+      "id": "fresh_en_010",
+      "file": "ofgem_statement_of_intent.docx",
+      "question": "On what date did GBIS Flex end according to this statement of intent template?",
+      "expected_answer": "31 March 2026",
+      "hit_at_5": true,
+      "reciprocal_rank": 0.5,
+      "packed_support": true,
+      "unit_retained": true,
+      "canonical_support": true,
+      "elapsed_seconds": 0.018
+    },
+    {
+      "id": "fresh_en_011",
+      "file": "ofgem_statement_of_intent.docx",
+      "question": "What information about qualifying schemes must be included for Route 2 Proxy 5?",
+      "expected_answer": "The names and a brief description of the relevant schemes.",
+      "hit_at_5": true,
+      "reciprocal_rank": 1.0,
+      "packed_support": true,
+      "unit_retained": true,
+      "canonical_support": true,
+      "elapsed_seconds": 0.005
+    },
+    {
+      "id": "fresh_en_012",
+      "file": "ofgem_statement_of_intent.docx",
+      "question": "What legal obligation does ECO4 place on energy suppliers?",
+      "expected_answer": "Deliver energy efficiency measures to homes, including insulation and heating measures.",
+      "hit_at_5": true,
+      "reciprocal_rank": 1.0,
+      "packed_support": true,
+      "unit_retained": true,
+      "canonical_support": true,
+      "elapsed_seconds": 0.005
+    },
+    {
+      "id": "fresh_en_013",
+      "file": "ofgem_medical_referral.docx",
+      "question": "What age threshold is listed for older people vulnerable to cold under Route 2?",
+      "expected_answer": "65 years or older",
+      "hit_at_5": true,
+      "reciprocal_rank": 0.25,
+      "packed_support": true,
+      "unit_retained": true,
+      "canonical_support": true,
+      "elapsed_seconds": 0.242
+    },
+    {
+      "id": "fresh_en_014",
+      "file": "ofgem_medical_referral.docx",
+      "question": "From what kind of email address must a digital medical referral be sent?",
+      "expected_answer": "A valid NHS email address.",
+      "hit_at_5": true,
+      "reciprocal_rank": 0.5,
+      "packed_support": true,
+      "unit_retained": true,
+      "canonical_support": true,
+      "elapsed_seconds": 0.064
+    },
+    {
+      "id": "fresh_en_015",
+      "file": "ofgem_medical_referral.docx",
+      "question": "Where applicable, what stamp authenticates a printed medical referral letter?",
+      "expected_answer": "The GP surgery stamp.",
+      "hit_at_5": true,
+      "reciprocal_rank": 1.0,
+      "packed_support": true,
+      "unit_retained": true,
+      "canonical_support": true,
+      "elapsed_seconds": 0.042
+    },
+    {
+      "id": "fresh_en_016",
+      "file": "ofgem_householder_application.docx",
+      "question": "What combined gross annual household income threshold applies to Route 1?",
+      "expected_answer": "Less than 31,000 pounds.",
+      "hit_at_5": true,
+      "reciprocal_rank": 1.0,
+      "packed_support": true,
+      "unit_retained": true,
+      "canonical_support": true,
+      "elapsed_seconds": 0.151
+    },
+    {
+      "id": "fresh_en_017",
+      "file": "ofgem_householder_application.docx",
+      "question": "How many criteria must a household satisfy for Route 2?",
+      "expected_answer": "At least two.",
+      "hit_at_5": true,
+      "reciprocal_rank": 1.0,
+      "packed_support": true,
+      "unit_retained": true,
+      "canonical_support": true,
+      "elapsed_seconds": 0.111
+    },
+    {
+      "id": "fresh_en_018",
+      "file": "ofgem_householder_application.docx",
+      "question": "Does completing this householder application form guarantee eligibility for the schemes?",
+      "expected_answer": "No; further assessments by the local authority and energy supplier are required.",
+      "hit_at_5": true,
+      "reciprocal_rank": 1.0,
+      "packed_support": true,
+      "unit_retained": true,
+      "canonical_support": true,
+      "elapsed_seconds": 0.033
+    },
+    {
+      "id": "fresh_en_019",
+      "file": "canterbury_fire_risk.docx",
+      "question": "What test does the fire risk assessment ask about for landlord-supplied portable electrical appliances?",
+      "expected_answer": "Portable appliance testing (PAT).",
+      "hit_at_5": true,
+      "reciprocal_rank": 0.5,
+      "packed_support": true,
+      "unit_retained": true,
+      "canonical_support": true,
+      "elapsed_seconds": 0.493
+    },
+    {
+      "id": "fresh_en_020",
+      "file": "canterbury_fire_risk.docx",
+      "question": "Which four groups of occupants are listed as being especially at risk from fire?",
+      "expected_answer": "Disabled occupants, children, elderly occupants and other vulnerable adults.",
+      "hit_at_5": true,
+      "reciprocal_rank": 0.2,
+      "packed_support": true,
+      "unit_retained": true,
+      "canonical_support": true,
+      "elapsed_seconds": 0.303
+    },
+    {
+      "id": "fresh_en_021",
+      "file": "canterbury_fire_risk.docx",
+      "question": "Which action-plan columns record the responsible person, deadline and completion sign-off?",
+      "expected_answer": "Who; When; Sign/date when completed.",
+      "hit_at_5": false,
+      "reciprocal_rank": 0,
+      "packed_support": false,
+      "unit_retained": true,
+      "canonical_support": true,
+      "elapsed_seconds": 0.325
+    },
+    {
+      "id": "fresh_en_022",
+      "file": "eia_electricity_prices.xlsx",
+      "question": "What was the Total Electric Industry residential electricity price in 2024?",
+      "expected_answer": "16.48 cents per kilowatthour",
+      "hit_at_5": true,
+      "reciprocal_rank": 0.5,
+      "packed_support": true,
+      "unit_retained": true,
+      "canonical_support": true,
+      "elapsed_seconds": 0.203
+    },
+    {
+      "id": "fresh_en_023",
+      "file": "eia_electricity_prices.xlsx",
+      "question": "What was the Competitive Service Providers industrial electricity price in 2024?",
+      "expected_answer": "9.84 cents per kilowatthour",
+      "hit_at_5": true,
+      "reciprocal_rank": 0.5,
+      "packed_support": true,
+      "unit_retained": false,
+      "canonical_support": true,
+      "elapsed_seconds": 0.155
+    },
+    {
+      "id": "fresh_en_024",
+      "file": "eia_electricity_prices.xlsx",
+      "question": "What was the Delivery-Only Providers transportation electricity price in 2024?",
+      "expected_answer": "4.43 cents per kilowatthour",
+      "hit_at_5": true,
+      "reciprocal_rank": 0.5,
+      "packed_support": true,
+      "unit_retained": true,
+      "canonical_support": true,
+      "elapsed_seconds": 0.158
+    },
+    {
+      "id": "fresh_en_025",
+      "file": "eia_industry_summary.xlsx",
+      "question": "What was total coal net generation across all sectors in 2024?",
+      "expected_answer": "652,156 thousand megawatthours",
+      "hit_at_5": false,
+      "reciprocal_rank": 0.16666666666666666,
+      "packed_support": false,
+      "unit_retained": true,
+      "canonical_support": true,
+      "elapsed_seconds": 0.377
+    },
+    {
+      "id": "fresh_en_026",
+      "file": "eia_industry_summary.xlsx",
+      "question": "How much natural gas was consumed for electricity generation in 2024 across all sectors?",
+      "expected_answer": "13,754,749 thousand Mcf",
+      "hit_at_5": true,
+      "reciprocal_rank": 1.0,
+      "packed_support": true,
+      "unit_retained": false,
+      "canonical_support": true,
+      "elapsed_seconds": 0.246
+    },
+    {
+      "id": "fresh_en_027",
+      "file": "eia_industry_summary.xlsx",
+      "question": "What was residential electricity sales revenue in 2024?",
+      "expected_answer": "244,367 million dollars",
+      "hit_at_5": true,
+      "reciprocal_rank": 1.0,
+      "packed_support": true,
+      "unit_retained": true,
+      "canonical_support": true,
+      "elapsed_seconds": 0.219
+    },
+    {
+      "id": "fresh_en_028",
+      "file": "ofgem_declaration_template.xlsx",
+      "question": "Which Sheet1 column stores the property postcode?",
+      "expected_answer": "Column I, Post_Code.",
+      "hit_at_5": true,
+      "reciprocal_rank": 1.0,
+      "packed_support": true,
+      "unit_retained": true,
+      "canonical_support": true,
+      "elapsed_seconds": 0.026
+    },
+    {
+      "id": "fresh_en_029",
+      "file": "ofgem_declaration_template.xlsx",
+      "question": "Which Sheet1 field records the Route 4 application number?",
+      "expected_answer": "Column F, Route_4_Application_Number.",
+      "hit_at_5": true,
+      "reciprocal_rank": 1.0,
+      "packed_support": true,
+      "unit_retained": true,
+      "canonical_support": true,
+      "elapsed_seconds": 0.046
+    },
+    {
+      "id": "fresh_en_030",
+      "file": "ofgem_declaration_template.xlsx",
+      "question": "Which Sheet1 field records the statement of intent publication date?",
+      "expected_answer": "Column M, Date_Of_Statement_Of_Intent_Publication.",
+      "hit_at_5": true,
+      "reciprocal_rank": 1.0,
+      "packed_support": true,
+      "unit_retained": true,
+      "canonical_support": true,
+      "elapsed_seconds": 0.003
+    },
+    {
+      "id": "extra_numeric_01",
+      "category": "numeric",
+      "question": "What was nuclear net generation across all sectors in 2023?",
+      "target_row_value_retained": true,
+      "native_unit_retained": true,
+      "row_value_unit_retained": true,
+      "before_packing": {
+        "target_row_value_retained": true,
+        "native_unit_retained": true,
+        "row_value_unit_retained": true
+      },
+      "passed": true,
+      "elapsed_seconds": 0.4
+    },
+    {
+      "id": "extra_numeric_02",
+      "category": "numeric",
+      "question": "What was wind net generation across all sectors in 2024?",
+      "target_row_value_retained": true,
+      "native_unit_retained": true,
+      "row_value_unit_retained": true,
+      "before_packing": {
+        "target_row_value_retained": true,
+        "native_unit_retained": true,
+        "row_value_unit_retained": true
+      },
+      "passed": true,
+      "elapsed_seconds": 0.238
+    },
+    {
+      "id": "extra_numeric_03",
+      "category": "numeric",
+      "question": "What was estimated small scale solar photovoltaic generation across all sectors in 2024?",
+      "target_row_value_retained": true,
+      "native_unit_retained": true,
+      "row_value_unit_retained": true,
+      "before_packing": {
+        "target_row_value_retained": true,
+        "native_unit_retained": true,
+        "row_value_unit_retained": true
+      },
+      "passed": true,
+      "elapsed_seconds": 0.238
+    },
+    {
+      "id": "extra_numeric_04",
+      "category": "numeric",
+      "question": "How much coal was consumed for electricity generation across all sectors in 2024?",
+      "target_row_value_retained": true,
+      "native_unit_retained": true,
+      "row_value_unit_retained": true,
+      "before_packing": {
+        "target_row_value_retained": true,
+        "native_unit_retained": true,
+        "row_value_unit_retained": true
+      },
+      "passed": true,
+      "elapsed_seconds": 0.237
+    },
+    {
+      "id": "extra_numeric_05",
+      "category": "numeric",
+      "question": "What were total sales of electricity to ultimate customers across all sectors in 2024?",
+      "target_row_value_retained": true,
+      "native_unit_retained": true,
+      "row_value_unit_retained": true,
+      "before_packing": {
+        "target_row_value_retained": true,
+        "native_unit_retained": true,
+        "row_value_unit_retained": true
+      },
+      "passed": true,
+      "elapsed_seconds": 0.217
+    },
+    {
+      "id": "extra_condition_01",
+      "category": "condition",
+      "question": "Can criterion 1 be used together with criterion 3 in the householder application?",
+      "condition_relation_retained": true,
+      "condition_protection_tagged": true,
+      "before_packing": {
+        "condition_relation_retained": true,
+        "condition_protection_tagged": true
+      },
+      "passed": true,
+      "elapsed_seconds": 0.154
+    },
+    {
+      "id": "extra_condition_02",
+      "category": "condition",
+      "question": "Which scheme is Route 4 applicable to, and is its scope restricted?",
+      "condition_relation_retained": true,
+      "condition_protection_tagged": true,
+      "before_packing": {
+        "condition_relation_retained": true,
+        "condition_protection_tagged": true
+      },
+      "passed": true,
+      "elapsed_seconds": 0.081
+    },
+    {
+      "id": "extra_condition_03",
+      "category": "condition",
+      "question": "What approval is needed for a new household identification method before Route 4 can be used?",
+      "condition_relation_retained": true,
+      "condition_protection_tagged": true,
+      "before_packing": {
+        "condition_relation_retained": true,
+        "condition_protection_tagged": true
+      },
+      "passed": true,
+      "elapsed_seconds": 0.094
+    },
+    {
+      "id": "extra_condition_04",
+      "category": "condition",
+      "question": "Under Route 2, what additional eligibility step supplements a medical referral for a reason other than low income?",
+      "condition_relation_retained": true,
+      "condition_protection_tagged": false,
+      "before_packing": {
+        "condition_relation_retained": true,
+        "condition_protection_tagged": false
+      },
+      "passed": true,
+      "elapsed_seconds": 0.297
+    },
+    {
+      "id": "extra_condition_05",
+      "category": "condition",
+      "question": "What paper and referring organisation information are required for a printed medical referral?",
+      "condition_relation_retained": true,
+      "condition_protection_tagged": false,
+      "before_packing": {
+        "condition_relation_retained": true,
+        "condition_protection_tagged": false
+      },
+      "passed": true,
+      "elapsed_seconds": 0.04
+    },
+    {
+      "id": "extra_conflict_01",
+      "category": "conflict",
+      "question": "Do the two sources agree on the thickness of MockTile-Q? Report both measurements.",
+      "conflict_detected": true,
+      "both_sources_retained": true,
+      "before_packing": {
+        "both_sources_retained": true
+      },
+      "passed": true,
+      "elapsed_seconds": 0.006
+    },
+    {
+      "id": "extra_conflict_02",
+      "category": "conflict",
+      "question": "Do the two sources agree on the width of MockStrip-R? Report both measurements.",
+      "conflict_detected": true,
+      "both_sources_retained": true,
+      "before_packing": {
+        "both_sources_retained": true
+      },
+      "passed": true,
+      "elapsed_seconds": 0.006
+    },
+    {
+      "id": "extra_conflict_03",
+      "category": "conflict",
+      "question": "Do the two sources agree on the length of MockBeam-S? Report both measurements.",
+      "conflict_detected": true,
+      "both_sources_retained": true,
+      "before_packing": {
+        "both_sources_retained": true
+      },
+      "passed": true,
+      "elapsed_seconds": 0.006
+    },
+    {
+      "id": "extra_conflict_04",
+      "category": "conflict",
+      "question": "Do the two sources agree on the weight of MockPanel-T? Report both measurements.",
+      "conflict_detected": true,
+      "both_sources_retained": true,
+      "before_packing": {
+        "both_sources_retained": true
+      },
+      "passed": true,
+      "elapsed_seconds": 0.006
+    },
+    {
+      "id": "extra_conflict_05",
+      "category": "conflict",
+      "question": "Do the two sources agree on the area of MockSheet-U? Report both measurements.",
+      "conflict_detected": true,
+      "both_sources_retained": true,
+      "before_packing": {
+        "both_sources_retained": true
+      },
+      "passed": true,
+      "elapsed_seconds": 0.006
+    }
+  ],
+  "validation": {
+    "valid": true,
+    "unique_questions": 75,
+    "budget_compliance": "75/75",
+    "errors": 0,
+    "complete_support_scoring_verified": true,
+    "question_and_code_hashes_verified": true,
+    "recall_at_5": {
+      "hits": 38,
+      "total": 45
+    },
+    "mrr": 0.5733333333333335,
+    "failed_retrieval_ids": [
+      "retrieval_001",
+      "retrieval_002",
+      "retrieval_003",
+      "retrieval_004",
+      "retrieval_007",
+      "fresh_en_021",
+      "fresh_en_025"
+    ]
+  },
+  "supplements": {
+    "hybrid": {
+      "track": "enterprise_hybrid_execution_smoke_not_held_out_accuracy",
+      "index_validation": {
+        "requested": true,
+        "ready": true,
+        "reason": null,
+        "lexical_fingerprint": "93c0b44459fe719c4805ebe981ed9ff5501ea1fef01c75163d76e6f17b7bb4ff",
+        "dense_source_fingerprint": "93c0b44459fe719c4805ebe981ed9ff5501ea1fef01c75163d76e6f17b7bb4ff",
+        "lexical_document_count": 3303,
+        "dense_document_count": 3303,
+        "missing_document_count": 0,
+        "extra_document_count": 0
+      },
+      "execution": {
+        "hits": 5,
+        "total": 5,
+        "rate": 1.0
+      },
+      "gold_recall_at_5": {
+        "hits": 4,
+        "total": 5,
+        "rate": 0.8
+      },
+      "details": [
+        {
+          "question": "真岩石的饰面有哪些效果和颜色？",
+          "gold_id": "txt_a8001516b8eea7ea",
+          "hit_at_5": true,
+          "actual_hybrid_executed": true,
+          "top_ids": [
+            "txt_a8001516b8eea7ea",
+            "txt_9fb7ef064b6f43f7",
+            "txt_af246b030835c7a8",
+            "webtxt_3e523b5a1b79aee2c8",
+            "txt_05800c4b62a30f80"
+          ],
+          "channels": [
+            [
+              "lexical",
+              "dense"
+            ],
+            [
+              "lexical",
+              "dense"
+            ],
+            [
+              "lexical",
+              "dense"
+            ],
+            [
+              "lexical",
+              "dense"
+            ],
+            [
+              "lexical",
+              "dense"
+            ]
+          ],
+          "skip_reasons": [],
+          "elapsed_seconds": 5.278
+        },
+        {
+          "question": "真岩石饰面原材料和厚度是多少？",
+          "gold_id": "txt_9fb7ef064b6f43f7",
+          "hit_at_5": true,
+          "actual_hybrid_executed": true,
+          "top_ids": [
+            "txt_9fb7ef064b6f43f7",
+            "txt_89a73fb5630c2c58",
+            "txt_af246b030835c7a8",
+            "txt_1eacc0d52f0f0d9b",
+            "webtxt_59c42ac0f1a14c8b26"
+          ],
+          "channels": [
+            [
+              "lexical",
+              "dense"
+            ],
+            [
+              "lexical",
+              "dense"
+            ],
+            [
+              "lexical",
+              "dense"
+            ],
+            [
+              "lexical",
+              "dense"
+            ],
+            [
+              "dense"
+            ]
+          ],
+          "skip_reasons": [],
+          "elapsed_seconds": 0.631
+        },
+        {
+          "question": "真岩石板损坏之后能如何修补？",
+          "gold_id": "txt_5209083b6f19c572",
+          "hit_at_5": true,
+          "actual_hybrid_executed": true,
+          "top_ids": [
+            "txt_a7d5c8d14287522e",
+            "txt_c726b7f6739ff7a4",
+            "txt_11faf14c5717aef7",
+            "txt_4911f6619686d179",
+            "txt_5209083b6f19c572"
+          ],
+          "channels": [
+            [
+              "lexical",
+              "dense"
+            ],
+            [
+              "lexical",
+              "dense"
+            ],
+            [
+              "lexical",
+              "dense"
+            ],
+            [
+              "lexical",
+              "dense"
+            ],
+            [
+              "lexical",
+              "dense"
+            ]
+          ],
+          "skip_reasons": [],
+          "elapsed_seconds": 0.541
+        },
+        {
+          "question": "真岩石可以采用哪些安装体系和保温配置？",
+          "gold_id": "txt_b5b9d82f8c3e71cb",
+          "hit_at_5": true,
+          "actual_hybrid_executed": true,
+          "top_ids": [
+            "txt_b5b9d82f8c3e71cb",
+            "txt_05800c4b62a30f80",
+            "txt_af246b030835c7a8",
+            "txt_5209083b6f19c572",
+            "visual:doc_0151ab729649_p015_page_fallback"
+          ],
+          "channels": [
+            [
+              "lexical",
+              "dense"
+            ],
+            [
+              "lexical",
+              "dense"
+            ],
+            [
+              "lexical",
+              "dense"
+            ],
+            [
+              "lexical",
+              "dense"
+            ],
+            [
+              "lexical",
+              "dense"
+            ]
+          ],
+          "skip_reasons": [],
+          "elapsed_seconds": 0.598
+        },
+        {
+          "question": "真岩石保温装饰一体板与饰面装饰板是什么关系？",
+          "gold_id": "txt_05800c4b62a30f80",
+          "hit_at_5": false,
+          "actual_hybrid_executed": true,
+          "top_ids": [
+            "txt_764492cee42fd6f8",
+            "webtxt_05b255358820e9e508",
+            "webtxt_d723f390c707b97305",
+            "txt_d448f02858393a92",
+            "txt_9fb7ef064b6f43f7"
+          ],
+          "channels": [
+            [
+              "lexical",
+              "dense"
+            ],
+            [
+              "lexical",
+              "dense"
+            ],
+            [
+              "lexical",
+              "dense"
+            ],
+            [
+              "lexical",
+              "dense"
+            ],
+            [
+              "lexical",
+              "dense"
+            ]
+          ],
+          "skip_reasons": [],
+          "elapsed_seconds": 0.638
+        }
+      ]
+    },
+    "live_service": {
+      "track": "local_service_retrieval_configuration_smoke_not_answer_generation",
+      "endpoint": "/api/copilot/retrieve",
+      "question": "真岩石饰面原材料和厚度是多少？",
+      "strategy": "local_hybrid_bm25_dense_rerank",
+      "hybrid_requested": true,
+      "hybrid_index_ready": true,
+      "lexical_document_count": 3303,
+      "dense_document_count": 3303,
+      "missing_document_count": 0,
+      "extra_document_count": 0,
+      "latency_ms": 3462.49,
+      "generation_model_loaded": false,
+      "embedding_model_loaded": true,
+      "reranker_model_loaded": true,
+      "effective_retrieval_device": "cuda",
+      "per_query_channel_audit": "Direct five-case hybrid smoke provides actual channel checks; this API check confirms readiness and runtime loading."
+    },
+    "ocr": {
+      "track": "one_page_native_scan_CPU_OCR_execution_smoke",
+      "gold": {
+        "entity": "CARD-DELTA",
+        "thickness_value": "17",
+        "unit": "mm",
+        "provenance": "project_authored_synthetic_fixture_visually_verified_before_prediction",
+        "color_not_scored": "Colour requires visual input and is not an OCR-text label"
+      },
+      "file_sha256": "39cc92b0418341eae5ba38099351196236124459558865ceadb8a6969e101068",
+      "text_layer_empty": true,
+      "model_generation_tested": false,
+      "ocr_candidate_count": 1,
+      "checks": {
+        "entity": true,
+        "thickness_and_unit": true,
+        "original_visual_retained": true
+      },
+      "recalled_ocr": true,
+      "ocr_candidate_text": "SYNTHETIC TEST - NOT A REAL PRODUCT\nCARD-DELTA\nThickness: 17 mm\nRead the surface colour from the swatch below.",
+      "coverage": {
+        "page_count": 1,
+        "rendered_page_numbers": [
+          1
+        ],
+        "next_page_start": null,
+        "coverage_complete": true,
+        "batch_count": 1,
+        "max_visual_pages": 40,
+        "stop_reason": null,
+        "ocr_indexed_page_numbers": [
+          1
+        ],
+        "native_text_indexed_page_numbers": [],
+        "ocr_index_pending_page_numbers": [],
+        "ocr_index_coverage_complete": true,
+        "ocr_failure_codes": []
+      },
+      "stage_timings_ms": {
+        "native_ingestion": 48.497,
+        "ocr_text_index": 12369.552,
+        "pdf_detail": {
+          "pdf_visual_detection": 3.392,
+          "pdf_page_rendering": 33.154,
+          "pdf_text_extraction": 6.838
+        }
+      },
+      "elapsed_seconds": 12.954
+    },
+    "negative_conflict": {
+      "track": "native_synthetic_false_conflict_controls_not_generation",
+      "cases": 5,
+      "model_generation_tested": false,
+      "gold_provenance": "project_authored",
+      "prompt_budget": 5000,
+      "retrieval_budget": 5000,
+      "cases_sha256": "4a2d25c0e144fdccbbe47af1e179b8622e819904780f86c66a372486111cc3d1",
+      "passed": 5,
+      "false_positives": 0,
+      "details": [
+        {
+          "id": "negative_conflict_01",
+          "reason": "equal_values",
+          "both_source_records_retained": true,
+          "false_conflict_detected": false,
+          "passed": true,
+          "packing_audit": {
+            "max_prompt_tokens": 5000,
+            "actual_prompt_tokens": 638,
+            "original_evidence_count": 2,
+            "kept_evidence_count": 2,
+            "removed_low_ranked_evidence_count": 0,
+            "kept_evidence_ids": [
+              "U1",
+              "U2"
+            ],
+            "candidate_evidence_ids": [
+              "U1",
+              "U2"
+            ],
+            "removed_evidence_ids": [],
+            "removed_packing_groups": [],
+            "text_compacted_evidence_ids": [],
+            "protected_document_evidence_ids": {},
+            "protected_goal_evidence_ids": [],
+            "missing_packed_goal_ids": [],
+            "kept_document_names": [
+              "negative_conflict_01_1.txt"
+            ],
+            "kept_document_count": 1,
+            "budget_satisfied": true,
+            "non_evidence_compaction_stages": [],
+            "semantic_group_packing_enabled": true,
+            "integrity_check": {
+              "valid": true,
+              "violation_count": 0,
+              "violations": [],
+              "packed_evidence_count": 2,
+              "protected_conflict_group_count": 0
+            },
+            "canonical_evidence_preserved": true
+          }
+        },
+        {
+          "id": "negative_conflict_02",
+          "reason": "equivalent_units",
+          "both_source_records_retained": true,
+          "false_conflict_detected": false,
+          "passed": true,
+          "packing_audit": {
+            "max_prompt_tokens": 5000,
+            "actual_prompt_tokens": 1250,
+            "original_evidence_count": 4,
+            "kept_evidence_count": 4,
+            "removed_low_ranked_evidence_count": 0,
+            "kept_evidence_ids": [
+              "U1",
+              "U3",
+              "U2",
+              "U4"
+            ],
+            "candidate_evidence_ids": [
+              "U1",
+              "U3",
+              "U2",
+              "U4"
+            ],
+            "removed_evidence_ids": [],
+            "removed_packing_groups": [],
+            "text_compacted_evidence_ids": [],
+            "protected_document_evidence_ids": {},
+            "protected_goal_evidence_ids": [],
+            "missing_packed_goal_ids": [],
+            "kept_document_names": [
+              "negative_conflict_02_0.txt",
+              "negative_conflict_02_1.txt"
+            ],
+            "kept_document_count": 2,
+            "budget_satisfied": true,
+            "non_evidence_compaction_stages": [],
+            "semantic_group_packing_enabled": true,
+            "integrity_check": {
+              "valid": true,
+              "violation_count": 0,
+              "violations": [],
+              "packed_evidence_count": 4,
+              "protected_conflict_group_count": 0
+            },
+            "canonical_evidence_preserved": true
+          }
+        },
+        {
+          "id": "negative_conflict_03",
+          "reason": "different_entities",
+          "both_source_records_retained": true,
+          "false_conflict_detected": false,
+          "passed": true,
+          "packing_audit": {
+            "max_prompt_tokens": 5000,
+            "actual_prompt_tokens": 1230,
+            "original_evidence_count": 4,
+            "kept_evidence_count": 4,
+            "removed_low_ranked_evidence_count": 0,
+            "kept_evidence_ids": [
+              "U2",
+              "U4",
+              "U1",
+              "U3"
+            ],
+            "candidate_evidence_ids": [
+              "U2",
+              "U4",
+              "U1",
+              "U3"
+            ],
+            "removed_evidence_ids": [],
+            "removed_packing_groups": [],
+            "text_compacted_evidence_ids": [],
+            "protected_document_evidence_ids": {},
+            "protected_goal_evidence_ids": [],
+            "missing_packed_goal_ids": [],
+            "kept_document_names": [
+              "negative_conflict_03_0.txt",
+              "negative_conflict_03_1.txt"
+            ],
+            "kept_document_count": 2,
+            "budget_satisfied": true,
+            "non_evidence_compaction_stages": [],
+            "semantic_group_packing_enabled": true,
+            "integrity_check": {
+              "valid": true,
+              "violation_count": 0,
+              "violations": [],
+              "packed_evidence_count": 4,
+              "protected_conflict_group_count": 0
+            },
+            "canonical_evidence_preserved": true
+          }
+        },
+        {
+          "id": "negative_conflict_04",
+          "reason": "different_metrics",
+          "both_source_records_retained": true,
+          "false_conflict_detected": false,
+          "passed": true,
+          "packing_audit": {
+            "max_prompt_tokens": 5000,
+            "actual_prompt_tokens": 1256,
+            "original_evidence_count": 4,
+            "kept_evidence_count": 4,
+            "removed_low_ranked_evidence_count": 0,
+            "kept_evidence_ids": [
+              "U1",
+              "U3",
+              "U2",
+              "U4"
+            ],
+            "candidate_evidence_ids": [
+              "U1",
+              "U3",
+              "U2",
+              "U4"
+            ],
+            "removed_evidence_ids": [],
+            "removed_packing_groups": [],
+            "text_compacted_evidence_ids": [],
+            "protected_document_evidence_ids": {},
+            "protected_goal_evidence_ids": [],
+            "missing_packed_goal_ids": [],
+            "kept_document_names": [
+              "negative_conflict_04_0.txt",
+              "negative_conflict_04_1.txt"
+            ],
+            "kept_document_count": 2,
+            "budget_satisfied": true,
+            "non_evidence_compaction_stages": [],
+            "semantic_group_packing_enabled": true,
+            "integrity_check": {
+              "valid": true,
+              "violation_count": 0,
+              "violations": [],
+              "packed_evidence_count": 4,
+              "protected_conflict_group_count": 0
+            },
+            "canonical_evidence_preserved": true
+          }
+        },
+        {
+          "id": "negative_conflict_05",
+          "reason": "unbound_entity_not_eligible",
+          "both_source_records_retained": true,
+          "false_conflict_detected": false,
+          "passed": true,
+          "packing_audit": {
+            "max_prompt_tokens": 5000,
+            "actual_prompt_tokens": 640,
+            "original_evidence_count": 2,
+            "kept_evidence_count": 2,
+            "removed_low_ranked_evidence_count": 0,
+            "kept_evidence_ids": [
+              "U1",
+              "U2"
+            ],
+            "candidate_evidence_ids": [
+              "U1",
+              "U2"
+            ],
+            "removed_evidence_ids": [],
+            "removed_packing_groups": [],
+            "text_compacted_evidence_ids": [],
+            "protected_document_evidence_ids": {},
+            "protected_goal_evidence_ids": [],
+            "missing_packed_goal_ids": [],
+            "kept_document_names": [
+              "negative_conflict_05_0.txt",
+              "negative_conflict_05_1.txt"
+            ],
+            "kept_document_count": 2,
+            "budget_satisfied": true,
+            "non_evidence_compaction_stages": [],
+            "semantic_group_packing_enabled": true,
+            "integrity_check": {
+              "valid": true,
+              "violation_count": 0,
+              "violations": [],
+              "packed_evidence_count": 2,
+              "protected_conflict_group_count": 0
+            },
+            "canonical_evidence_preserved": true
+          }
+        }
+      ]
+    }
+  },
+  "publication_scope": "75 same-condition attachment cases; hybrid/OCR/negative controls have separate denominators."
+}

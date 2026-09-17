@@ -1,0 +1,1529 @@
+{
+  "model_generation_tested": false,
+  "official_gold_questions_changed": false,
+  "scope": "same_question_CPU_native_retrieval_context_tokenizer_regression_not_model_answer_accuracy",
+  "code_hash_scope": "tested_source_workspace_and_curated_public_namespace_snapshot",
+  "tested_source_code_sha256": {
+    "backend/documents/table_context.py": "9b42cf08a2b77b0ddf0ce039f13f783688e7657c9d6efc2f1223a9b652218fc8",
+    "backend/documents/customer_sessions.py": "d17230072cc9e240ddd3fc3496c2302ccbe836c8343e427e3dd5c68edd2b35cc",
+    "backend/sales/fact_normalization.py": "416707596e634f850d0ad88077d4145e45a6a6b030c51a13421e08f6cd878bbb",
+    "backend/sales/context_engine.py": "48e8bd0bd6a72760cefdceefce9b07a05496b5ecec9ce5221a9df6963cec2a71",
+    "backend/app.py": "9135dff2dcb46f603228b98fd1fa8b8537d1698f27b488044103f2c3e174d558"
+  },
+  "public_code_hash_normalization": "CRLF_to_LF",
+  "published_code_sha256": {
+    "backend/documents/table_context.py": "9b42cf08a2b77b0ddf0ce039f13f783688e7657c9d6efc2f1223a9b652218fc8",
+    "backend/documents/customer_sessions.py": "acc3d3514362a3ffd7ea4fafd21d914fcd5c7fd895756e54047c67ada55bae04",
+    "backend/sales/fact_normalization.py": "416707596e634f850d0ad88077d4145e45a6a6b030c51a13421e08f6cd878bbb",
+    "backend/sales/context_engine.py": "48e8bd0bd6a72760cefdceefce9b07a05496b5ecec9ce5221a9df6963cec2a71",
+    "backend/app.py": "729ad8fa8cc03717409e02f8f192bfa62a6d1640f2345cae9c7669d5fe693f95"
+  },
+  "runs": {
+    "fresh_english_30": {
+      "before_metrics": {
+        "all": {
+          "cases": 30,
+          "hits": 26,
+          "recall_at_5": 0.8666666666666667,
+          "mrr": 0.6080555555555556,
+          "packed_support": 15
+        },
+        ".pdf": {
+          "cases": 9,
+          "hits": 9,
+          "recall_at_5": 1.0,
+          "mrr": 0.574074074074074,
+          "packed_support": 5
+        },
+        ".docx": {
+          "cases": 12,
+          "hits": 11,
+          "recall_at_5": 0.9166666666666666,
+          "mrr": 0.6625,
+          "packed_support": 6
+        },
+        ".xlsx": {
+          "cases": 9,
+          "hits": 6,
+          "recall_at_5": 0.6666666666666666,
+          "mrr": 0.5694444444444444,
+          "packed_support": 4
+        }
+      },
+      "after_metrics": {
+        "all": {
+          "cases": 30,
+          "hits": 28,
+          "recall_at_5": 0.9333333333333333,
+          "mrr": 0.6594444444444444,
+          "packed_support": 20
+        },
+        ".pdf": {
+          "cases": 9,
+          "hits": 9,
+          "recall_at_5": 1.0,
+          "mrr": 0.574074074074074,
+          "packed_support": 5
+        },
+        ".docx": {
+          "cases": 12,
+          "hits": 11,
+          "recall_at_5": 0.9166666666666666,
+          "mrr": 0.6625,
+          "packed_support": 7
+        },
+        ".xlsx": {
+          "cases": 9,
+          "hits": 8,
+          "recall_at_5": 0.8888888888888888,
+          "mrr": 0.7407407407407408,
+          "packed_support": 8
+        }
+      },
+      "details": [
+        {
+          "id": "fresh_en_001",
+          "question": "In what file format must the declaration notification be submitted?",
+          "category": "retrieval",
+          "before": {
+            "hit_at_5": true,
+            "reciprocal_rank": 1.0,
+            "packed_support": true
+          },
+          "after": {
+            "hit_at_5": true,
+            "reciprocal_rank": 1.0,
+            "packed_support": true
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U1"
+          ]
+        },
+        {
+          "id": "fresh_en_002",
+          "question": "What does the first section of the LA unique reference number represent?",
+          "category": "retrieval",
+          "before": {
+            "hit_at_5": true,
+            "reciprocal_rank": 1.0,
+            "packed_support": true
+          },
+          "after": {
+            "hit_at_5": true,
+            "reciprocal_rank": 1.0,
+            "packed_support": true
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U1"
+          ]
+        },
+        {
+          "id": "fresh_en_003",
+          "question": "How many digits must an ECO4 Flex Route 4 application number contain?",
+          "category": "retrieval",
+          "before": {
+            "hit_at_5": true,
+            "reciprocal_rank": 1.0,
+            "packed_support": true
+          },
+          "after": {
+            "hit_at_5": true,
+            "reciprocal_rank": 1.0,
+            "packed_support": true
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U11",
+            "U1"
+          ]
+        },
+        {
+          "id": "fresh_en_004",
+          "question": "Does an ECO4 or GBIS Flex third-party referral guarantee that measures will be installed?",
+          "category": "retrieval",
+          "before": {
+            "hit_at_5": true,
+            "reciprocal_rank": 0.3333333333333333,
+            "packed_support": false
+          },
+          "after": {
+            "hit_at_5": true,
+            "reciprocal_rank": 0.3333333333333333,
+            "packed_support": false
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U8",
+            "U3"
+          ]
+        },
+        {
+          "id": "fresh_en_005",
+          "question": "What signed document must Citizens Advice produce when referring a household struggling to pay energy bills?",
+          "category": "retrieval",
+          "before": {
+            "hit_at_5": true,
+            "reciprocal_rank": 0.3333333333333333,
+            "packed_support": true
+          },
+          "after": {
+            "hit_at_5": true,
+            "reciprocal_rank": 0.3333333333333333,
+            "packed_support": true
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U2"
+          ]
+        },
+        {
+          "id": "fresh_en_006",
+          "question": "For Flex Route 2 Proxy 3, is an NHS referral letter mandatory?",
+          "category": "retrieval",
+          "before": {
+            "hit_at_5": true,
+            "reciprocal_rank": 0.3333333333333333,
+            "packed_support": false
+          },
+          "after": {
+            "hit_at_5": true,
+            "reciprocal_rank": 0.3333333333333333,
+            "packed_support": false
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U5",
+            "U11"
+          ]
+        },
+        {
+          "id": "fresh_en_007",
+          "question": "What colours should the lobby sector and fire sector folders be?",
+          "category": "retrieval",
+          "before": {
+            "hit_at_5": true,
+            "reciprocal_rank": 0.3333333333333333,
+            "packed_support": false
+          },
+          "after": {
+            "hit_at_5": true,
+            "reciprocal_rank": 0.3333333333333333,
+            "packed_support": false
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U2",
+            "U7"
+          ]
+        },
+        {
+          "id": "fresh_en_008",
+          "question": "How many copies of the Building Emergency Evacuation Plan should be kept in the secure information box?",
+          "category": "retrieval",
+          "before": {
+            "hit_at_5": true,
+            "reciprocal_rank": 0.5,
+            "packed_support": true
+          },
+          "after": {
+            "hit_at_5": true,
+            "reciprocal_rank": 0.5,
+            "packed_support": true
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U1",
+            "U10"
+          ]
+        },
+        {
+          "id": "fresh_en_009",
+          "question": "What is the minimum number of riser outlet keys recommended in the fire sector folder?",
+          "category": "retrieval",
+          "before": {
+            "hit_at_5": true,
+            "reciprocal_rank": 0.3333333333333333,
+            "packed_support": false
+          },
+          "after": {
+            "hit_at_5": true,
+            "reciprocal_rank": 0.3333333333333333,
+            "packed_support": false
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U8",
+            "U9"
+          ]
+        },
+        {
+          "id": "fresh_en_010",
+          "question": "On what date did GBIS Flex end according to this statement of intent template?",
+          "category": "retrieval",
+          "before": {
+            "hit_at_5": true,
+            "reciprocal_rank": 0.5,
+            "packed_support": false
+          },
+          "after": {
+            "hit_at_5": true,
+            "reciprocal_rank": 0.5,
+            "packed_support": false
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U1"
+          ]
+        },
+        {
+          "id": "fresh_en_011",
+          "question": "What information about qualifying schemes must be included for Route 2 Proxy 5?",
+          "category": "retrieval",
+          "before": {
+            "hit_at_5": true,
+            "reciprocal_rank": 1.0,
+            "packed_support": true
+          },
+          "after": {
+            "hit_at_5": true,
+            "reciprocal_rank": 1.0,
+            "packed_support": true
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U1"
+          ]
+        },
+        {
+          "id": "fresh_en_012",
+          "question": "What legal obligation does ECO4 place on energy suppliers?",
+          "category": "retrieval",
+          "before": {
+            "hit_at_5": true,
+            "reciprocal_rank": 1.0,
+            "packed_support": true
+          },
+          "after": {
+            "hit_at_5": true,
+            "reciprocal_rank": 1.0,
+            "packed_support": true
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U1"
+          ]
+        },
+        {
+          "id": "fresh_en_013",
+          "question": "What age threshold is listed for older people vulnerable to cold under Route 2?",
+          "category": "retrieval",
+          "before": {
+            "hit_at_5": true,
+            "reciprocal_rank": 0.25,
+            "packed_support": false
+          },
+          "after": {
+            "hit_at_5": true,
+            "reciprocal_rank": 0.25,
+            "packed_support": false
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U1"
+          ]
+        },
+        {
+          "id": "fresh_en_014",
+          "question": "From what kind of email address must a digital medical referral be sent?",
+          "category": "retrieval",
+          "before": {
+            "hit_at_5": true,
+            "reciprocal_rank": 0.5,
+            "packed_support": false
+          },
+          "after": {
+            "hit_at_5": true,
+            "reciprocal_rank": 0.5,
+            "packed_support": false
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U1"
+          ]
+        },
+        {
+          "id": "fresh_en_015",
+          "question": "Where applicable, what stamp authenticates a printed medical referral letter?",
+          "category": "retrieval",
+          "before": {
+            "hit_at_5": true,
+            "reciprocal_rank": 1.0,
+            "packed_support": true
+          },
+          "after": {
+            "hit_at_5": true,
+            "reciprocal_rank": 1.0,
+            "packed_support": true
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U1"
+          ]
+        },
+        {
+          "id": "fresh_en_016",
+          "question": "What combined gross annual household income threshold applies to Route 1?",
+          "category": "retrieval",
+          "before": {
+            "hit_at_5": true,
+            "reciprocal_rank": 1.0,
+            "packed_support": true
+          },
+          "after": {
+            "hit_at_5": true,
+            "reciprocal_rank": 1.0,
+            "packed_support": true
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U1"
+          ]
+        },
+        {
+          "id": "fresh_en_017",
+          "question": "How many criteria must a household satisfy for Route 2?",
+          "category": "retrieval",
+          "before": {
+            "hit_at_5": true,
+            "reciprocal_rank": 1.0,
+            "packed_support": true
+          },
+          "after": {
+            "hit_at_5": true,
+            "reciprocal_rank": 1.0,
+            "packed_support": true
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U1"
+          ]
+        },
+        {
+          "id": "fresh_en_018",
+          "question": "Does completing this householder application form guarantee eligibility for the schemes?",
+          "category": "retrieval",
+          "before": {
+            "hit_at_5": true,
+            "reciprocal_rank": 1.0,
+            "packed_support": true
+          },
+          "after": {
+            "hit_at_5": true,
+            "reciprocal_rank": 1.0,
+            "packed_support": true
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U1"
+          ]
+        },
+        {
+          "id": "fresh_en_019",
+          "question": "What test does the fire risk assessment ask about for landlord-supplied portable electrical appliances?",
+          "category": "retrieval",
+          "before": {
+            "hit_at_5": true,
+            "reciprocal_rank": 0.5,
+            "packed_support": false
+          },
+          "after": {
+            "hit_at_5": true,
+            "reciprocal_rank": 0.5,
+            "packed_support": true
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U4",
+            "U1"
+          ]
+        },
+        {
+          "id": "fresh_en_020",
+          "question": "Which four groups of occupants are listed as being especially at risk from fire?",
+          "category": "retrieval",
+          "before": {
+            "hit_at_5": true,
+            "reciprocal_rank": 0.2,
+            "packed_support": false
+          },
+          "after": {
+            "hit_at_5": true,
+            "reciprocal_rank": 0.2,
+            "packed_support": false
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U2",
+            "U3"
+          ]
+        },
+        {
+          "id": "fresh_en_021",
+          "question": "Which action-plan columns record the responsible person, deadline and completion sign-off?",
+          "category": "retrieval",
+          "before": {
+            "hit_at_5": false,
+            "reciprocal_rank": 0,
+            "packed_support": false
+          },
+          "after": {
+            "hit_at_5": false,
+            "reciprocal_rank": 0,
+            "packed_support": false
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U1",
+            "U2"
+          ]
+        },
+        {
+          "id": "fresh_en_022",
+          "question": "What was the Total Electric Industry residential electricity price in 2024?",
+          "category": "retrieval",
+          "before": {
+            "hit_at_5": true,
+            "reciprocal_rank": 0.5,
+            "packed_support": false
+          },
+          "after": {
+            "hit_at_5": true,
+            "reciprocal_rank": 0.5,
+            "packed_support": true
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U1",
+            "U3",
+            "U4"
+          ]
+        },
+        {
+          "id": "fresh_en_023",
+          "question": "What was the Competitive Service Providers industrial electricity price in 2024?",
+          "category": "retrieval",
+          "before": {
+            "hit_at_5": false,
+            "reciprocal_rank": 0,
+            "packed_support": false
+          },
+          "after": {
+            "hit_at_5": true,
+            "reciprocal_rank": 0.5,
+            "packed_support": true
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U1",
+            "U3",
+            "U5"
+          ]
+        },
+        {
+          "id": "fresh_en_024",
+          "question": "What was the Delivery-Only Providers transportation electricity price in 2024?",
+          "category": "retrieval",
+          "before": {
+            "hit_at_5": true,
+            "reciprocal_rank": 0.5,
+            "packed_support": false
+          },
+          "after": {
+            "hit_at_5": true,
+            "reciprocal_rank": 0.5,
+            "packed_support": true
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U2",
+            "U4",
+            "U8"
+          ]
+        },
+        {
+          "id": "fresh_en_025",
+          "question": "What was total coal net generation across all sectors in 2024?",
+          "category": "retrieval",
+          "before": {
+            "hit_at_5": true,
+            "reciprocal_rank": 1.0,
+            "packed_support": true
+          },
+          "after": {
+            "hit_at_5": false,
+            "reciprocal_rank": 0.16666666666666666,
+            "packed_support": false
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U2"
+          ]
+        },
+        {
+          "id": "fresh_en_026",
+          "question": "How much natural gas was consumed for electricity generation in 2024 across all sectors?",
+          "category": "retrieval",
+          "before": {
+            "hit_at_5": false,
+            "reciprocal_rank": 0,
+            "packed_support": false
+          },
+          "after": {
+            "hit_at_5": true,
+            "reciprocal_rank": 1.0,
+            "packed_support": true
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U2"
+          ]
+        },
+        {
+          "id": "fresh_en_027",
+          "question": "What was residential electricity sales revenue in 2024?",
+          "category": "retrieval",
+          "before": {
+            "hit_at_5": false,
+            "reciprocal_rank": 0.125,
+            "packed_support": false
+          },
+          "after": {
+            "hit_at_5": true,
+            "reciprocal_rank": 1.0,
+            "packed_support": true
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U6",
+            "U1"
+          ]
+        },
+        {
+          "id": "fresh_en_028",
+          "question": "Which Sheet1 column stores the property postcode?",
+          "category": "retrieval",
+          "before": {
+            "hit_at_5": true,
+            "reciprocal_rank": 1.0,
+            "packed_support": true
+          },
+          "after": {
+            "hit_at_5": true,
+            "reciprocal_rank": 1.0,
+            "packed_support": true
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U1",
+            "U2",
+            "U3"
+          ]
+        },
+        {
+          "id": "fresh_en_029",
+          "question": "Which Sheet1 field records the Route 4 application number?",
+          "category": "retrieval",
+          "before": {
+            "hit_at_5": true,
+            "reciprocal_rank": 1.0,
+            "packed_support": true
+          },
+          "after": {
+            "hit_at_5": true,
+            "reciprocal_rank": 1.0,
+            "packed_support": true
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U1",
+            "U2",
+            "U3",
+            "U4"
+          ]
+        },
+        {
+          "id": "fresh_en_030",
+          "question": "Which Sheet1 field records the statement of intent publication date?",
+          "category": "retrieval",
+          "before": {
+            "hit_at_5": true,
+            "reciprocal_rank": 1.0,
+            "packed_support": true
+          },
+          "after": {
+            "hit_at_5": true,
+            "reciprocal_rank": 1.0,
+            "packed_support": true
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U1",
+            "U2",
+            "U3"
+          ]
+        }
+      ],
+      "historical_report_sha256": "27909daa54d426197861d7c1d2096b71fd67443be1d1b2b78739e1b5acddad93",
+      "new_report_sha256": "527689faa61abebef34a93a6023f196134eca9e1074b4337e1f3f1b869cfbd4c"
+    },
+    "budget_5000": {
+      "before_metrics": {
+        "numeric": {
+          "cases": 5,
+          "passed": 0,
+          "target_row_value_retained": {
+            "hits": 3,
+            "total": 5
+          },
+          "native_unit_retained": {
+            "hits": 0,
+            "total": 5
+          },
+          "row_value_unit_retained": {
+            "hits": 0,
+            "total": 5
+          }
+        },
+        "condition": {
+          "cases": 5,
+          "passed": 5,
+          "condition_relation_retained": {
+            "hits": 5,
+            "total": 5
+          },
+          "condition_protection_tagged": {
+            "hits": 3,
+            "total": 5
+          }
+        },
+        "conflict": {
+          "cases": 5,
+          "passed": 0,
+          "conflict_detected": {
+            "hits": 0,
+            "total": 5
+          },
+          "both_sources_retained": {
+            "hits": 5,
+            "total": 5
+          }
+        }
+      },
+      "after_metrics": {
+        "numeric": {
+          "cases": 5,
+          "passed": 5,
+          "target_row_value_retained": {
+            "hits": 5,
+            "total": 5
+          },
+          "native_unit_retained": {
+            "hits": 5,
+            "total": 5
+          },
+          "row_value_unit_retained": {
+            "hits": 5,
+            "total": 5
+          }
+        },
+        "condition": {
+          "cases": 5,
+          "passed": 5,
+          "condition_relation_retained": {
+            "hits": 5,
+            "total": 5
+          },
+          "condition_protection_tagged": {
+            "hits": 3,
+            "total": 5
+          }
+        },
+        "conflict": {
+          "cases": 5,
+          "passed": 5,
+          "conflict_detected": {
+            "hits": 5,
+            "total": 5
+          },
+          "both_sources_retained": {
+            "hits": 5,
+            "total": 5
+          }
+        }
+      },
+      "details": [
+        {
+          "id": "extra_numeric_01",
+          "question": "What was nuclear net generation across all sectors in 2023?",
+          "category": "numeric",
+          "before": {
+            "target_row_value_retained": true,
+            "native_unit_retained": false,
+            "row_value_unit_retained": false,
+            "passed": false
+          },
+          "after": {
+            "target_row_value_retained": true,
+            "native_unit_retained": true,
+            "row_value_unit_retained": true,
+            "passed": true
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U2",
+            "U4",
+            "U5",
+            "U6",
+            "U7"
+          ]
+        },
+        {
+          "id": "extra_numeric_02",
+          "question": "What was wind net generation across all sectors in 2024?",
+          "category": "numeric",
+          "before": {
+            "target_row_value_retained": true,
+            "native_unit_retained": false,
+            "row_value_unit_retained": false,
+            "passed": false
+          },
+          "after": {
+            "target_row_value_retained": true,
+            "native_unit_retained": true,
+            "row_value_unit_retained": true,
+            "passed": true
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U2",
+            "U4",
+            "U5",
+            "U6",
+            "U7"
+          ]
+        },
+        {
+          "id": "extra_numeric_03",
+          "question": "What was estimated small scale solar photovoltaic generation across all sectors in 2024?",
+          "category": "numeric",
+          "before": {
+            "target_row_value_retained": true,
+            "native_unit_retained": false,
+            "row_value_unit_retained": false,
+            "passed": false
+          },
+          "after": {
+            "target_row_value_retained": true,
+            "native_unit_retained": true,
+            "row_value_unit_retained": true,
+            "passed": true
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U1",
+            "U2",
+            "U4",
+            "U3",
+            "U6"
+          ]
+        },
+        {
+          "id": "extra_numeric_04",
+          "question": "How much coal was consumed for electricity generation across all sectors in 2024?",
+          "category": "numeric",
+          "before": {
+            "target_row_value_retained": false,
+            "native_unit_retained": false,
+            "row_value_unit_retained": false,
+            "passed": false
+          },
+          "after": {
+            "target_row_value_retained": true,
+            "native_unit_retained": true,
+            "row_value_unit_retained": true,
+            "passed": true
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U1",
+            "U6",
+            "U7",
+            "U4",
+            "U3",
+            "U9"
+          ]
+        },
+        {
+          "id": "extra_numeric_05",
+          "question": "What were total sales of electricity to ultimate customers across all sectors in 2024?",
+          "category": "numeric",
+          "before": {
+            "target_row_value_retained": false,
+            "native_unit_retained": false,
+            "row_value_unit_retained": false,
+            "passed": false
+          },
+          "after": {
+            "target_row_value_retained": true,
+            "native_unit_retained": true,
+            "row_value_unit_retained": true,
+            "passed": true
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U5",
+            "U7",
+            "U8",
+            "U2",
+            "U1",
+            "U3",
+            "U4"
+          ]
+        },
+        {
+          "id": "extra_condition_01",
+          "question": "Can criterion 1 be used together with criterion 3 in the householder application?",
+          "category": "condition",
+          "before": {
+            "condition_relation_retained": true,
+            "condition_protection_tagged": true,
+            "passed": true
+          },
+          "after": {
+            "condition_relation_retained": true,
+            "condition_protection_tagged": true,
+            "passed": true
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U2",
+            "U3",
+            "U5",
+            "U6",
+            "U8"
+          ]
+        },
+        {
+          "id": "extra_condition_02",
+          "question": "Which scheme is Route 4 applicable to, and is its scope restricted?",
+          "category": "condition",
+          "before": {
+            "condition_relation_retained": true,
+            "condition_protection_tagged": true,
+            "passed": true
+          },
+          "after": {
+            "condition_relation_retained": true,
+            "condition_protection_tagged": true,
+            "passed": true
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U3",
+            "U2",
+            "U1",
+            "U5",
+            "U6"
+          ]
+        },
+        {
+          "id": "extra_condition_03",
+          "question": "What approval is needed for a new household identification method before Route 4 can be used?",
+          "category": "condition",
+          "before": {
+            "condition_relation_retained": true,
+            "condition_protection_tagged": true,
+            "passed": true
+          },
+          "after": {
+            "condition_relation_retained": true,
+            "condition_protection_tagged": true,
+            "passed": true
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U2",
+            "U1",
+            "U3",
+            "U7",
+            "U8"
+          ]
+        },
+        {
+          "id": "extra_condition_04",
+          "question": "Under Route 2, what additional eligibility step supplements a medical referral for a reason other than low income?",
+          "category": "condition",
+          "before": {
+            "condition_relation_retained": true,
+            "condition_protection_tagged": false,
+            "passed": true
+          },
+          "after": {
+            "condition_relation_retained": true,
+            "condition_protection_tagged": false,
+            "passed": true
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U1",
+            "U2",
+            "U3",
+            "U4",
+            "U6"
+          ]
+        },
+        {
+          "id": "extra_condition_05",
+          "question": "What paper and referring organisation information are required for a printed medical referral?",
+          "category": "condition",
+          "before": {
+            "condition_relation_retained": true,
+            "condition_protection_tagged": false,
+            "passed": true
+          },
+          "after": {
+            "condition_relation_retained": true,
+            "condition_protection_tagged": false,
+            "passed": true
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U3",
+            "U1",
+            "U2",
+            "U5",
+            "U6"
+          ]
+        },
+        {
+          "id": "extra_conflict_01",
+          "question": "Do the two sources agree on the thickness of MockTile-Q? Report both measurements.",
+          "category": "conflict",
+          "before": {
+            "conflict_detected": false,
+            "both_sources_retained": true,
+            "passed": false
+          },
+          "after": {
+            "conflict_detected": true,
+            "both_sources_retained": true,
+            "passed": true
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U1",
+            "U3",
+            "U2",
+            "U4"
+          ]
+        },
+        {
+          "id": "extra_conflict_02",
+          "question": "Do the two sources agree on the width of MockStrip-R? Report both measurements.",
+          "category": "conflict",
+          "before": {
+            "conflict_detected": false,
+            "both_sources_retained": true,
+            "passed": false
+          },
+          "after": {
+            "conflict_detected": true,
+            "both_sources_retained": true,
+            "passed": true
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U1",
+            "U3",
+            "U2",
+            "U4"
+          ]
+        },
+        {
+          "id": "extra_conflict_03",
+          "question": "Do the two sources agree on the length of MockBeam-S? Report both measurements.",
+          "category": "conflict",
+          "before": {
+            "conflict_detected": false,
+            "both_sources_retained": true,
+            "passed": false
+          },
+          "after": {
+            "conflict_detected": true,
+            "both_sources_retained": true,
+            "passed": true
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U1",
+            "U3",
+            "U2",
+            "U4"
+          ]
+        },
+        {
+          "id": "extra_conflict_04",
+          "question": "Do the two sources agree on the weight of MockPanel-T? Report both measurements.",
+          "category": "conflict",
+          "before": {
+            "conflict_detected": false,
+            "both_sources_retained": true,
+            "passed": false
+          },
+          "after": {
+            "conflict_detected": true,
+            "both_sources_retained": true,
+            "passed": true
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U1",
+            "U3",
+            "U2",
+            "U4"
+          ]
+        },
+        {
+          "id": "extra_conflict_05",
+          "question": "Do the two sources agree on the area of MockSheet-U? Report both measurements.",
+          "category": "conflict",
+          "before": {
+            "conflict_detected": false,
+            "both_sources_retained": true,
+            "passed": false
+          },
+          "after": {
+            "conflict_detected": true,
+            "both_sources_retained": true,
+            "passed": true
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U1",
+            "U3",
+            "U2",
+            "U4"
+          ]
+        }
+      ],
+      "historical_report_sha256": "12cc22ef1a1a5888eeb99535a807cb7ed5b684a1a54bf8b0a800f4ae2db56566",
+      "new_report_sha256": "744a76091d01ef78c3fb72448f0bc96cf6ce304f30c4c304ed0094bf03545eea"
+    },
+    "budget_1800": {
+      "before_metrics": {
+        "numeric": {
+          "cases": 5,
+          "passed": 0,
+          "target_row_value_retained": {
+            "hits": 3,
+            "total": 5
+          },
+          "native_unit_retained": {
+            "hits": 0,
+            "total": 5
+          },
+          "row_value_unit_retained": {
+            "hits": 0,
+            "total": 5
+          }
+        },
+        "condition": {
+          "cases": 5,
+          "passed": 2,
+          "condition_relation_retained": {
+            "hits": 2,
+            "total": 5
+          },
+          "condition_protection_tagged": {
+            "hits": 1,
+            "total": 5
+          }
+        },
+        "conflict": {
+          "cases": 5,
+          "passed": 0,
+          "conflict_detected": {
+            "hits": 0,
+            "total": 5
+          },
+          "both_sources_retained": {
+            "hits": 5,
+            "total": 5
+          }
+        }
+      },
+      "after_metrics": {
+        "numeric": {
+          "cases": 5,
+          "passed": 5,
+          "target_row_value_retained": {
+            "hits": 5,
+            "total": 5
+          },
+          "native_unit_retained": {
+            "hits": 5,
+            "total": 5
+          },
+          "row_value_unit_retained": {
+            "hits": 5,
+            "total": 5
+          }
+        },
+        "condition": {
+          "cases": 5,
+          "passed": 2,
+          "condition_relation_retained": {
+            "hits": 2,
+            "total": 5
+          },
+          "condition_protection_tagged": {
+            "hits": 1,
+            "total": 5
+          }
+        },
+        "conflict": {
+          "cases": 5,
+          "passed": 5,
+          "conflict_detected": {
+            "hits": 5,
+            "total": 5
+          },
+          "both_sources_retained": {
+            "hits": 5,
+            "total": 5
+          }
+        }
+      },
+      "details": [
+        {
+          "id": "extra_numeric_01",
+          "question": "What was nuclear net generation across all sectors in 2023?",
+          "category": "numeric",
+          "before": {
+            "target_row_value_retained": true,
+            "native_unit_retained": false,
+            "row_value_unit_retained": false,
+            "passed": false
+          },
+          "after": {
+            "target_row_value_retained": true,
+            "native_unit_retained": true,
+            "row_value_unit_retained": true,
+            "passed": true
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U2",
+            "U4"
+          ]
+        },
+        {
+          "id": "extra_numeric_02",
+          "question": "What was wind net generation across all sectors in 2024?",
+          "category": "numeric",
+          "before": {
+            "target_row_value_retained": true,
+            "native_unit_retained": false,
+            "row_value_unit_retained": false,
+            "passed": false
+          },
+          "after": {
+            "target_row_value_retained": true,
+            "native_unit_retained": true,
+            "row_value_unit_retained": true,
+            "passed": true
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U2",
+            "U4"
+          ]
+        },
+        {
+          "id": "extra_numeric_03",
+          "question": "What was estimated small scale solar photovoltaic generation across all sectors in 2024?",
+          "category": "numeric",
+          "before": {
+            "target_row_value_retained": true,
+            "native_unit_retained": false,
+            "row_value_unit_retained": false,
+            "passed": false
+          },
+          "after": {
+            "target_row_value_retained": true,
+            "native_unit_retained": true,
+            "row_value_unit_retained": true,
+            "passed": true
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U1"
+          ]
+        },
+        {
+          "id": "extra_numeric_04",
+          "question": "How much coal was consumed for electricity generation across all sectors in 2024?",
+          "category": "numeric",
+          "before": {
+            "target_row_value_retained": false,
+            "native_unit_retained": false,
+            "row_value_unit_retained": false,
+            "passed": false
+          },
+          "after": {
+            "target_row_value_retained": true,
+            "native_unit_retained": true,
+            "row_value_unit_retained": true,
+            "passed": true
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U1",
+            "U6"
+          ]
+        },
+        {
+          "id": "extra_numeric_05",
+          "question": "What were total sales of electricity to ultimate customers across all sectors in 2024?",
+          "category": "numeric",
+          "before": {
+            "target_row_value_retained": false,
+            "native_unit_retained": false,
+            "row_value_unit_retained": false,
+            "passed": false
+          },
+          "after": {
+            "target_row_value_retained": true,
+            "native_unit_retained": true,
+            "row_value_unit_retained": true,
+            "passed": true
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U5",
+            "U7"
+          ]
+        },
+        {
+          "id": "extra_condition_01",
+          "question": "Can criterion 1 be used together with criterion 3 in the householder application?",
+          "category": "condition",
+          "before": {
+            "condition_relation_retained": true,
+            "condition_protection_tagged": true,
+            "passed": true
+          },
+          "after": {
+            "condition_relation_retained": true,
+            "condition_protection_tagged": true,
+            "passed": true
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U2"
+          ]
+        },
+        {
+          "id": "extra_condition_02",
+          "question": "Which scheme is Route 4 applicable to, and is its scope restricted?",
+          "category": "condition",
+          "before": {
+            "condition_relation_retained": false,
+            "condition_protection_tagged": false,
+            "passed": false
+          },
+          "after": {
+            "condition_relation_retained": false,
+            "condition_protection_tagged": false,
+            "passed": false
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U3"
+          ]
+        },
+        {
+          "id": "extra_condition_03",
+          "question": "What approval is needed for a new household identification method before Route 4 can be used?",
+          "category": "condition",
+          "before": {
+            "condition_relation_retained": false,
+            "condition_protection_tagged": false,
+            "passed": false
+          },
+          "after": {
+            "condition_relation_retained": false,
+            "condition_protection_tagged": false,
+            "passed": false
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U2"
+          ]
+        },
+        {
+          "id": "extra_condition_04",
+          "question": "Under Route 2, what additional eligibility step supplements a medical referral for a reason other than low income?",
+          "category": "condition",
+          "before": {
+            "condition_relation_retained": true,
+            "condition_protection_tagged": false,
+            "passed": true
+          },
+          "after": {
+            "condition_relation_retained": true,
+            "condition_protection_tagged": false,
+            "passed": true
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U1"
+          ]
+        },
+        {
+          "id": "extra_condition_05",
+          "question": "What paper and referring organisation information are required for a printed medical referral?",
+          "category": "condition",
+          "before": {
+            "condition_relation_retained": false,
+            "condition_protection_tagged": false,
+            "passed": false
+          },
+          "after": {
+            "condition_relation_retained": false,
+            "condition_protection_tagged": false,
+            "passed": false
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U3"
+          ]
+        },
+        {
+          "id": "extra_conflict_01",
+          "question": "Do the two sources agree on the thickness of MockTile-Q? Report both measurements.",
+          "category": "conflict",
+          "before": {
+            "conflict_detected": false,
+            "both_sources_retained": true,
+            "passed": false
+          },
+          "after": {
+            "conflict_detected": true,
+            "both_sources_retained": true,
+            "passed": true
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U1",
+            "U3",
+            "U2",
+            "U4"
+          ]
+        },
+        {
+          "id": "extra_conflict_02",
+          "question": "Do the two sources agree on the width of MockStrip-R? Report both measurements.",
+          "category": "conflict",
+          "before": {
+            "conflict_detected": false,
+            "both_sources_retained": true,
+            "passed": false
+          },
+          "after": {
+            "conflict_detected": true,
+            "both_sources_retained": true,
+            "passed": true
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U1",
+            "U3",
+            "U2",
+            "U4"
+          ]
+        },
+        {
+          "id": "extra_conflict_03",
+          "question": "Do the two sources agree on the length of MockBeam-S? Report both measurements.",
+          "category": "conflict",
+          "before": {
+            "conflict_detected": false,
+            "both_sources_retained": true,
+            "passed": false
+          },
+          "after": {
+            "conflict_detected": true,
+            "both_sources_retained": true,
+            "passed": true
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U1",
+            "U3",
+            "U2",
+            "U4"
+          ]
+        },
+        {
+          "id": "extra_conflict_04",
+          "question": "Do the two sources agree on the weight of MockPanel-T? Report both measurements.",
+          "category": "conflict",
+          "before": {
+            "conflict_detected": false,
+            "both_sources_retained": true,
+            "passed": false
+          },
+          "after": {
+            "conflict_detected": true,
+            "both_sources_retained": true,
+            "passed": true
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U1",
+            "U3",
+            "U2",
+            "U4"
+          ]
+        },
+        {
+          "id": "extra_conflict_05",
+          "question": "Do the two sources agree on the area of MockSheet-U? Report both measurements.",
+          "category": "conflict",
+          "before": {
+            "conflict_detected": false,
+            "both_sources_retained": true,
+            "passed": false
+          },
+          "after": {
+            "conflict_detected": true,
+            "both_sources_retained": true,
+            "passed": true
+          },
+          "error": null,
+          "kept_evidence_ids": [
+            "U1",
+            "U3",
+            "U2",
+            "U4"
+          ]
+        }
+      ],
+      "historical_report_sha256": "9bc1ca5f2e50b64693dee670116696c611470260a4861bec0400ad07b68d345d",
+      "new_report_sha256": "bad8bad6aafea83dd93f378c6c409a0d037c5e0cc5b24584e75521e0e294e8e2"
+    }
+  }
+}

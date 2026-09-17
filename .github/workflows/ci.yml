@@ -30,6 +30,8 @@ jobs:
       - run: python scripts/verify_public_release.py
       - run: python scripts/public_smoke.py
       - run: python scripts/verify_evaluation_results.py
+      - run: python scripts/verify_native_relation_results.py
+      - run: python scripts/verify_unified_publication.py
       - run: python scripts/audit_public_sources.py
 
   frontend-build:
