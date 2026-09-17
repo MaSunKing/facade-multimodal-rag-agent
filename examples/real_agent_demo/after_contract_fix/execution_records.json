@@ -1,0 +1,1186 @@
+{
+  "provenance": "actual_local_http_run_with_project_authored_synthetic_attachments",
+  "model_generation_tested": true,
+  "evaluation_claim": "Three qualitative demos, not an accuracy benchmark or unseen test.",
+  "web_search_used": false,
+  "llm_judge_used": false,
+  "service_runtime": {
+    "generation_mode": "qwen3_vl_4bit_grounded_rag",
+    "model_loaded": true,
+    "planner_max_new_tokens": 192
+  },
+  "source_sha256": {
+    "sample_checklist.docx": "87ae57e1ca9d4343ca2e3774924883aa625d5a32a0a143360d7d689f4de7a75d",
+    "sample_drawing.png": "c778cf1c04b58d60de2849d919d7d18738a1e8f58fd144b90dbad23e9b20cf13",
+    "sample_product.pdf": "dd40ff52c57bc7d501bda84a20b1c6869598ce91aa7c4e3d3974a326760d7cf5",
+    "sample_spec.xlsx": "161087aa0aad51f49fb0a01bb76e5c61bcd64107ff7ac4ad22db5432a66398da"
+  },
+  "execution_provenance": {
+    "started_at": "2026-09-17T07:28:04.989899+00:00",
+    "service_scope": "Caller-specified running source checkout; no inference of process version from HTTP200.",
+    "source_is_public_checkout": false,
+    "fingerprint_normalization": "CRLF_to_LF"
+  },
+  "code_fingerprints": {
+    "backend/app.py": "0ecc04db8c540c4981195dbc1f93c2d7303b9481b2f9434635ec1677f78e52f5",
+    "backend/sales/answer_graph.py": "51c2fa92e075844e83ddd83210eb4884f97df6b1b5c2c98d2a21309b91e0863e",
+    "backend/sales/tool_planner.py": "fefaa2f2cfadf358611512c66e1921180720b9e78fcad72eb65f49df8430148c",
+    "backend/sales/context_engine.py": "48e8bd0bd6a72760cefdceefce9b07a05496b5ecec9ce5221a9df6963cec2a71",
+    "backend/sales/fact_normalization.py": "416707596e634f850d0ad88077d4145e45a6a6b030c51a13421e08f6cd878bbb",
+    "backend/documents/customer_sessions.py": "d17230072cc9e240ddd3fc3496c2302ccbe836c8343e427e3dd5c68edd2b35cc",
+    "backend/documents/table_context.py": "9b42cf08a2b77b0ddf0ce039f13f783688e7657c9d6efc2f1223a9b652218fc8"
+  },
+  "publication_excludes": [
+    "Owner/session/request identifiers",
+    "Signed asset URLs and tickets",
+    "Local paths",
+    "Full business index and raw responses"
+  ],
+  "cases": [
+    {
+      "id": "joint_sources",
+      "question": "请总结上传检查表的核对要求，再结合企业真岩石产品资料介绍能确认的产品信息和仍需核对的项目条件。DemoPanel-X是虚构产品，不要当作真岩石，也不要声称已符合工程标准。",
+      "files": [
+        "sample_checklist.docx"
+      ],
+      "upload_status": 200,
+      "answer_status": 200,
+      "latency_seconds": 54.223,
+      "session_deleted": true,
+      "answerable": true,
+      "customer_reply": "1.上传检查表核对要求：需验证DemoPanel-X的厚度、基材及固定设计，不提供工程建议。2.可确认产品信息：面板形状尺寸需符合设计要求，加工允许偏差应符合表8.5.1或8.4.1规定。3.仍需核对条件：需结合GB 55022-2021强制性规范判断旧楼改造适用性，且需依据JG/T 512-2017标准边界比较板材饰面方案。4.限制说明：DemoPanel-X为虚构产品，不构成真岩石产品合格证明，不可直接用于工程标准判定。",
+      "key_points": [
+        "检查表要求核对厚度、基材与固定设计",
+        "需结合强制性规范与行业标准核对适用性"
+      ],
+      "missing_information": [
+        "未提供DemoPanel-X具体厚度、基材或固定设计的数值或图纸",
+        "未提供表8.4.1或8.5.1的具体允许偏差数值",
+        "未提供具体工程场景或建筑状况以核对GB 55022-2021适用性"
+      ],
+      "risk_warnings": [
+        "规范符合性未获明确标准证据支持，相关肯定结论已移除。"
+      ],
+      "next_action": "请提供DemoPanel-X的具体参数、表8.4.1/8.5.1的允许偏差值及工程背景，以便完成核对条件验证。",
+      "image_observations": [],
+      "model_used": true,
+      "selected_tools": [
+        "customer_documents",
+        "company_rag"
+      ],
+      "execution": {
+        "engine": "langgraph",
+        "workflow": "bounded_tool_agent_v3",
+        "node_trace": [
+          {
+            "node": "customer_documents",
+            "round": 1,
+            "elapsed_ms": 10.26,
+            "reused": false,
+            "operation_error": null
+          },
+          {
+            "node": "company_rag",
+            "round": 1,
+            "elapsed_ms": 3424.83,
+            "reused": false,
+            "operation_error": null
+          },
+          {
+            "node": "assess_coverage",
+            "round": 1,
+            "elapsed_ms": 0.03,
+            "reused": false,
+            "operation_error": null
+          },
+          {
+            "node": "compose_evidence",
+            "round": 1,
+            "elapsed_ms": 0.92,
+            "reused": false,
+            "operation_error": null
+          },
+          {
+            "node": "rerank_evidence",
+            "round": 1,
+            "elapsed_ms": 1399.33,
+            "reused": false,
+            "operation_error": null
+          },
+          {
+            "node": "generate_answer",
+            "round": 1,
+            "elapsed_ms": 44215.71,
+            "reused": false,
+            "operation_error": null
+          },
+          {
+            "node": "validate_answer",
+            "round": 1,
+            "elapsed_ms": 5.4,
+            "reused": false,
+            "operation_error": null
+          }
+        ],
+        "plan_reason": "explicit_attachment_semantics_fast_path",
+        "planner_latency_ms": 1.77,
+        "planner_model_load_ms": 0.0,
+        "planner_generation_ms": 0.0,
+        "planning_rounds": 1,
+        "tool_rounds": 1,
+        "recovery_actions": [],
+        "gpu_execution_policy": "sequential"
+      },
+      "generation_input_audit": {
+        "max_prompt_tokens": 4750,
+        "actual_prompt_tokens": 3549,
+        "kept_evidence_ids": [
+          "U1",
+          "T2",
+          "T1",
+          "T3",
+          "T5",
+          "T4"
+        ],
+        "removed_evidence_ids": [],
+        "budget_satisfied": true,
+        "canonical_evidence_preserved": true,
+        "generated_tokens": 405,
+        "generation_seconds": 32.78,
+        "max_new_tokens": 520,
+        "hit_output_limit": false,
+        "oom_retry_used": false,
+        "analysis_refusal_retry_used": false,
+        "aspect_coverage_repair_used": false
+      },
+      "visual_input_manifest": [],
+      "citations": [
+        {
+          "evidence_id": "U1",
+          "document_name": "sample_checklist.docx",
+          "source_page": null,
+          "section_heading": "word:body:paragraph:1",
+          "source_type": "customer_upload",
+          "sheet_name": null,
+          "source_range": null,
+          "row_index": null,
+          "bounding_box": null,
+          "parser": "docx-xml"
+        },
+        {
+          "evidence_id": "U1",
+          "document_name": "sample_checklist.docx",
+          "source_page": null,
+          "section_heading": "word:body:paragraph:2",
+          "source_type": "customer_upload",
+          "sheet_name": null,
+          "source_range": null,
+          "row_index": null,
+          "bounding_box": null,
+          "parser": "docx-xml"
+        },
+        {
+          "evidence_id": "U1",
+          "document_name": "sample_checklist.docx",
+          "source_page": null,
+          "section_heading": "word:media:image1.png",
+          "source_type": "customer_upload",
+          "sheet_name": null,
+          "source_range": null,
+          "row_index": null,
+          "bounding_box": null,
+          "parser": "docx-media"
+        },
+        {
+          "evidence_id": "T2",
+          "document_name": "建筑外墙涂料通用技术要求",
+          "source_page": null,
+          "section_heading": "建筑外墙涂料通用技术要求",
+          "source_range": null
+        },
+        {
+          "evidence_id": "T1",
+          "document_name": "既有建筑维护与改造通用规范",
+          "source_page": null,
+          "section_heading": "既有建筑维护与改造通用规范",
+          "source_range": null
+        },
+        {
+          "evidence_id": "T3",
+          "document_name": "JGJ 336-2016 人造板材幕墙工程技术规范(1)",
+          "source_page": 70,
+          "section_heading": "8.5.1",
+          "source_range": null
+        },
+        {
+          "evidence_id": "T4",
+          "document_name": "JGJ 336-2016 人造板材幕墙工程技术规范(1)",
+          "source_page": 69,
+          "section_heading": "8.4.1",
+          "source_range": null
+        },
+        {
+          "evidence_id": "T5",
+          "document_name": "建筑节能工程施工质量验收标准",
+          "source_page": null,
+          "section_heading": "建筑节能工程施工质量验收标准",
+          "source_range": null
+        }
+      ],
+      "retrieval_evidence": [
+        {
+          "result_id": "U1",
+          "document_name": "sample_checklist.docx",
+          "source_page": null,
+          "section_heading": "word:body:paragraph:1",
+          "excerpt": "[BLOCK id=word:body:paragraph:1 kind=paragraph source=word;section=word:body:paragraph:1] Synthetic installation checklist [BLOCK id=word:body:paragraph:2 kind="
+        },
+        {
+          "result_id": "T2",
+          "document_name": "建筑外墙涂料通用技术要求",
+          "source_page": null,
+          "section_heading": "建筑外墙涂料通用技术要求",
+          "excerpt": "资料名称：建筑外墙涂料通用技术要求。标准编号：JG/T 512-2017。发布单位：全国标准信息公共服务平台；主管部门为住房和城乡建设部。核验状态：现行。发布日期：2017-03-20。实施日期：2017-09-01。适用边界：建筑外墙涂料的通用技术背景；用于与板材饰面方案比较时，只能比较标准适用范围内的项目。经审核信"
+        },
+        {
+          "result_id": "T1",
+          "document_name": "既有建筑维护与改造通用规范",
+          "source_page": null,
+          "section_heading": "既有建筑维护与改造通用规范",
+          "excerpt": "资料名称：既有建筑维护与改造通用规范。标准编号：GB 55022-2021。发布单位：住房和城乡建设部公告；北京市人民政府门户网站公开。核验状态：现行。发布日期：2021-09-08。实施日期：2022-04-01。适用边界：既有建筑检查、维护、修缮和改造的强制性通用框架；旧楼外立面改造不能跳过原建筑检查、设计和验收。"
+        },
+        {
+          "result_id": "T3",
+          "document_name": "JGJ 336-2016 人造板材幕墙工程技术规范(1)",
+          "source_page": 70,
+          "section_heading": "8.5.1",
+          "excerpt": "2 成品面板的形状、尺寸应符合设计要求，加工允许偏差应符合表8.5.1的规定。"
+        },
+        {
+          "result_id": "T5",
+          "document_name": "建筑节能工程施工质量验收标准",
+          "source_page": null,
+          "section_heading": "建筑节能工程施工质量验收标准",
+          "excerpt": "资料名称：建筑节能工程施工质量验收标准。标准编号：GB 50411-2019。发布单位：上海市住房和城乡建设管理委员会公开。适用边界：建筑节能工程施工质量验收的专业标准入口；具体条文、版本状态和项目适用性应从住建部门正式文本核验。经审核信息：上海市住房和城乡建设管理委员会技术标准页面公开列出《建筑节能工程施工质量验收标"
+        },
+        {
+          "result_id": "T4",
+          "document_name": "JGJ 336-2016 人造板材幕墙工程技术规范(1)",
+          "source_page": 69,
+          "section_heading": "8.4.1",
+          "excerpt": "2 成品面板的形状、尺寸应符合设计要求，加工允许偏差应符合表8.4.1的规定。"
+        }
+      ],
+      "excerpt_note": "Publication excerpts are capped at 160 characters; they are NOT the complete model input.",
+      "audits": {
+        "answer_document_coverage": {
+          "expected_visible_documents": [
+            "sample_checklist.docx"
+          ],
+          "addressed_documents": [
+            "sample_checklist.docx"
+          ],
+          "verified_missing_documents": [],
+          "scope": "local_lookup",
+          "semantic_assertion_completeness_verified": false
+        },
+        "answer_aspect_coverage": {
+          "requested_aspects": [],
+          "covered_aspect_indices": [],
+          "evidence_missing_aspect_indices": [],
+          "unaccounted_aspect_indices": [],
+          "complete": true,
+          "method": "citation_and_exact_answer_span_contract_not_semantic_gold"
+        },
+        "evidence_support_audit": {
+          "cited_evidence_ids": [
+            "U1",
+            "T2",
+            "T1",
+            "T3",
+            "T4",
+            "T5"
+          ],
+          "text_cited_evidence_ids": [
+            "U1",
+            "T2",
+            "T1",
+            "T3",
+            "T4",
+            "T5"
+          ],
+          "visual_cited_evidence_ids": [],
+          "lexical_overlap_term_count": 63,
+          "answer_term_count": 130,
+          "unsupported_numeric_claims": [],
+          "unsupported_promotional_claims": [],
+          "incompatible_standard_scope_claims": [],
+          "visual_numeric_claims_requiring_review": [],
+          "visual_observation_grounded": false,
+          "passed": true
+        },
+        "visual_input_coverage_audit": {
+          "expected_image_numbers": [],
+          "missing_image_observations": [],
+          "expected_visual_evidence_ids": [],
+          "cited_visual_evidence_ids": [],
+          "observed_visual_evidence_ids": [],
+          "missing_citation_ids": [],
+          "missing_observation_ids": [],
+          "complete": true
+        },
+        "normative_claim_audit": {
+          "removed_claims": [
+            "面板尺寸偏差需符合标准表8.4.1或8.5.1"
+          ],
+          "cited_standard_evidence_ids": [
+            "T2",
+            "T5",
+            "T1"
+          ],
+          "standard_presence_is_not_compliance_verdict": true
+        }
+      }
+    },
+    {
+      "id": "source_difference",
+      "question": "比较上传的PDF和Excel中DemoPanel-X的厚度记录：有哪些数值、分别在哪里、版本是否相同？请同时引用两个文件，不擅自认定哪个值正确。",
+      "files": [
+        "sample_product.pdf",
+        "sample_spec.xlsx"
+      ],
+      "upload_status": 200,
+      "answer_status": 200,
+      "latency_seconds": 28.731,
+      "session_deleted": true,
+      "answerable": true,
+      "customer_reply": "在Excel的'Current'表中，DemoPanel-X的厚度记录为20mm；在'Other source'表中，记录为18mm。PDF文件中明确标注厚度为20mm，并提示另一来源记录为18mm，版本标识不同（A vs B）。两个文件的厚度数值不同，版本也不同。",
+      "key_points": [
+        "Excel中'Current'表厚度为20mm，'Other source'表为18mm。",
+        "PDF文件明确标注厚度为20mm，但提示存在18mm的另一版本。",
+        "两个文件的厚度数值和版本标识均不一致。"
+      ],
+      "missing_information": [],
+      "risk_warnings": [],
+      "next_action": "可继续补充产品、工艺、节点或项目条件，以便缩小资料范围。",
+      "image_observations": [
+        "[image1|direct_upload] PDF第一页显示SYNTHETIC DemoPanel-X.Thickness: 20 mm.Not a real specification.并附有修订说明：another source states 18 mm.Verify versions before use."
+      ],
+      "model_used": true,
+      "selected_tools": [
+        "customer_documents"
+      ],
+      "execution": {
+        "engine": "langgraph",
+        "workflow": "bounded_tool_agent_v3",
+        "node_trace": [
+          {
+            "node": "customer_documents",
+            "round": 1,
+            "elapsed_ms": 10.26,
+            "reused": false,
+            "operation_error": null
+          },
+          {
+            "node": "assess_coverage",
+            "round": 1,
+            "elapsed_ms": 0.02,
+            "reused": false,
+            "operation_error": null
+          },
+          {
+            "node": "compose_evidence",
+            "round": 1,
+            "elapsed_ms": 0.14,
+            "reused": false,
+            "operation_error": null
+          },
+          {
+            "node": "rerank_evidence",
+            "round": 1,
+            "elapsed_ms": 1563.8,
+            "reused": false,
+            "operation_error": null
+          },
+          {
+            "node": "generate_answer",
+            "round": 1,
+            "elapsed_ms": 27027.12,
+            "reused": false,
+            "operation_error": null
+          },
+          {
+            "node": "validate_answer",
+            "round": 1,
+            "elapsed_ms": 1.22,
+            "reused": false,
+            "operation_error": null
+          }
+        ],
+        "plan_reason": "explicit_attachment_semantics_fast_path",
+        "planner_latency_ms": 1.7,
+        "planner_model_load_ms": 0.0,
+        "planner_generation_ms": 0.0,
+        "planning_rounds": 1,
+        "tool_rounds": 1,
+        "recovery_actions": [],
+        "gpu_execution_policy": "sequential"
+      },
+      "generation_input_audit": {
+        "max_prompt_tokens": 4650,
+        "actual_prompt_tokens": 4529,
+        "kept_evidence_ids": [
+          "U2",
+          "U3",
+          "U1",
+          "U6",
+          "U7",
+          "U4",
+          "U8",
+          "U5",
+          "V1"
+        ],
+        "removed_evidence_ids": [],
+        "budget_satisfied": true,
+        "canonical_evidence_preserved": true,
+        "analysis_refusal_retry_used": false,
+        "aspect_coverage_repair_used": false,
+        "visual_runtime_timings": {
+          "visual_model_load": 0.011,
+          "image_preprocessing": 14.695,
+          "visual_processor": 59.602,
+          "input_tokens": 5091,
+          "image_count": 1,
+          "image_grid_thw": [
+            [
+              1,
+              56,
+              40
+            ]
+          ],
+          "qwen_visual_generation": 26592.498,
+          "output_tokens": 288,
+          "peak_gpu_allocated_bytes": 15316807680
+        },
+        "visual_input_selection": {
+          "candidates": [
+            {
+              "origin": "retrieved_asset",
+              "sha256": "c313f67a71613ff02a2c79dd70079358ccde50d56fe68af76b3943bc69dc1dc5",
+              "status": "selected"
+            }
+          ],
+          "selected_count": 1,
+          "coverage_complete": true
+        }
+      },
+      "visual_input_manifest": [
+        {
+          "image_number": 1,
+          "origin": "retrieved_asset",
+          "source_candidates": [
+            {
+              "evidence_id": "V1",
+              "visual_id": "pdf:scan-page:1",
+              "document_name": "sample_product.pdf",
+              "source": {
+                "source_type": "pdf",
+                "file_name": "sample_product.pdf",
+                "sheet_name": null,
+                "page_number": 1,
+                "cell": null,
+                "row_index": null,
+                "column_index": null,
+                "section_id": "pdf:page:1",
+                "section_title": null,
+                "text_span": null,
+                "parser": "pymupdf-page-render",
+                "extraction_confidence": 0.95,
+                "bounding_box": null
+              }
+            }
+          ]
+        }
+      ],
+      "citations": [
+        {
+          "evidence_id": "U1",
+          "document_name": "sample_spec.xlsx",
+          "source_page": null,
+          "section_heading": "Current",
+          "source_type": "customer_upload",
+          "sheet_name": "Current",
+          "source_range": "A1:D2",
+          "row_index": null,
+          "bounding_box": null,
+          "parser": "openpyxl-3.1"
+        },
+        {
+          "evidence_id": "U1",
+          "document_name": "sample_spec.xlsx",
+          "source_page": null,
+          "section_heading": "Current",
+          "source_type": "customer_upload",
+          "sheet_name": "Current",
+          "source_range": "A1:D1",
+          "row_index": 1,
+          "bounding_box": null,
+          "parser": "openpyxl-3.1"
+        },
+        {
+          "evidence_id": "U1",
+          "document_name": "sample_spec.xlsx",
+          "source_page": null,
+          "section_heading": "Current",
+          "source_type": "customer_upload",
+          "sheet_name": "Current",
+          "source_range": "A2:D2",
+          "row_index": 2,
+          "bounding_box": null,
+          "parser": "openpyxl-3.1"
+        },
+        {
+          "evidence_id": "U2",
+          "document_name": "sample_spec.xlsx",
+          "source_page": null,
+          "section_heading": "Other source",
+          "source_type": "customer_upload",
+          "sheet_name": "Other source",
+          "source_range": "A1:D2",
+          "row_index": null,
+          "bounding_box": null,
+          "parser": "openpyxl-3.1"
+        },
+        {
+          "evidence_id": "U2",
+          "document_name": "sample_spec.xlsx",
+          "source_page": null,
+          "section_heading": "Other source",
+          "source_type": "customer_upload",
+          "sheet_name": "Other source",
+          "source_range": "A1:D1",
+          "row_index": 1,
+          "bounding_box": null,
+          "parser": "openpyxl-3.1"
+        },
+        {
+          "evidence_id": "U2",
+          "document_name": "sample_spec.xlsx",
+          "source_page": null,
+          "section_heading": "Other source",
+          "source_type": "customer_upload",
+          "sheet_name": "Other source",
+          "source_range": "A2:D2",
+          "row_index": 2,
+          "bounding_box": null,
+          "parser": "openpyxl-3.1"
+        },
+        {
+          "evidence_id": "U3",
+          "document_name": "sample_product.pdf",
+          "source_page": 1,
+          "section_heading": "pdf:page:1",
+          "source_type": "customer_upload",
+          "sheet_name": null,
+          "source_range": null,
+          "row_index": null,
+          "bounding_box": null,
+          "parser": "pypdf"
+        },
+        {
+          "evidence_id": "U3",
+          "document_name": "sample_product.pdf",
+          "source_page": 2,
+          "section_heading": "pdf:page:2",
+          "source_type": "customer_upload",
+          "sheet_name": null,
+          "source_range": null,
+          "row_index": null,
+          "bounding_box": null,
+          "parser": "pypdf"
+        },
+        {
+          "evidence_id": "U8",
+          "document_name": "sample_product.pdf",
+          "source_page": 1,
+          "section_heading": "pdf:page:1",
+          "source_type": "customer_upload",
+          "sheet_name": null,
+          "source_range": null,
+          "row_index": null,
+          "bounding_box": null,
+          "parser": "pypdf"
+        },
+        {
+          "evidence_id": "U8",
+          "document_name": "sample_product.pdf",
+          "source_page": 2,
+          "section_heading": "pdf:page:2",
+          "source_type": "customer_upload",
+          "sheet_name": null,
+          "source_range": null,
+          "row_index": null,
+          "bounding_box": null,
+          "parser": "pypdf"
+        }
+      ],
+      "retrieval_evidence": [
+        {
+          "result_id": "U2",
+          "document_name": "sample_spec.xlsx",
+          "source_page": null,
+          "section_heading": "Other source",
+          "excerpt": "[TABLE id=excel:Other source sheet=Other source state=visible range=A1:D2 parser=openpyxl-3.1] [ROW] A2='DemoPanel-X' | B2='18' | C2='mm' | D2='B' [TABLE_CONTEX"
+        },
+        {
+          "result_id": "U3",
+          "document_name": "sample_product.pdf",
+          "source_page": 1,
+          "section_heading": "pdf:page:1",
+          "excerpt": "[BLOCK id=pdf:page:1 kind=page_text source=pdf;page=1;section=pdf:page:1] SYNTHETIC DemoPanel-X. Thickness: 20 mm. Not a real specification. [BLOCK id=pdf:page:"
+        },
+        {
+          "result_id": "U1",
+          "document_name": "sample_spec.xlsx",
+          "source_page": null,
+          "section_heading": "Current",
+          "excerpt": "[TABLE id=excel:Current sheet=Current state=visible range=A1:D2 parser=openpyxl-3.1] [ROW] A2='DemoPanel-X' | B2='20' | C2='mm' | D2='A' [TABLE_CONTEXT native_c"
+        },
+        {
+          "result_id": "U6",
+          "document_name": "sample_spec.xlsx",
+          "source_page": null,
+          "section_heading": "Current",
+          "excerpt": "[TABLE id=excel:Current sheet=Current state=visible range=A1:D2 parser=openpyxl-3.1] [ROW] A1='Product' | B1='Thickness' | C1='Unit' | D1='Source version' [TABL"
+        },
+        {
+          "result_id": "U7",
+          "document_name": "sample_spec.xlsx",
+          "source_page": null,
+          "section_heading": "Other source",
+          "excerpt": "[TABLE id=excel:Other source sheet=Other source state=visible range=A1:D2 parser=openpyxl-3.1] [ROW] A1='Product' | B1='Thickness' | C1='Unit' | D1='Source vers"
+        },
+        {
+          "result_id": "U4",
+          "document_name": "sample_spec.xlsx",
+          "source_page": null,
+          "section_heading": "Current",
+          "excerpt": "[BLOCK id=excel:conditional-formatting:Current:inventory kind=derived_text source=excel;sheet=Current] Sheet Current: conditional formatting rule groups=0. [BLO"
+        },
+        {
+          "result_id": "U8",
+          "document_name": "sample_product.pdf",
+          "source_page": 1,
+          "section_heading": "pdf:page:1",
+          "excerpt": "scan tiles excluded; vectors not counted. Validate requested region against the actual image; never use whole-page totals for a subregion.'}, 'raster_region_pol"
+        },
+        {
+          "result_id": "U5",
+          "document_name": "sample_spec.xlsx",
+          "source_page": null,
+          "section_heading": "Current",
+          "excerpt": "[STRUCTURE_OVERVIEW 工作簿结构 工作表清单 表格总览 sheet_count=2 sheets=['Current', 'Other source'] table_count=2]"
+        }
+      ],
+      "excerpt_note": "Publication excerpts are capped at 160 characters; they are NOT the complete model input.",
+      "audits": {
+        "answer_document_coverage": {
+          "expected_visible_documents": [
+            "sample_product.pdf",
+            "sample_spec.xlsx"
+          ],
+          "addressed_documents": [
+            "sample_product.pdf",
+            "sample_spec.xlsx"
+          ],
+          "verified_missing_documents": [],
+          "scope": "cross_document",
+          "semantic_assertion_completeness_verified": false
+        },
+        "answer_aspect_coverage": {
+          "requested_aspects": [],
+          "covered_aspect_indices": [],
+          "evidence_missing_aspect_indices": [],
+          "unaccounted_aspect_indices": [],
+          "complete": true,
+          "method": "citation_and_exact_answer_span_contract_not_semantic_gold"
+        },
+        "evidence_support_audit": {
+          "cited_evidence_ids": [
+            "U1",
+            "U2",
+            "U3",
+            "U8"
+          ],
+          "text_cited_evidence_ids": [
+            "U1",
+            "U2",
+            "U3",
+            "U8"
+          ],
+          "visual_cited_evidence_ids": [],
+          "lexical_overlap_term_count": 21,
+          "answer_term_count": 81,
+          "unsupported_numeric_claims": [],
+          "unsupported_promotional_claims": [],
+          "incompatible_standard_scope_claims": [],
+          "visual_numeric_claims_requiring_review": [],
+          "visual_observation_grounded": true,
+          "passed": true
+        },
+        "visual_input_coverage_audit": {
+          "expected_image_numbers": [
+            1
+          ],
+          "missing_image_observations": [],
+          "expected_visual_evidence_ids": [
+            "V1"
+          ],
+          "cited_visual_evidence_ids": [],
+          "observed_visual_evidence_ids": [
+            "V1"
+          ],
+          "missing_citation_ids": [
+            "V1"
+          ],
+          "missing_observation_ids": [],
+          "complete": false
+        },
+        "normative_claim_audit": {
+          "removed_claims": [],
+          "cited_standard_evidence_ids": [],
+          "standard_presence_is_not_compliance_verdict": true
+        }
+      }
+    },
+    {
+      "id": "visual_and_text",
+      "question": "请根据上传示意图描述Panel与Support的可见关系，并根据上传Word列出施工前需要核对的事项。这是虚构示意图，只描述可见内容，不推断承载能力或合规性。",
+      "files": [
+        "sample_drawing.png",
+        "sample_checklist.docx"
+      ],
+      "upload_status": 200,
+      "answer_status": 200,
+      "latency_seconds": 24.646,
+      "session_deleted": true,
+      "answerable": true,
+      "customer_reply": "根据上传示意图，Panel与Support通过一条水平线连接，表示二者在结构上直接关联。根据Word文档中的施工前核对事项，需核对：1.DemoPanel-X的厚度；2.DemoPanel-X的基材；3.DemoPanel-X的固定设计。以上为示意图中可见内容，不涉及工程承载能力或合规性推断。",
+      "key_points": [
+        "Panel与Support通过水平线直接连接",
+        "需核对厚度、基材和固定设计",
+        "仅描述可见内容，不推断工程属性"
+      ],
+      "missing_information": [],
+      "risk_warnings": [],
+      "next_action": "可继续补充产品、工艺、节点或项目条件，以便缩小资料范围。",
+      "image_observations": [
+        "[image1|direct_upload]：示意图显示Panel与Support通过水平线连接，上方标注'SYNTHETIC DEMO - not a construction detail'，明确为非施工细节图。"
+      ],
+      "model_used": true,
+      "selected_tools": [
+        "customer_documents"
+      ],
+      "execution": {
+        "engine": "langgraph",
+        "workflow": "bounded_tool_agent_v3",
+        "node_trace": [
+          {
+            "node": "customer_documents",
+            "round": 1,
+            "elapsed_ms": 1.95,
+            "reused": false,
+            "operation_error": null
+          },
+          {
+            "node": "assess_coverage",
+            "round": 1,
+            "elapsed_ms": 0.01,
+            "reused": false,
+            "operation_error": null
+          },
+          {
+            "node": "compose_evidence",
+            "round": 1,
+            "elapsed_ms": 0.12,
+            "reused": false,
+            "operation_error": null
+          },
+          {
+            "node": "rerank_evidence",
+            "round": 1,
+            "elapsed_ms": 1478.47,
+            "reused": false,
+            "operation_error": null
+          },
+          {
+            "node": "generate_answer",
+            "round": 1,
+            "elapsed_ms": 22104.78,
+            "reused": false,
+            "operation_error": null
+          },
+          {
+            "node": "validate_answer",
+            "round": 1,
+            "elapsed_ms": 0.96,
+            "reused": false,
+            "operation_error": null
+          }
+        ],
+        "plan_reason": "explicit_attachment_semantics_fast_path",
+        "planner_latency_ms": 0.43,
+        "planner_model_load_ms": 0.0,
+        "planner_generation_ms": 0.0,
+        "planning_rounds": 1,
+        "tool_rounds": 1,
+        "recovery_actions": [],
+        "gpu_execution_policy": "sequential"
+      },
+      "generation_input_audit": {
+        "max_prompt_tokens": 4200,
+        "actual_prompt_tokens": 4129,
+        "kept_evidence_ids": [
+          "U1",
+          "U2",
+          "V1",
+          "U5",
+          "U3",
+          "U4",
+          "V2"
+        ],
+        "removed_evidence_ids": [],
+        "budget_satisfied": true,
+        "canonical_evidence_preserved": true,
+        "analysis_refusal_retry_used": false,
+        "aspect_coverage_repair_used": false,
+        "visual_runtime_timings": {
+          "visual_model_load": 0.01,
+          "image_preprocessing": 3.537,
+          "visual_processor": 37.25,
+          "input_tokens": 4351,
+          "image_count": 1,
+          "image_grid_thw": [
+            [
+              1,
+              22,
+              40
+            ]
+          ],
+          "qwen_visual_generation": 21783.565,
+          "output_tokens": 263,
+          "peak_gpu_allocated_bytes": 15316807680
+        },
+        "visual_input_selection": {
+          "candidates": [
+            {
+              "origin": "retrieved_asset",
+              "sha256": "c778cf1c04b58d60de2849d919d7d18738a1e8f58fd144b90dbad23e9b20cf13",
+              "status": "selected"
+            },
+            {
+              "origin": "retrieved_asset",
+              "sha256": "c778cf1c04b58d60de2849d919d7d18738a1e8f58fd144b90dbad23e9b20cf13",
+              "status": "duplicate"
+            }
+          ],
+          "selected_count": 1,
+          "coverage_complete": true
+        }
+      },
+      "visual_input_manifest": [
+        {
+          "image_number": 1,
+          "origin": "retrieved_asset",
+          "source_candidates": [
+            {
+              "evidence_id": "V1",
+              "visual_id": "word:image:1",
+              "document_name": "sample_checklist.docx",
+              "source": {
+                "source_type": "word",
+                "file_name": "sample_checklist.docx",
+                "sheet_name": null,
+                "page_number": null,
+                "cell": null,
+                "row_index": null,
+                "column_index": null,
+                "section_id": "word:media:image1.png",
+                "section_title": null,
+                "text_span": null,
+                "parser": "docx-media",
+                "extraction_confidence": 1.0,
+                "bounding_box": null
+              }
+            },
+            {
+              "evidence_id": "V2",
+              "visual_id": "image:document:1",
+              "document_name": "sample_drawing.png",
+              "source": {
+                "source_type": "image",
+                "file_name": "sample_drawing.png",
+                "sheet_name": null,
+                "page_number": null,
+                "cell": null,
+                "row_index": null,
+                "column_index": null,
+                "section_id": null,
+                "section_title": null,
+                "text_span": null,
+                "parser": "pillow-metadata+local-vision-candidate",
+                "extraction_confidence": 1.0,
+                "bounding_box": null
+              }
+            }
+          ]
+        }
+      ],
+      "citations": [
+        {
+          "evidence_id": "U1",
+          "document_name": "sample_checklist.docx",
+          "source_page": null,
+          "section_heading": "word:media:image1.png",
+          "source_type": "customer_upload",
+          "sheet_name": null,
+          "source_range": null,
+          "row_index": null,
+          "bounding_box": null,
+          "parser": "docx-media"
+        },
+        {
+          "evidence_id": "U2",
+          "document_name": "sample_checklist.docx",
+          "source_page": null,
+          "section_heading": "word:body:paragraph:1",
+          "source_type": "customer_upload",
+          "sheet_name": null,
+          "source_range": null,
+          "row_index": null,
+          "bounding_box": null,
+          "parser": "docx-xml"
+        },
+        {
+          "evidence_id": "U2",
+          "document_name": "sample_checklist.docx",
+          "source_page": null,
+          "section_heading": "word:body:paragraph:2",
+          "source_type": "customer_upload",
+          "sheet_name": null,
+          "source_range": null,
+          "row_index": null,
+          "bounding_box": null,
+          "parser": "docx-xml"
+        },
+        {
+          "evidence_id": "U2",
+          "document_name": "sample_checklist.docx",
+          "source_page": null,
+          "section_heading": "word:media:image1.png",
+          "source_type": "customer_upload",
+          "sheet_name": null,
+          "source_range": null,
+          "row_index": null,
+          "bounding_box": null,
+          "parser": "docx-media"
+        },
+        {
+          "evidence_id": "U3",
+          "document_name": "sample_checklist.docx",
+          "source_page": null,
+          "section_heading": "Word 表格 1",
+          "source_type": "customer_upload",
+          "sheet_name": "Word 文档",
+          "source_range": null,
+          "row_index": null,
+          "bounding_box": null,
+          "parser": "docx-xml"
+        },
+        {
+          "evidence_id": "U3",
+          "document_name": "sample_checklist.docx",
+          "source_page": null,
+          "section_heading": "Word 表格 1",
+          "source_type": "customer_upload",
+          "sheet_name": "Word 文档",
+          "source_range": "word:t1:r1c1:word:t1:r1c2",
+          "row_index": 1,
+          "bounding_box": null,
+          "parser": "docx-xml"
+        },
+        {
+          "evidence_id": "U3",
+          "document_name": "sample_checklist.docx",
+          "source_page": null,
+          "section_heading": "Word 表格 1",
+          "source_type": "customer_upload",
+          "sheet_name": "Word 文档",
+          "source_range": "word:t1:r2c1:word:t1:r2c2",
+          "row_index": 2,
+          "bounding_box": null,
+          "parser": "docx-xml"
+        },
+        {
+          "evidence_id": "U4",
+          "document_name": "sample_checklist.docx",
+          "source_page": null,
+          "section_heading": "Word 表格 1",
+          "source_type": "customer_upload",
+          "sheet_name": "Word 文档",
+          "source_range": null,
+          "row_index": null,
+          "bounding_box": null,
+          "parser": "docx-xml"
+        },
+        {
+          "evidence_id": "U4",
+          "document_name": "sample_checklist.docx",
+          "source_page": null,
+          "section_heading": "Word 表格 1",
+          "source_type": "customer_upload",
+          "sheet_name": "Word 文档",
+          "source_range": "word:t1:r1c1:word:t1:r1c2",
+          "row_index": 1,
+          "bounding_box": null,
+          "parser": "docx-xml"
+        },
+        {
+          "evidence_id": "U4",
+          "document_name": "sample_checklist.docx",
+          "source_page": null,
+          "section_heading": "Word 表格 1",
+          "source_type": "customer_upload",
+          "sheet_name": "Word 文档",
+          "source_range": "word:t1:r2c1:word:t1:r2c2",
+          "row_index": 2,
+          "bounding_box": null,
+          "parser": "docx-xml"
+        }
+      ],
+      "retrieval_evidence": [
+        {
+          "result_id": "U1",
+          "document_name": "sample_checklist.docx",
+          "source_page": null,
+          "section_heading": "word:media:image1.png",
+          "excerpt": "[OCR_CANDIDATE visual_id=word:image:1 unverified=true] SYNTHETIC DEMO - not a construction detail Panel Support"
+        },
+        {
+          "result_id": "U2",
+          "document_name": "sample_checklist.docx",
+          "source_page": null,
+          "section_heading": "word:body:paragraph:1",
+          "excerpt": "[BLOCK id=word:body:paragraph:1 kind=paragraph source=word;section=word:body:paragraph:1] Synthetic installation checklist [BLOCK id=word:body:paragraph:2 kind="
+        },
+        {
+          "result_id": "V1",
+          "document_name": "sample_checklist.docx",
+          "source_page": null,
+          "section_heading": "word:media:image1.png",
+          "excerpt": "Visual 1 (document_page) from sample_checklist.docx; page=None; sheet=None; metadata={'content_extraction': 'vision_candidate_only', 'part_name': 'word/media/im"
+        },
+        {
+          "result_id": "U5",
+          "document_name": "sample_checklist.docx",
+          "source_page": null,
+          "section_heading": "Word 表格 1",
+          "excerpt": "[STRUCTURE_OVERVIEW 工作簿结构 工作表清单 表格总览 sheet_count=1 sheets=['Word 文档'] table_count=1]"
+        },
+        {
+          "result_id": "U3",
+          "document_name": "sample_checklist.docx",
+          "source_page": null,
+          "section_heading": "Word 表格 1",
+          "excerpt": "[TABLE id=word:table:1 sheet=Word 文档 parser=docx-xml] [COLUMNS] A=Item | B=Requirement [ROW] word:t1:r1c1='Item' | word:t1:r1c2='Requirement' [ROW] word:t1:r2c1"
+        },
+        {
+          "result_id": "U4",
+          "document_name": "sample_checklist.docx",
+          "source_page": null,
+          "section_heading": "Word 表格 1",
+          "excerpt": "[TABLE id=word:table:1 sheet=Word 文档 parser=docx-xml] [COLUMNS] A=Item | B=Requirement [ROW] word:t1:r1c1='Item' | word:t1:r1c2='Requirement' [ROW] word:t1:r2c1"
+        },
+        {
+          "result_id": "V2",
+          "document_name": "sample_drawing.png",
+          "source_page": null,
+          "section_heading": "image:document:1",
+          "excerpt": "Visual 2 (document_page) from sample_drawing.png; page=None; sheet=None; metadata={'content_extraction': 'vision_candidate_only', 'original_format': 'PNG', 'tex"
+        }
+      ],
+      "excerpt_note": "Publication excerpts are capped at 160 characters; they are NOT the complete model input.",
+      "audits": {
+        "answer_document_coverage": {
+          "expected_visible_documents": [
+            "sample_checklist.docx"
+          ],
+          "addressed_documents": [
+            "sample_checklist.docx"
+          ],
+          "verified_missing_documents": [],
+          "scope": "local_lookup",
+          "semantic_assertion_completeness_verified": false
+        },
+        "answer_aspect_coverage": {
+          "requested_aspects": [],
+          "covered_aspect_indices": [],
+          "evidence_missing_aspect_indices": [],
+          "unaccounted_aspect_indices": [],
+          "complete": true,
+          "method": "citation_and_exact_answer_span_contract_not_semantic_gold"
+        },
+        "evidence_support_audit": {
+          "cited_evidence_ids": [
+            "U1",
+            "U2",
+            "U3",
+            "U4"
+          ],
+          "text_cited_evidence_ids": [
+            "U2",
+            "U3",
+            "U4"
+          ],
+          "visual_cited_evidence_ids": [
+            "U1"
+          ],
+          "lexical_overlap_term_count": 8,
+          "answer_term_count": 106,
+          "unsupported_numeric_claims": [],
+          "unsupported_promotional_claims": [],
+          "incompatible_standard_scope_claims": [],
+          "visual_numeric_claims_requiring_review": [],
+          "visual_observation_grounded": true,
+          "passed": true
+        },
+        "visual_input_coverage_audit": {
+          "expected_image_numbers": [
+            1
+          ],
+          "missing_image_observations": [],
+          "expected_visual_evidence_ids": [
+            "V1",
+            "V2"
+          ],
+          "cited_visual_evidence_ids": [],
+          "observed_visual_evidence_ids": [
+            "V1",
+            "V2"
+          ],
+          "missing_citation_ids": [
+            "V1",
+            "V2"
+          ],
+          "missing_observation_ids": [],
+          "complete": false
+        },
+        "normative_claim_audit": {
+          "removed_claims": [],
+          "cited_standard_evidence_ids": [],
+          "standard_presence_is_not_compliance_verdict": true
+        }
+      }
+    }
+  ]
+}

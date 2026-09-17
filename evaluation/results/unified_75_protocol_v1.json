@@ -35,13 +35,13 @@
     "No OCR claim from native-text inputs",
     "Hybrid GPU protection retained"
   ],
-  "code_hash_scope": "Source workspace execution. Public mechanical namespace conversion has separate hashes.",
+  "code_hash_scope": "Original source-workspace execution hashes are preserved. Public hashes describe current release integrity, including namespace/CLI compatibility, visual-manifest observability and optional coverage-contract validation. All 75 cases were rerun after these patches with unchanged metrics.",
   "public_code_hash_normalization": "CRLF_to_LF",
   "public_code_sha256": {
     "scripts\\run_unified_public_eval.py": "014b4f1bb52026a6a587e173a427514ac7b3ed1f2ee1163a23eb4dee5c5422ab",
     "backend\\documents\\customer_sessions.py": "acc3d3514362a3ffd7ea4fafd21d914fcd5c7fd895756e54047c67ada55bae04",
     "backend\\sales\\retriever.py": "f0001cf4204d825ddac0bd8de0727f6740ef95710dfe66aecc1e86e48dc62e58",
     "backend\\sales\\context_engine.py": "48e8bd0bd6a72760cefdceefce9b07a05496b5ecec9ce5221a9df6963cec2a71",
-    "backend\\app.py": "729ad8fa8cc03717409e02f8f192bfa62a6d1640f2345cae9c7669d5fe693f95"
+    "backend\\app.py": "8422b154c32761e7ccf7aa3dd9ed1f2516d438649fdd6bcf373a6b95e702aa6f"
   }
 }

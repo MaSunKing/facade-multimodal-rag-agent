@@ -2,7 +2,7 @@
   "model_generation_tested": false,
   "official_gold_questions_changed": false,
   "scope": "same_question_CPU_native_retrieval_context_tokenizer_regression_not_model_answer_accuracy",
-  "code_hash_scope": "tested_source_workspace_and_curated_public_namespace_snapshot",
+  "code_hash_scope": "Original paired-run source hashes are preserved; published hashes check current release integrity. Later visual-manifest and optional coverage-contract patches do not rerun historical paired baselines. Current release is separately covered by the unified 75-case rerun.",
   "tested_source_code_sha256": {
     "backend/documents/table_context.py": "9b42cf08a2b77b0ddf0ce039f13f783688e7657c9d6efc2f1223a9b652218fc8",
     "backend/documents/customer_sessions.py": "d17230072cc9e240ddd3fc3496c2302ccbe836c8343e427e3dd5c68edd2b35cc",
@@ -16,7 +16,7 @@
     "backend/documents/customer_sessions.py": "acc3d3514362a3ffd7ea4fafd21d914fcd5c7fd895756e54047c67ada55bae04",
     "backend/sales/fact_normalization.py": "416707596e634f850d0ad88077d4145e45a6a6b030c51a13421e08f6cd878bbb",
     "backend/sales/context_engine.py": "48e8bd0bd6a72760cefdceefce9b07a05496b5ecec9ce5221a9df6963cec2a71",
-    "backend/app.py": "729ad8fa8cc03717409e02f8f192bfa62a6d1640f2345cae9c7669d5fe693f95"
+    "backend/app.py": "8422b154c32761e7ccf7aa3dd9ed1f2516d438649fdd6bcf373a6b95e702aa6f"
   },
   "runs": {
     "fresh_english_30": {

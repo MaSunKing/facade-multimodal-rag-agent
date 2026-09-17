@@ -145,31 +145,19 @@ python scripts/run_unified_public_eval.py --track offline --tokenizer-path /path
 python scripts/verify_unified_public_eval.py --output outputs/public_eval/new_run
 ```
 
-### 历史运行汇总（不作为当前统一结果）
+历史不同预算运行及修复前失败结果完整保留于[历史结果](docs/EVALUATION_RESULTS.md)和[修复回归](docs/NATIVE_RELATION_REPAIR.md)，不作为当前统一条件成绩。
 
-后续已修复数值单位与原生TXT实体绑定，并单独复跑原题，见[修复回归](docs/NATIVE_RELATION_REPAIR.md)。下表保持历史冻结结果，不用修复后的部分重测结果替换旧分数。
+## 真实本地8B端到端Demo
 
-新增[75题公开开发评测](evaluation/README.md)：检索45、数值10、条件10、冲突10。统一发布题目、标签、逐题结果及复现入口，保留失败题，不加入旧问题改写变体。
+已实际跑3个固定案例：客户检查表＋企业资料、PDF＋Excel参数差异、示意图＋Word。保存实际工具节点、保留Evidence、图片manifest、API回答、引用与覆盖审计，并保留通用契约修复前的失败记录。[查看原件与完整执行记录](examples/real_agent_demo/README.md)。
 
-以下为不同历史预算（650/1800/5000）和测试链路的开发汇总，不是同配置端到端基准。Evidence Recall@5指前5条证据完整覆盖金标支持的问题比例，多窗口题只覆盖一部分不算命中；MRR取首次完整支持的排名倒数。文本保留不等于关系识别正确。
+图文案例实际回答：Panel与Support通过水平线连接；施工前核对厚度、基材和固定设计，不推断承载能力。Word内嵌图与PNG相同，SHA去重后只输入1张，manifest保留两个来源。
 
-| 离线指标 | 实测结果 |
-|---|---|
-| Evidence Recall@5 | 38/45，84.44% |
-| MRR | 0.6146 |
-| 目标行与数值保留 | 8/10，80% |
-| 条件关系文本保留 | 10/10，100% |
-| 冲突组检测 | 5/10 |
-| 冲突双方证据保留 | 10/10 |
-| 新增原生数值＋单位绑定 | 0/5 |
-
-这是CPU附件词法检索和Context/tokenizer打包开发回归，**不是模型答案准确率、完整混合企业RAG或未见测试成绩**。集合保留不同历史预算；旧冲突为人工Evidence控制，新原生TXT冲突实际检测0/5。单位漏召回、表格重排和实体绑定缺陷公开记录，不以合并高分掩盖。
+**3例流程完成不等于3例全对：** 联合案例产品介绍不完整，参数案例对文件差异概括不准确，视觉案例缺少显式Visual Evidence引用且观察来源标签不准确。耗时约24.6～54.2秒（首题含冷启动），仅为本次定性示范，不报告端到端准确率或P95。工具选择走附件快捷路径，不冒充本次运行了复杂LLM Planner。
 
 ```bash
-python scripts/verify_evaluation_results.py
+python scripts/verify_real_agent_demo.py  # 仅核对公开记录和原件，不调用模型
 ```
-
-见[指标与已知问题](docs/EVALUATION_RESULTS.md)、[本地验证记录](docs/VALIDATION.md)、[评测协议](docs/EVALUATION.md)。企业历史评测数据未发布，旧企业召回数字不作为当前公开成绩。原生来源提供URL/SHA；再分发许可未核验的官方文件不随仓库上传。
 
 ## 本地资源与部署
 
@@ -217,6 +205,8 @@ npm run dev
 
 公开`.env.example`已默认开启`RAG_HYBRID_ENABLED=1`和`CUSTOMER_DOCUMENT_OCR_ENABLED=1`，检索设备为CUDA；需要本地Embedding/Reranker、指纹匹配的向量索引及缓存的OCR模型，依赖缺失时保留原文/原图并报告降级。本次另做真实混合检索和扫描页验收。8B热态预留GPU时仍可能按显存策略跳过Dense/Reranker，开启配置不代表每次都实际执行。
 
+**CI与默认部署模式不同：** Actions的CPU作业显式关闭Hybrid/OCR及附件语义重排，用于接口与CPU降级路径校验；绿色CI不证明默认CUDA配置、真实视觉识别或8B生成通过。GPU混合检索与OCR有独立本地验收，见[验证范围](docs/VALIDATION.md)。
+
 前端单独读取`frontend/.env.local`，PowerShell可执行`Copy-Item .env.example .env.local`；后端的`--env-file .env`不会替前端加载配置。部署时先填写HTTPS API地址，再运行`npm run build`并上传`frontend/out/`静态产物；后端`FACADE_PUBLIC_FRONTEND`填写实际前端Origin。`NEXT_PUBLIC_*`为构建期公开值，不能存放密钥。更改API地址后必须重新构建。
 
 ### 不加载模型的小规模校验
@@ -232,7 +222,7 @@ python scripts/public_smoke.py --base-url http://127.0.0.1:8000
 
 ## 当前验证范围与限制
 
-公开范围包括源码/接口校验、75题检索与Context回归，以及独立的混合检索、单页OCR和负冲突控制。`examples/demo_queries.json`仍是场景与预期，不是实际生成记录；本轮没有新增8B端到端演示，不能用界面截图或离线分数代替真实回答验证。
+公开范围包括源码/接口校验、75题检索与Context回归、独立的混合检索/单页OCR/负冲突控制，以及3题真实8B定性Demo。`examples/demo_queries.json`仍是旧场景与预期，实际生成记录单独存于`examples/real_agent_demo/`；Demo不代替大规模端到端评测。
 
 - Schema、引用身份和接口200不代表语义正确；支持审计不是逐句事实证明。
 - 冲突分组是候选发现，主体、期间和业务口径未保证完全对齐。
