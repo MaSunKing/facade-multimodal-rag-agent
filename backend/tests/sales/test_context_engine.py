@@ -84,6 +84,20 @@ class ContextEngineTests(unittest.TestCase):
         self.assertGreater(cross_document.candidate_text_tokens, simple.candidate_text_tokens)
         self.assertGreaterEqual(cross_document.max_images, 2)
         self.assertNotIn("file_size", cross_document.components)
+        self.assertEqual(simple.max_output_tokens, 3072)
+        self.assertEqual(cross_document.max_output_tokens, 3072)
+
+    def test_final_output_ceiling_independent_of_operation_and_targets(self) -> None:
+        for operation in ('lookup', 'summary', 'comparison', 'unknown'):
+            for tools in (['company_rag'], ['customer_documents'], ['public_web_search']):
+                with self.subTest(operation=operation, tools=tools):
+                    budget = choose_context_budget(
+                        {'tools':tools, 'company_operation':operation,
+                         'target_terms':['A','B','C'], 'answer_aspects':['a','b','c','d'],
+                         'company_collection':{'action':'list'}},
+                        has_documents='customer_documents' in tools, has_image=True,
+                        source_document_count=8)
+                    self.assertEqual(budget.max_output_tokens, 3072)
 
     def test_deduplicates_and_protects_table_condition(self) -> None:
         source = {

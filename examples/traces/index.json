@@ -1,0 +1,329 @@
+{
+  "kind": "illustrative_not_executed",
+  "branches": [
+    {
+      "branch": "company_intake",
+      "purpose": "企业接入止于人工审核包",
+      "path": "company_intake.json",
+      "source": "backend/sales/ingestion_graph.py"
+    },
+    {
+      "branch": "customer_intake",
+      "purpose": "客户临时解析不进入企业库",
+      "path": "customer_intake.json",
+      "source": "backend/documents/customer_sessions.py"
+    },
+    {
+      "branch": "protected_conflict",
+      "purpose": "同范围冲突候选成组保留",
+      "path": "protected_conflict.json",
+      "source": "backend/sales/fact_normalization.py"
+    },
+    {
+      "branch": "general_chat",
+      "purpose": "无需外部取证的交流",
+      "path": "general_chat.json",
+      "source": "backend/sales/planning_spec.py"
+    },
+    {
+      "branch": "category_product",
+      "purpose": "产品体系与属性分层",
+      "path": "category_product.json",
+      "source": "backend/sales/content_taxonomy.py"
+    },
+    {
+      "branch": "category_project",
+      "purpose": "省份城市项目范围",
+      "path": "category_project.json",
+      "source": "backend/sales/entity_directory.py"
+    },
+    {
+      "branch": "category_method",
+      "purpose": "施工章节正文",
+      "path": "category_method.json",
+      "source": "backend/sales/technical_sections.py"
+    },
+    {
+      "branch": "category_node",
+      "purpose": "节点与关联图文",
+      "path": "category_node.json",
+      "source": "backend/sales/node_relations.py"
+    },
+    {
+      "branch": "category_standard",
+      "purpose": "标准目录与条款粒度",
+      "path": "category_standard.json",
+      "source": "backend/sales/knowledge_hierarchy.py"
+    },
+    {
+      "branch": "category_enterprise",
+      "purpose": "身份资质与企业新闻",
+      "path": "category_enterprise.json",
+      "source": "backend/sales/company_identity.py"
+    },
+    {
+      "branch": "lookup",
+      "purpose": "多对象多要求局部取证",
+      "path": "lookup.json",
+      "source": "backend/sales/requirements.py"
+    },
+    {
+      "branch": "summary",
+      "purpose": "上层集合与章节覆盖",
+      "path": "summary.json",
+      "source": "backend/sales/retriever.py"
+    },
+    {
+      "branch": "comparison",
+      "purpose": "各方共同要求保留归属",
+      "path": "comparison.json",
+      "source": "backend/sales/requirements.py"
+    },
+    {
+      "branch": "directory_exact",
+      "purpose": "登记名称与别名绑定",
+      "path": "directory_exact.json",
+      "source": "backend/sales/entity_directory.py"
+    },
+    {
+      "branch": "directory_semantic",
+      "purpose": "模糊目录语义排序",
+      "path": "directory_semantic.json",
+      "source": "backend/sales/entity_directory.py"
+    },
+    {
+      "branch": "category_expansion",
+      "purpose": "优先类受控补搜",
+      "path": "category_expansion.json",
+      "source": "backend/sales/retriever.py"
+    },
+    {
+      "branch": "collection_list",
+      "purpose": "指定集合而非全局TopK",
+      "path": "collection_list.json",
+      "source": "backend/sales/retriever.py"
+    },
+    {
+      "branch": "collection_count",
+      "purpose": "登记粒度统计",
+      "path": "collection_count.json",
+      "source": "backend/sales/catalog_store.py"
+    },
+    {
+      "branch": "attachment_text",
+      "purpose": "文字局部取证",
+      "path": "attachment_text.json",
+      "source": "backend/documents/customer_sessions.py"
+    },
+    {
+      "branch": "attachment_document",
+      "purpose": "PDF/DOCX层级覆盖",
+      "path": "attachment_document.json",
+      "source": "backend/documents/hierarchy.py"
+    },
+    {
+      "branch": "attachment_table",
+      "purpose": "表头行列与单位保护",
+      "path": "attachment_table.json",
+      "source": "backend/documents/evidence_v2.py"
+    },
+    {
+      "branch": "attachment_ocr",
+      "purpose": "扫描OCR非隐藏性能",
+      "path": "attachment_ocr.json",
+      "source": "backend/document_parsing/document_ocr.py"
+    },
+    {
+      "branch": "attachment_visual",
+      "purpose": "按需客户像素识别成文字",
+      "path": "attachment_visual.json",
+      "source": "backend/sales/visual_evidence.py"
+    },
+    {
+      "branch": "attachment_display",
+      "purpose": "仅展示不必识图",
+      "path": "attachment_display.json",
+      "source": "backend/sales/visual_policy.py"
+    },
+    {
+      "branch": "company_labels",
+      "purpose": "企业图永不运行时看原图",
+      "path": "company_labels.json",
+      "source": "backend/sales/visual_labels.py"
+    },
+    {
+      "branch": "mixed_comparison",
+      "purpose": "附件企业多模态各自归属",
+      "path": "mixed_comparison.json",
+      "source": "backend/sales/answer_review.py"
+    },
+    {
+      "branch": "attachment_same_name",
+      "purpose": "同名不同内容分别绑定",
+      "path": "attachment_same_name.json",
+      "source": "frontend/app/sales/attachment-identity.ts"
+    },
+    {
+      "branch": "attachment_duplicate",
+      "purpose": "相同字节重复提示",
+      "path": "attachment_duplicate.json",
+      "source": "frontend/app/sales/attachment-identity.ts"
+    },
+    {
+      "branch": "attachment_explicit",
+      "purpose": "明确单文件范围",
+      "path": "attachment_explicit.json",
+      "source": "backend/sales/planning_spec.py"
+    },
+    {
+      "branch": "web_multi_query",
+      "purpose": "多个Requirement独立查询",
+      "path": "web_multi_query.json",
+      "source": "backend/sales/web_requirements.py"
+    },
+    {
+      "branch": "web_cache",
+      "purpose": "缓存命中保留来源时间",
+      "path": "web_cache.json",
+      "source": "backend/sales/baidu_search.py"
+    },
+    {
+      "branch": "web_scope",
+      "purpose": "事实日期不同于发布日期",
+      "path": "web_scope.json",
+      "source": "backend/sales/query_constraints.py"
+    },
+    {
+      "branch": "web_quality",
+      "purpose": "垃圾/不相关来源筛选",
+      "path": "web_quality.json",
+      "source": "backend/sales/web_quality.py"
+    },
+    {
+      "branch": "web_quota",
+      "purpose": "额度不足不绕过授权",
+      "path": "web_quota.json",
+      "source": "backend/sales/search_mcp.py"
+    },
+    {
+      "branch": "history_recall",
+      "purpose": "相关历史非技术证据",
+      "path": "history_recall.json",
+      "source": "backend/sales/task_memory.py"
+    },
+    {
+      "branch": "task_update",
+      "purpose": "追加纠正取消的有效原话链",
+      "path": "task_update.json",
+      "source": "backend/sales/task_updates.py"
+    },
+    {
+      "branch": "task_queue",
+      "purpose": "独立排队不合并",
+      "path": "task_queue.json",
+      "source": "frontend/app/sales/page.tsx"
+    },
+    {
+      "branch": "task_cancel",
+      "purpose": "安全检查点退出",
+      "path": "task_cancel.json",
+      "source": "backend/request_budget.py"
+    },
+    {
+      "branch": "budget_fit",
+      "purpose": "够则不压缩",
+      "path": "budget_fit.json",
+      "source": "backend/sales/final_input.py"
+    },
+    {
+      "branch": "budget_compress",
+      "purpose": "超限才覆盖感知压缩",
+      "path": "budget_compress.json",
+      "source": "backend/sales/evidence_packing.py"
+    },
+    {
+      "branch": "expansion_rollback",
+      "purpose": "完整块试加超限回滚",
+      "path": "expansion_rollback.json",
+      "source": "backend/sales/evidence_expansion.py"
+    },
+    {
+      "branch": "audit_metadata",
+      "purpose": "真实草稿后元数据精简",
+      "path": "audit_metadata.json",
+      "source": "backend/sales/review_budget.py"
+    },
+    {
+      "branch": "cpu_parallel",
+      "purpose": "两路只读召回有界并行",
+      "path": "cpu_parallel.json",
+      "source": "backend/sales/parallel_reads.py"
+    },
+    {
+      "branch": "hybrid_fallback",
+      "purpose": "语义分支失败回到词法并记录",
+      "path": "hybrid_fallback.json",
+      "source": "backend/sales/retriever.py"
+    },
+    {
+      "branch": "model_lifecycle",
+      "purpose": "独立服务与闲置卸载",
+      "path": "model_lifecycle.json",
+      "source": "backend/sales/model_service.py"
+    },
+    {
+      "branch": "visual_failure",
+      "purpose": "识别失败保留未识别状态",
+      "path": "visual_failure.json",
+      "source": "backend/sales/visual_evidence.py"
+    },
+    {
+      "branch": "audit_pass",
+      "purpose": "完成度审核后发布",
+      "path": "audit_pass.json",
+      "source": "backend/sales/answer_graph.py"
+    },
+    {
+      "branch": "audit_revise",
+      "purpose": "同Context一次修正",
+      "path": "audit_revise.json",
+      "source": "backend/sales/answer_review.py"
+    },
+    {
+      "branch": "audit_recover",
+      "purpose": "有proof的一次工具恢复",
+      "path": "audit_recover.json",
+      "source": "backend/sales/answer_graph.py"
+    },
+    {
+      "branch": "evidence_reconciliation",
+      "purpose": "旧新证据范围对齐",
+      "path": "evidence_reconciliation.json",
+      "source": "backend/sales/gap_recovery.py"
+    },
+    {
+      "branch": "audit_limited",
+      "purpose": "审核失败不发布草稿",
+      "path": "audit_limited.json",
+      "source": "backend/sales/answer_graph.py"
+    },
+    {
+      "branch": "format_retry",
+      "purpose": "实际协议错误最多两次重试",
+      "path": "format_retry.json",
+      "source": "backend/sales/model_contract.py"
+    },
+    {
+      "branch": "retry_budget",
+      "purpose": "重试实际输入仍超限则停止",
+      "path": "retry_budget.json",
+      "source": "backend/sales/model_contract.py"
+    },
+    {
+      "branch": "acl_denied",
+      "purpose": "Owner错误不扩权限",
+      "path": "acl_denied.json",
+      "source": "backend/access_control.py"
+    }
+  ]
+}

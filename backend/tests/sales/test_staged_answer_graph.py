@@ -9,6 +9,48 @@ import backend.app as app
 
 
 class StagedGraphTests(unittest.TestCase):
+    def test_visual_evidence_runs_between_rerank_and_audit_once(self):
+        calls=[]
+        class Callbacks:
+            def plan_tools(self,request): return ToolPlan(tools=['customer_documents'])
+            def open_steps(self,request,plan):
+                yield WorkflowStep('customer_documents',lambda: calls.append('retrieve'))
+                yield WorkflowStep('document_summary',lambda: calls.append('summary'))
+                yield WorkflowStep('rerank_evidence',lambda: calls.append('rerank'))
+                rows=yield WorkflowStep('visual_evidence',lambda: calls.append('describe') or [{'evidence_id':'VL1'}])
+                yield WorkflowStep('compose_evidence')
+                yield WorkflowStep('generate_answer',lambda: calls.append('generate'))
+                yield WorkflowStep('validate_answer')
+                return {'answer':rows,'meta':{}}
+            def evaluate_sources(self,request,plan,sources,round):
+                calls.append('audit')
+                return None
+        result=build_customer_answer_graph(Callbacks()).invoke({'request':{}})['response']
+        self.assertEqual(calls,['retrieve','summary','rerank','describe','audit','generate'])
+        self.assertEqual(result['answer'],[{'evidence_id':'VL1'}])
+        self.assertIn('visual_evidence',[row['node'] for row in result['meta']['orchestration']['node_trace']])
+
+    def test_unregistered_stage_has_specific_error_and_actual_stage(self):
+        from backend.sales.runtime_status import ExecutionStatus,current_execution,classify
+        closed=[]
+        class Callbacks:
+            def plan_tools(self,request): return ToolPlan(tools=['customer_documents'])
+            def open_steps(self,request,plan):
+                try:
+                    yield WorkflowStep('rerank_evidence')
+                    yield WorkflowStep('unregistered_test_stage')
+                finally: closed.append(True)
+        journal=ExecutionStatus(); token=current_execution.set(journal)
+        try:
+            with self.assertRaisesRegex(ValueError,'unregistered_workflow_node') as caught:
+                build_customer_answer_graph(Callbacks()).invoke({'request':{}})
+            self.assertEqual(classify(caught.exception)['code'],'WORKFLOW_NODE_UNREGISTERED')
+            self.assertEqual(journal.stage,'unregistered_test_stage')
+            self.assertEqual(journal.stage_details[-1]['error_code'],'WORKFLOW_NODE_UNREGISTERED')
+            self.assertEqual(journal.stage_details[-1]['status'],'failed')
+        finally: current_execution.reset(token)
+        self.assertEqual(closed,[True])
+
     def test_tools_are_real_nodes_and_results_reach_generation_once(self):
         calls = []
         context = ContextVar('test_owner', default='missing')
@@ -84,6 +126,24 @@ class StagedGraphTests(unittest.TestCase):
         with patch.object(app,'load_model') as model:
             plan=app._CustomerAnswerWorkflowCallbacks.validate_plan(request,proposed)
         self.assertEqual(plan.tools,[]); model.assert_not_called()
+
+    def test_general_composer_receives_actual_plan_without_replanning(self):
+        request=app.DraftRequest(customer_question='a current request',use_online_search=False)
+        plan=ToolPlan(tools=[],answer_basis='conversation')
+        response=app.AnswerResponse.model_construct(customer_reply='ok',meta={}).model_dump()
+        with patch.object(app,'general_local_chat_answer',return_value=response), patch.object(app,'AnswerResponse'):
+            generate=app.general_local_chat_answer
+            app._run_general_local_answer(request,allow_public_web=False,tool_plan=plan)
+        self.assertIs(generate.call_args.kwargs['tool_plan'],plan)
+
+    def test_direct_conversation_composer_receives_actual_plan(self):
+        request=app.DraftRequest(customer_question='a current request')
+        plan=ToolPlan(tools=[],answer_basis='conversation')
+        response=app.AnswerResponse.model_construct(customer_reply='ok',meta={}).model_dump()
+        with patch.object(app,'general_local_chat_answer',return_value=response), patch.object(app,'AnswerResponse'):
+            generate=app.general_local_chat_answer
+            app._CustomerAnswerWorkflowCallbacks.answer_planned(request,plan)
+        self.assertIs(generate.call_args.kwargs['tool_plan'],plan)
 
     def test_direct_image_joint_answer_uses_visual_node_without_extra_pass(self):
         request=app.DraftRequest(customer_question='描述图中内容', image_data_url='data:image/png;base64,AAAA')

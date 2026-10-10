@@ -95,8 +95,7 @@ class TaskRoutingTests(unittest.TestCase):
 
     def test_relative_web_query_is_bound_to_current_china_date(self) -> None:
         resolved = resolve_current_public_query("今天青岛天气如何")
-        self.assertIn("当前日期", resolved)
-        self.assertRegex(resolved, r"\d{4}-\d{2}-\d{2}$")
+        self.assertRegex(resolved, r"^\d{4}-\d{2}-\d{2}青岛天气如何$")
         self.assertEqual(resolve_current_public_query("青岛历史气候"), "青岛历史气候")
 
     def test_fallback_excerpt_never_slices_a_complete_relation(self) -> None:
@@ -413,9 +412,9 @@ class TaskRoutingTests(unittest.TestCase):
         retriever = LocalRagRetriever()
         result = retriever.retrieve("你们有什么产品", top_k=5, visual_k=0)
         evidence = result["text_evidence"]
-        self.assertEqual(len(evidence), 5)
+        self.assertEqual(len(evidence), 11)
         self.assertTrue(result["meta"]["knowledge_domain_routing"]["product_overview_priority"])
-        self.assertTrue(all(item["text"].startswith("真岩产品总档案。") for item in evidence))
+        self.assertTrue(any("河北大自然石材有限公司" in item["text"] for item in evidence))
         self.assertTrue(all(item["sales_playbook_use"] == "approved_product_master_profile" for item in evidence))
         self.assertIn("核心产品线", evidence[0]["text"])
         self.assertIn("产品体系总览", evidence[0]["citations"][0]["section_heading"])

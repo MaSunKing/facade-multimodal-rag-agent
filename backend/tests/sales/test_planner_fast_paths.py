@@ -11,15 +11,37 @@ class PlannerFastPathTests(unittest.TestCase):
         with facade_app._planner_cache_lock:
             facade_app._planner_cache.clear()
 
-    def test_explicit_product_overview_uses_reviewed_catalogue_fast_path(self) -> None:
+    def test_short_attachment_question_does_not_bypass_semantic_planner(self) -> None:
+        from types import SimpleNamespace
+        request = facade_app.DraftRequest(customer_question='这两个图片有什么区别？',
+                                          document_session_id='test')
+        document = SimpleNamespace(file_name='image.png', visuals=[], source_type='image',
+                                   chunks=[], parse_quality={'ready_visual_count': 2})
+        with patch.object(facade_app, 'get_session', return_value=SimpleNamespace(documents=[document])), \
+             patch.object(facade_app, 'load_model', side_effect=RuntimeError('mock planner unavailable')) as model:
+            plan = facade_app.plan_customer_tools(request)
+        model.assert_called_once()
+        self.assertNotEqual(plan.reason, 'explicit_attachment_semantics_fast_path')
+
+    def test_linked_attachment_even_on_social_turn_enters_planner(self) -> None:
+        from types import SimpleNamespace
+        request = facade_app.DraftRequest(customer_question='你好', document_session_id='test')
+        document = SimpleNamespace(file_name='notes.txt', visuals=[], source_type='text',
+                                   chunks=[], parse_quality={})
+        with patch.object(facade_app, 'get_session', return_value=SimpleNamespace(documents=[document])), \
+             patch.object(facade_app, 'load_model', side_effect=RuntimeError('mock')) as model:
+            facade_app.plan_customer_tools(request)
+        model.assert_called_once()
+
+    def test_explicit_product_overview_reaches_semantic_planner(self) -> None:
         request = facade_app.DraftRequest(customer_question="我想了解一下你们的产品")
         with patch.object(facade_app, "load_model", side_effect=AssertionError("planner model loaded")) as planner:
             plan = facade_app.plan_customer_tools(request)
-        planner.assert_not_called()
+        planner.assert_called_once()
         self.assertEqual(plan.tools, ["company_rag"])
         self.assertTrue(plan.product_overview)
         self.assertEqual(plan.task_type, "factual_lookup")
-        self.assertEqual(plan.reason, "reviewed_product_catalogue_fast_path")
+        self.assertNotEqual(plan.reason, "reviewed_product_catalogue_fast_path")
 
     def test_product_overview_fast_path_preserves_explicit_image_request(self) -> None:
         request = facade_app.DraftRequest(
@@ -29,8 +51,9 @@ class PlannerFastPathTests(unittest.TestCase):
             facade_app,
             "load_model",
             side_effect=AssertionError("planner model loaded"),
-        ):
+        ) as planner:
             plan = facade_app.plan_customer_tools(request)
+        planner.assert_called_once()
         self.assertTrue(plan.product_overview)
         self.assertTrue(plan.wants_visuals)
         self.assertEqual(plan.visual_scope, "product")

@@ -1,0 +1,22 @@
+{
+  "schema_version": "company_identity_v1",
+  "verified_on": "2026-10-04",
+  "company_id": "hebei_daziran_stone",
+  "legal_name": "河北大自然石材有限公司",
+  "aliases": ["河北大自然", "河北大自然石材", "大自然石材"],
+  "brand_names": ["真岩®", "真岩石", "真岩®石"],
+  "established_year": 2006,
+  "province": "河北省",
+  "city": "保定市",
+  "county": "曲阳县",
+  "address": "河北省保定市曲阳县北环路京昆高速出口右转1000米路北",
+  "official_urls": ["https://www.yishushi.com/", "https://www.zhenyanshi.com/"],
+  "identity_source_url": "https://www.yishushi.com/col.jsp?id=101",
+  "product_families": ["真岩®无机仿石装饰板", "真岩®保温装饰一体板"],
+  "family_sources": {
+    "真岩®无机仿石装饰板": "https://www.yishushi.com/",
+    "真岩®保温装饰一体板": "https://www.yishushi.com/"
+  },
+  "claim_policy": "公司身份、所在地与官网产品目录可作为企业自述事实引用；成本、寿命、防火、耐候及资质的宣传不得自动升级为独立检测或当前有效认证。产品具体参数沿用型号原始资料，不对所有型号统一赋值。",
+  "legacy_identity_policy": "以河北大自然石材有限公司作为当前服务企业身份；青岛不是本助手的厂家身份。真实青岛项目、标准发布来源和历史原件仍保留其出处，不改写城市或原文。"
+}

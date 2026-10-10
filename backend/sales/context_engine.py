@@ -15,6 +15,32 @@ from dataclasses import asdict, dataclass
 from typing import Any, Iterable
 
 
+def pack_task_context(rows, *, question, goals=(), required_document_ids=(), scope='unknown', operation='unknown', expansion_provider=None, **budgets):
+    """One immutable selection for both audit and generation, across corpora."""
+    from backend.sales.prepared_support import fit_support_budget
+    selected, audit = fit_support_budget(rows, question=question, goals=goals,
+        required_document_ids=required_document_ids,scope=scope,operation=operation,**budgets)
+    audit['policy'] = 'unified_task_context_pack_v1'
+    if expansion_provider:
+        from backend.sales.evidence_expansion import expand_with_budget
+        from backend.sales.stage_details import begin, end
+        handle = begin('evidence_expansion', {'operation':operation,
+            'candidate_ids':[r['evidence_id'] for r in selected],
+            'prompt_tokens_before':audit['generation_reserved_prompt_tokens'],
+            'token_limit':audit['final_input_limit']})
+        selected, expansion = expand_with_budget(selected, provider=expansion_provider,
+            token_count=budgets['generation_tokens'], token_limit=audit['final_input_limit'],
+            secondary_tokens=budgets['audit_tokens'], secondary_limit=audit['audit_input_limit'])
+        audit['expansion'] = expansion
+        audit['generation_reserved_prompt_tokens'] = expansion['final_prompt_tokens']
+        audit['fits_final'] = expansion['budget_satisfied']
+        audit['audit_prompt_tokens'] = budgets['audit_tokens'](selected)
+        audit['fits_audit'] = audit['audit_prompt_tokens'] <= audit['audit_input_limit']
+        audit['budget_satisfied'] = audit['fits_final'] and audit['fits_audit']
+        end(handle, expansion)
+    return selected, audit
+
+
 _LATIN_TOKEN = re.compile(r"[A-Za-z0-9_]+(?:[./%-][A-Za-z0-9_]+)*")
 _HAN_RUN = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]+")
 _NUMBER_UNIT = re.compile(
@@ -33,6 +59,9 @@ _CONDITION_MARKERS = (
     "条件下", "前提", "应当", "必须", "建议", "宜", "严禁", "not ", "must ",
     "only ", "unless ", "except ",
 )
+
+# Natural-language Final ceiling; independent of input/pixel budgets and plan.
+FINAL_OUTPUT_TOKEN_LIMIT = 3072
 
 
 @dataclass(frozen=True)
@@ -60,7 +89,7 @@ def choose_context_budget(
     *,
     has_documents: bool,
     has_image: bool,
-    prompt_ceiling: int = 5_800,
+    prompt_ceiling: int = 8_000,
     source_document_count: int = 1,
 ) -> ContextBudget:
     """Build a demand-based budget without using file size as importance.
@@ -94,12 +123,15 @@ def choose_context_budget(
         )
         if present
     )
-    desired_prompt = 4_200 + max(0, source_count - 1) * 550
+    desired_prompt = 6_500 + max(0, source_count - 1) * 550
     if document_scope in {"cross_document", "whole_document"}:
         desired_prompt += 450
     if len(target_terms) >= 3:
         desired_prompt += 250
-    prompt_tokens = min(max(2_048, int(prompt_ceiling)), desired_prompt)
+    # Attachments have no task-size business cap (formerly 4650). Retain
+    # the explicit local hardware ceiling; it is not an unlimited context.
+    prompt_tokens = max(2_048, int(prompt_ceiling)) if has_documents else min(
+        max(2_048, int(prompt_ceiling)), desired_prompt)
     # Uploaded PDFs/Word/Excel files may contain a scanned page or chart even
     # when the user asks for an answer rather than explicitly asking to see an
     # image.  Keep a small visual-reading allowance for document QA.
@@ -109,20 +141,9 @@ def choose_context_budget(
     if wants_visuals and document_scope == "cross_document":
         max_images = 3
     max_images = min(4, max_images)
-    # The 8B 4-bit model runs on one 16 GB card and responses must finish
-    # within the interactive budget.  The prompts already require compact,
-    # non-repetitive JSON, so 520/620 tokens preserve a useful analysis while
-    # preventing an overly verbose tail from monopolising the GPU.
-    output_tokens = 620 if document_scope in {"cross_document", "whole_document"} else 520
-    if "company_rag" in tools and not has_documents:
-        output_tokens = 620
-    if document_scope in {"cross_document", "whole_document"}:
-        output_tokens += 90 * max(0, min(4, source_document_count) - 2)
-    aspects = list(_plan_value(plan, 'answer_aspects', []) or _plan_value(plan, 'answer_goals', []) or [])
-    if len(aspects) > 3:
-        # More requested dimensions need answer space, not additional images
-        # or larger source prompts. Remain bounded on the 16 GB GPU.
-        output_tokens = min(1040, max(output_tokens, 520 + 70 * len(aspects)))
+    # This is a ceiling, not a requested length. Keep answers concise; audit
+    # independently checks its complete input including the finished draft.
+    output_tokens = FINAL_OUTPUT_TOKEN_LIMIT
     return ContextBudget(
         candidate_text_tokens=candidate_tokens,
         max_prompt_tokens=prompt_tokens,
@@ -318,6 +339,21 @@ def optimise_evidence_context(
         )
         candidates.append(item)
 
+    # One shared scorer gives comparable relevance across sources. Once
+    # present, use it as the primary rank instead of allowing source identity
+    # or accumulated keyword bonuses to overwhelm a clear relevance margin.
+    # Unscored candidates remain available as fallback, never semantic gold.
+    semantic_ranking = any(item.get('goal_rerank_applied') for item in candidates)
+    if semantic_ranking:
+        for item in candidates:
+            scores = item.get('goal_support_scores') or {}
+            primary = float(scores.get(question.strip(), 0.0))
+            best = max((float(v) for v in scores.values()), default=0.0)
+            item['shared_semantic_relevance'] = max(primary, best)
+            item['semantic_context_score'] = round(
+                6.0 * item['shared_semantic_relevance'] +
+                0.15 * float(item['semantic_context_score']), 6)
+
     candidates.sort(
         key=lambda item: (-float(item["semantic_context_score"]), int(item["original_ordinal"]))
     )
@@ -327,11 +363,25 @@ def optimise_evidence_context(
     fingerprint_items: dict[str, dict] = {}
     for item in candidates:
         fingerprint = _normalised_text(str(item.get("text") or ""))
+        if item.get('required_document_coverage'):
+            # Identical text in two requested files still represents two
+            # independent file obligations. Do not merge their identities.
+            fingerprint = str(item.get('document_id')) + ':' + fingerprint
         if len(fingerprint) >= 32 and fingerprint in seen_text:
             previous = fingerprint_items[fingerprint]
+            previous['duplicate_provenance'] = [
+                *previous.get('duplicate_provenance', []),
+                {'evidence_id': item['evidence_id'], 'source_type': item['source_type'],
+                 'document_name': item.get('document_name'), 'source_url': item.get('source_url')}]
+            merged_scores = dict(previous.get('goal_support_scores') or {})
+            for goal, score in (item.get('goal_support_scores') or {}).items():
+                merged_scores[goal] = max(float(score), float(merged_scores.get(goal, 0.0)))
+            previous['goal_support_scores'] = merged_scores
             previous['retrieval_aspects'] = list(dict.fromkeys([
                 *previous.get('retrieval_aspects', []), *item.get('retrieval_aspects', []),
                 *([item['retrieval_aspect']] if item.get('retrieval_aspect') else [])]))
+            from backend.sales.requirements import merge_requirements
+            merge_requirements(previous, item)
             removed_duplicates.append(str(item["evidence_id"]))
             continue
         if fingerprint:
@@ -462,7 +512,8 @@ def optimise_evidence_context(
         "visual_requested": wants_visuals,
         "visual_candidate_present": visual_present,
         "coverage_sufficient_before_generation": (not missing_answer_goals if semantic_mode else not missing_targets) and (not wants_visuals or visual_present),
-        "ranking_policy": "source_local_rrf_plus_query_authority_relation_boost",
+        "ranking_policy": "shared_semantic_primary_with_relation_coverage" if semantic_ranking else "source_local_rrf_plus_query_authority_relation_boost",
+        "semantic_rerank_applied": semantic_ranking,
         "raw_scores_compared_across_sources": False,
     }
     return deduplicated, audit
@@ -487,8 +538,17 @@ def validate_packed_evidence(
         if original is None:
             violations.append({"type": "unknown_evidence_id", "evidence_id": evidence_id})
             continue
+        if original.get('document_id') and item.get('document_id') != original['document_id']:
+            violations.append({'type': 'document_identity_mismatch', 'evidence_id': evidence_id})
+        prepared_hash = str(original.get("prepared_content_sha256") or "")
         expected_hash = str(original.get("content_sha256") or "")
         actual_hash = hashlib.sha256(str(item.get("text") or "").encode("utf-8")).hexdigest()
+        if prepared_hash:
+            # Compare to the audited snapshot, not the canonical source text.
+            # Never trust a replacement digest carried by the packed row.
+            if actual_hash != prepared_hash:
+                violations.append({"type": "prepared_content_hash_mismatch", "evidence_id": evidence_id})
+            continue
         # Provenance-prefix compaction is allowed to change row text, so hash
         # checks apply only when the candidate text was copied verbatim.
         if expected_hash and str(item.get("text") or "") == str(original.get("text") or "") and actual_hash != expected_hash:
@@ -501,6 +561,11 @@ def validate_packed_evidence(
         group = str(item.get("packing_group_id") or "")
         groups.setdefault(group, set()).add(str(item.get("evidence_id") or ""))
     packed_set = set(packed_ids)
+    required_documents = {r.get('document_id') for r in candidate_list
+                          if r.get('required_document_coverage') and r.get('document_id')}
+    actual_documents = {r.get('document_id') for r in packed_list}
+    for document_id in sorted(required_documents - actual_documents):
+        violations.append({'type': 'required_document_removed', 'document_id': document_id})
     for group, members in groups.items():
         present = members & packed_set
         if present and present != members:

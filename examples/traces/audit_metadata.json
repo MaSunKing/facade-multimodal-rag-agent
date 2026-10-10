@@ -1,0 +1,50 @@
+{
+  "kind": "illustrative_not_executed",
+  "branch": "audit_metadata",
+  "purpose": "真实草稿后元数据精简",
+  "source": "backend/sales/review_budget.py",
+  "not_a_test_result": true,
+  "nodes": [
+    {
+      "stage": "complete_draft",
+      "status": "illustrative",
+      "input_tokens": null,
+      "output_tokens": null,
+      "elapsed_ms": null,
+      "model_calls": null
+    },
+    {
+      "stage": "count_review",
+      "status": "illustrative",
+      "input_tokens": null,
+      "output_tokens": null,
+      "elapsed_ms": null,
+      "model_calls": null
+    },
+    {
+      "stage": "compact_metadata_if_needed",
+      "status": "illustrative",
+      "input_tokens": null,
+      "output_tokens": null,
+      "elapsed_ms": null,
+      "model_calls": null
+    },
+    {
+      "stage": "count_again",
+      "status": "illustrative",
+      "input_tokens": null,
+      "output_tokens": null,
+      "elapsed_ms": null,
+      "model_calls": null
+    },
+    {
+      "stage": "answer_audit",
+      "status": "illustrative",
+      "input_tokens": null,
+      "output_tokens": null,
+      "elapsed_ms": null,
+      "model_calls": null
+    }
+  ],
+  "boundary": "Labels are design phases, not a promise that each is a separate LangGraph node. No real answer or metric is fabricated."
+}

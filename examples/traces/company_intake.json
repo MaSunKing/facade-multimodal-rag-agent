@@ -1,0 +1,58 @@
+{
+  "kind": "illustrative_not_executed",
+  "branch": "company_intake",
+  "purpose": "企业接入止于人工审核包",
+  "source": "backend/sales/ingestion_graph.py",
+  "not_a_test_result": true,
+  "nodes": [
+    {
+      "stage": "source_hash",
+      "status": "illustrative",
+      "input_tokens": null,
+      "output_tokens": null,
+      "elapsed_ms": null,
+      "model_calls": null
+    },
+    {
+      "stage": "parse",
+      "status": "illustrative",
+      "input_tokens": null,
+      "output_tokens": null,
+      "elapsed_ms": null,
+      "model_calls": null
+    },
+    {
+      "stage": "taxonomy",
+      "status": "illustrative",
+      "input_tokens": null,
+      "output_tokens": null,
+      "elapsed_ms": null,
+      "model_calls": null
+    },
+    {
+      "stage": "visual_labels",
+      "status": "illustrative",
+      "input_tokens": null,
+      "output_tokens": null,
+      "elapsed_ms": null,
+      "model_calls": null
+    },
+    {
+      "stage": "review_package",
+      "status": "illustrative",
+      "input_tokens": null,
+      "output_tokens": null,
+      "elapsed_ms": null,
+      "model_calls": null
+    },
+    {
+      "stage": "manual_promotion",
+      "status": "illustrative",
+      "input_tokens": null,
+      "output_tokens": null,
+      "elapsed_ms": null,
+      "model_calls": null
+    }
+  ],
+  "boundary": "Labels are design phases, not a promise that each is a separate LangGraph node. No real answer or metric is fabricated."
+}

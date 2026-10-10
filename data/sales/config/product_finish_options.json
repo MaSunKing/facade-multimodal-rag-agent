@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "basis": "user_confirmed_product_options",
+  "scope": "all_existing_products",
+  "finishes": ["荔枝面", "光面", "哑光面"],
+  "boundary": "可选饰面文字登记；不新增独立型号、图片、性能或项目采用关系。"
+}

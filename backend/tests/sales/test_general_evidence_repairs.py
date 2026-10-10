@@ -38,13 +38,15 @@ class GeneralEvidenceRepairTests(unittest.TestCase):
         self.assertNotIn('goal_support_scores', wire)
         self.assertIn('goal_support_scores', original)
 
-    def test_raw_question_qualifiers_are_scored_independently(self):
+    def test_raw_question_qualifiers_survive_joint_task_ranking(self):
         scorer = Mock(); scorer.score.return_value = [0.8]
         raw = 'Compare graduates over age 65, excluding tablets, in 2013.'
         _, audit = rerank_goal_evidence(raw, [dict(evidence_id='E',text='source')],
                                         goals=['compare devices'], scorer=scorer)
         self.assertEqual(audit['goals'][0], raw)
-        self.assertEqual(scorer.score.call_args_list[0].args[0], raw)
+        self.assertTrue(scorer.score.call_args_list[0].args[0].startswith(raw))
+        scorer.score.assert_called_once()
+        self.assertFalse(audit['dimension_scores_are_independent'])
 
     def test_query_normalization_and_execution_each_have_one_slot(self):
         budget = RequestBudget(time.monotonic()+100)

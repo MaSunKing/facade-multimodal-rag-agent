@@ -1,3 +1,5 @@
+# Normalize source/docs; frozen fixture exceptions below retain exact bytes.
+* text=auto eol=lf
 # Preserve native fixture bytes and source SHA across Windows/Linux checkouts.
 *.pdf binary
 *.docx binary
@@ -8,3 +10,5 @@ evaluation/public_v1/public_eval.json -text
 evaluation/**/english_questions.json -text
 evaluation/**/questions.json -text
 evaluation/**/assets/** -text
+# Current frozen 100-case suite must retain original bytes on every platform.
+data/sales/evaluation/agent_eval_100_v1/** -text

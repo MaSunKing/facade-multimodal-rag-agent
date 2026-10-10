@@ -1,0 +1,50 @@
+{
+  "kind": "illustrative_not_executed",
+  "branch": "audit_pass",
+  "purpose": "完成度审核后发布",
+  "source": "backend/sales/answer_graph.py",
+  "not_a_test_result": true,
+  "nodes": [
+    {
+      "stage": "generate_answer",
+      "status": "illustrative",
+      "input_tokens": null,
+      "output_tokens": null,
+      "elapsed_ms": null,
+      "model_calls": null
+    },
+    {
+      "stage": "answer_audit",
+      "status": "illustrative",
+      "input_tokens": null,
+      "output_tokens": null,
+      "elapsed_ms": null,
+      "model_calls": null
+    },
+    {
+      "stage": "pass",
+      "status": "illustrative",
+      "input_tokens": null,
+      "output_tokens": null,
+      "elapsed_ms": null,
+      "model_calls": null
+    },
+    {
+      "stage": "program_references",
+      "status": "illustrative",
+      "input_tokens": null,
+      "output_tokens": null,
+      "elapsed_ms": null,
+      "model_calls": null
+    },
+    {
+      "stage": "delivery",
+      "status": "illustrative",
+      "input_tokens": null,
+      "output_tokens": null,
+      "elapsed_ms": null,
+      "model_calls": null
+    }
+  ],
+  "boundary": "Labels are design phases, not a promise that each is a separate LangGraph node. No real answer or metric is fabricated."
+}

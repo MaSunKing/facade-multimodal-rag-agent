@@ -9,6 +9,32 @@ from backend.sales.tool_planner import ToolPlan, guard_plan
 
 
 class GoalRerankingTests(unittest.TestCase):
+    def test_many_attachments_do_not_exclude_company_or_web_from_shared_pool(self):
+        items = [dict(evidence_id=f'U{i}', document_name=f'{i}.pdf',
+                      source_type='customer_document', text='attachment') for i in range(25)]
+        items += [dict(evidence_id='T1', source_type='company_rag', text='company'),
+                  dict(evidence_id='W1', source_type='public_web', text='web')]
+        scorer = Mock()
+        scorer.score.return_value = [0.2]*16
+        _, audit = rerank_goal_evidence('question', items, goals=[], scorer=scorer)
+        self.assertIn('T1', audit['scores'])
+        self.assertIn('W1', audit['scores'])
+        self.assertEqual(audit['candidate_count'], 16)
+
+    def test_shared_relevance_beats_source_identity_and_keeps_duplicate_provenance(self):
+        items = [dict(evidence_id='U1', source_type='customer_document', text='question '*15,
+                      goal_rerank_applied=True, goal_support_scores={'question':0.01}),
+                 dict(evidence_id='W1', source_type='public_web', source_url='https://example.org',
+                      text='Direct explanation of the requested subject and relation.',
+                      goal_rerank_applied=True, goal_support_scores={'question':0.95}),
+                 dict(evidence_id='T1', source_type='company_rag',
+                      text='Direct explanation of the requested subject and relation.',
+                      goal_rerank_applied=True, goal_support_scores={'question':0.9})]
+        ranked, audit = optimise_evidence_context('question', items)
+        self.assertEqual(ranked[0]['evidence_id'], 'W1')
+        self.assertEqual(ranked[0]['duplicate_provenance'][0]['evidence_id'], 'T1')
+        self.assertFalse(audit['raw_scores_compared_across_sources'])
+
     def test_semantic_support_beats_shared_words_and_preserves_two_documents(self):
         items = [
             dict(evidence_id='A1', document_name='a.pdf', evidence_scope='content', text='planet rotation axis and seasons'),

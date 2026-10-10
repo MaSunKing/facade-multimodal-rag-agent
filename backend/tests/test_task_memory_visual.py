@@ -8,10 +8,51 @@ from backend.documents.visual_inputs import merge_visual_paths
 
 
 class MemoryTests(unittest.TestCase):
+    def test_memory_cancellation_is_not_hidden_as_lexical_fallback(self):
+        from backend.request_budget import RequestBudget, RequestCancelled, budget_scope
+        budget = RequestBudget(float('inf'))
+        with budget_scope(budget):
+            budget.cancelled.set()
+            with self.assertRaises(RequestCancelled):
+                self.store.semantic_scores([], 'current task')
+
+    def test_semantic_paraphrase_cache_and_unrelated_filter(self):
+        import numpy as np
+        class Encoder:
+            def __init__(self): self.calls = []
+            def encode(self, texts, **kwargs):
+                self.calls.append(list(texts))
+                return np.array([[1.,0.] if ('价格' in t or '费用' in t) else [0.,1.] for t in texts])
+        encoder = Encoder()
+        store = TaskMemory(Path(self.temp.name)/'semantic.sqlite3', semantic_encoder=encoder)
+        store.commit('a','t','之前的价格是十万')
+        store.commit('a','t','请介绍游戏玩法')
+        found = store.recall('a','t','费用是多少')
+        self.assertEqual([x['text'] for x in found['related_history']],['之前的价格是十万'])
+        self.assertEqual(found['related_history'][0]['match_method'],'semantic')
+        self.assertFalse(found['related_history'][0]['technical_evidence'])
+        again = store.recall('a','t','费用是多少')
+        self.assertEqual(again['audit']['new_embeddings'],0)
+        self.assertEqual(store.recall('b','t','费用是多少')['related_history'],[])
+        store.forget('a','t')
+        with store.connect() as db:
+            self.assertEqual(db.execute('select count(*) from task_memory_vectors').fetchone()[0],0)
+
+    def test_planner_history_is_not_a_current_user_message(self):
+        from backend.app import DraftRequest, planner_context_input
+        request = DraftRequest(customer_question='请讲讲国际象棋', conversation_context=[
+            {'role':'user','content':'介绍保温板'}, {'role':'assistant','content':'旧产品回答'}])
+        request._task_memory = {'related_history':[{'text':'老项目条件'}],'task_state':[]}
+        payload = planner_context_input(request)
+        self.assertEqual(payload['current_question'],'请讲讲国际象棋')
+        self.assertEqual(len(payload['previous_exchange']),2)
+        self.assertEqual(payload['related_history'][0]['text'],'老项目条件')
+        self.assertNotIn('conversation_context',payload)
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.store = TaskMemory(Path(self.temp.name) / "memory.sqlite3")
+        self.store = TaskMemory(Path(self.temp.name) / "memory.sqlite3", semantic_encoder=False)
 
     def update(self, value, quote, **kwargs):
         return MemoryUpdate(key="project_a.installation", value=value, quote=quote, mode="asserted", **kwargs)
@@ -104,6 +145,20 @@ class MemoryTests(unittest.TestCase):
             "related_history": [{"text": "字"*450} for _ in range(3)]}
         context = compact_conversation_context(request)
         self.assertLess(len(context[0]["content"]), 2300)
+
+    def test_recent_context_keeps_one_exchange_with_or_without_memory(self):
+        from backend.app import DraftRequest, compact_conversation_context
+        request = DraftRequest(customer_question="继续", conversation_context=[
+            {"role": "user" if i % 2 == 0 else "assistant", "content": f"turn_{i}"}
+            for i in range(6)
+        ])
+        expected = [{"role": "user", "content": "turn_4"},
+                    {"role": "assistant", "content": "turn_5"}]
+        self.assertEqual(compact_conversation_context(request), expected)
+        request._task_memory = {"task_state": [], "related_history": []}
+        context = compact_conversation_context(request)
+        self.assertEqual(context[1:], expected)
+        self.assertIn("NOT technical evidence", context[0]["content"])
 
 
 class VisualTests(unittest.TestCase):

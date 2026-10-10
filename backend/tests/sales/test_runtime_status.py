@@ -47,6 +47,10 @@ class RuntimeStatusTests(unittest.TestCase):
             (TimeoutError('private endpoint'), 'public_web_search', 'WEB_TIMEOUT'),
             (RuntimeError('C:/private/model'), 'model_load', 'MODEL_LOAD_FAILED'),
             (ValueError('context_budget exceeded'), 'generate_answer', 'CONTEXT_BUDGET_EXCEEDED'),
+            (ValueError('answer_review_admission_budget_exceeded'), 'generate_answer', 'CONTEXT_BUDGET_EXCEEDED'),
+            (ValueError('answer_review_admission_invariant_failed'), 'answer_audit', 'AUDIT_INPUT_BUDGET_EXCEEDED'),
+            (ValueError('answer_review_admission_budget_exceeded'), 'generate_answer', 'CONTEXT_BUDGET_EXCEEDED'),
+            (ValueError('answer_review_admission_invariant_failed'), 'answer_audit', 'AUDIT_INPUT_BUDGET_EXCEEDED'),
             (json.JSONDecodeError('secret', 'private', 0), 'validate_answer', 'OUTPUT_INVALID_JSON'),
         ]:
             info = classify(exception, stage)

@@ -333,6 +333,8 @@ class LocalRagRetriever:
         self.payload = json.loads(index_path.read_text(encoding="utf-8"))
         self.allowed_access_scopes = frozenset(allowed_access_scopes or {"public"})
         raw_documents: list[dict[str, Any]] = self.payload.get("documents", [])
+        from backend.sales.project_identity import canonical_index_documents
+        raw_documents = canonical_index_documents(raw_documents)
         # Semantic taxonomy (for example ``internal_sales_playbook``) is not
         # an access-control decision. Existing records predate this field and
         # are public by the business owner's explicit decision; future private
@@ -343,6 +345,8 @@ class LocalRagRetriever:
             if str(document.get("access_scope") or document.get("visibility") or "public")
             in self.allowed_access_scopes
         ]
+        from backend.sales.form_annotations import apply_annotations
+        self.documents = apply_annotations(self.documents, tokenize)
         # The repository was reorganised from data/processed to
         # data/sales/processed.  Older, otherwise valid indexes may still hold
         # absolute paths from before that move.  Resolve those paths at load
@@ -375,6 +379,11 @@ class LocalRagRetriever:
             for position, document in enumerate(self.documents)
             if document.get("id")
         }
+        # Old chunk references remain valid after lossless index compaction.
+        # Resolve only aliases whose canonical row passed this user's ACL.
+        for alias, canonical in (self.payload.get("document_aliases") or {}).items():
+            if canonical in self.document_position_by_id:
+                self.document_position_by_id[alias] = self.document_position_by_id[canonical]
         self._dense_ids: list[str] = []
         self._dense_vectors: np.ndarray | None = None
         self._hybrid_validation = self._validate_dense_index()
@@ -461,6 +470,19 @@ class LocalRagRetriever:
             allowed_positions = [position for position, document_id in enumerate(ids) if document_id in lexical_ids]
             self._dense_ids = [ids[position] for position in allowed_positions]
             self._dense_vectors = vectors[allowed_positions]
+            self._vector_store = None
+            status['vector_backend'] = 'npz'
+            if os.getenv('RAG_VECTOR_BACKEND', 'npz') == 'qdrant':
+                try:
+                    from backend.sales.vector_store import QdrantStore
+                    store = QdrantStore()
+                    if not store.ready(lexical_fingerprint, vectors.shape[1], len(ids)):
+                        raise ValueError('vector_collection_not_current')
+                    self._vector_store = store
+                    status['vector_backend'] = 'qdrant'
+                except Exception as exc:
+                    # Safe, observable rollback to the validated local index.
+                    status['vector_service_fallback'] = type(exc).__name__
             status["ready"] = True
             status["reason"] = None
             return status
@@ -470,6 +492,8 @@ class LocalRagRetriever:
 
     @staticmethod
     def _resolve_visual_path(raw_path: str) -> Path:
+        if os.name == 'posix' and re.match(r'^[A-Za-z]:[\\/]', raw_path):
+            raw_path = '/mnt/' + raw_path[0].lower() + '/' + raw_path[3:].replace('\\', '/')
         path = Path(raw_path)
         if path.is_file():
             return path
@@ -981,6 +1005,7 @@ class LocalRagRetriever:
             ),
             "retrieval_channels": [str(channel) for channel in channels],
             "hybrid_skip_reason": str(document.get("_hybrid_skip_reason") or "") or None,
+            "recall_execution": document.get('_recall_execution') or {'policy': 'lexical_only'},
             "reranker_score": (
                 round(float(document["_reranker_score"]), 6)
                 if isinstance(document.get("_reranker_score"), (int, float))
@@ -1206,6 +1231,33 @@ class LocalRagRetriever:
 
         return selected or [anchor]
 
+    def _lexical_candidates(self, query, query_tokens, *, node_atlas_request,
+                            standard_request, procedure_request, product_overview_request,
+                            candidate_ids=None):
+        lexical = self._lexical_scored(query_tokens, node_atlas_request=node_atlas_request,
+            standard_request=standard_request, procedure_request=procedure_request,
+            product_overview_request=product_overview_request)
+        if candidate_ids is not None:
+            lexical = [(s,d) for s,d in lexical if str(d.get('id')) in candidate_ids]
+        adjusted_rows = []
+        for score, document in lexical:
+            text = self._document_text(document)
+            adjusted = (score + self._source_name_affinity(query, document)
+                + self._rare_query_affinity(query, document)
+                + self._rare_query_character_coverage(query, document)
+                + self._exact_query_phrase_affinity(query, document)
+                + self._question_subject_affinity(query, document)
+                + self._choice_condition_affinity(query, document)
+                + self.temporal_precondition_affinity(query, document)
+                + self._answer_form_affinity(query, document) * HYBRID_RULE_SCALE)
+            if standard_request and "原则" in query and "应选用" in text:
+                adjusted += 140.0
+            if standard_request and any(marker in text for marker in ("本条", "本规范条文", "鉴于", "因此，根据")):
+                adjusted -= 90.0
+            adjusted_rows.append((adjusted, document))
+        adjusted_rows.sort(key=lambda item: item[0], reverse=True)
+        return lexical, adjusted_rows
+
     def _hybrid_scored(
         self,
         query: str,
@@ -1215,6 +1267,8 @@ class LocalRagRetriever:
         standard_request: bool,
         procedure_request: bool,
         product_overview_request: bool,
+        candidate_ids: set[str] | None = None,
+        defer_rerank: bool = False,
     ) -> list[tuple[float, dict[str, Any]]]:
         """Dense-recall plus local reranking, with a lexical fallback.
 
@@ -1224,41 +1278,15 @@ class LocalRagRetriever:
         ``RAG_HYBRID_ENABLED=0`` to force BM25-only retrieval.
         """
 
-        lexical = self._lexical_scored(
-            query_tokens,
-            node_atlas_request=node_atlas_request,
-            standard_request=standard_request,
-            procedure_request=procedure_request,
-            product_overview_request=product_overview_request,
-        )
-        # Query-aware affinities must participate before the reranker candidate
-        # cutoff.  Applying them only after reranking is too late: an exact
-        # normative clause can otherwise be discarded by many generic chunks
-        # from the same long standard.
-        lexical_for_candidates = []
-        for score, document in lexical:
-            text = self._document_text(document)
-            adjusted = (
-                score
-                + self._source_name_affinity(query, document)
-                + self._rare_query_affinity(query, document)
-                + self._rare_query_character_coverage(query, document)
-                + self._exact_query_phrase_affinity(query, document)
-                + self._question_subject_affinity(query, document)
-                + self._choice_condition_affinity(query, document)
-                + self.temporal_precondition_affinity(query, document)
-                + self._answer_form_affinity(query, document) * HYBRID_RULE_SCALE
-            )
-            if standard_request and "原则" in query and "应选用" in text:
-                adjusted += 140.0
-            if standard_request and any(
-                marker in text for marker in ("本条", "本规范条文", "鉴于", "因此，根据")
-            ):
-                adjusted -= 90.0
-            lexical_for_candidates.append((adjusted, document))
-        lexical_for_candidates.sort(key=lambda item: item[0], reverse=True)
+        def lexical_read():
+            return self._lexical_candidates(query, query_tokens,
+                node_atlas_request=node_atlas_request, standard_request=standard_request,
+                procedure_request=procedure_request, product_overview_request=product_overview_request,
+                candidate_ids=candidate_ids)
+        lexical = None
+        recall_audit = {'policy': 'serial_recall'}
         if not self._hybrid_validation.get("ready"):
-            return lexical
+            return lexical_read()[0]
 
         # On the 16 GB single-GPU workstation, Qwen3-VL-8B owns CUDA during
         # planning/generation.  Loading the two 0.6B retrieval models on CPU in
@@ -1270,7 +1298,8 @@ class LocalRagRetriever:
         try:
             from backend.sales.dense_retrieval import retrieval_runtime_status
 
-            if retrieval_runtime_status().get("generation_gpu_reserved"):
+            if (retrieval_runtime_status().get("generation_gpu_reserved")
+                    and os.getenv('RAG_DENSE_WHILE_GENERATING', '0') != '1'):
                 return [
                     (
                         score,
@@ -1280,7 +1309,7 @@ class LocalRagRetriever:
                             "_hybrid_skip_reason": "generation_gpu_reserved",
                         },
                     )
-                    for score, document in lexical
+                    for score, document in lexical_read()[0]
                 ]
         except Exception:
             # Runtime introspection is advisory.  The guarded hybrid branch
@@ -1297,19 +1326,45 @@ class LocalRagRetriever:
             ids = self._dense_ids
             vectors = self._dense_vectors
             if vectors is None:
-                return lexical
-            with RETRIEVAL_INFERENCE_LOCK:
-                embedding = get_embedding_model()
-                query_vector = embedding.encode([query], query=True, batch_size=1, max_length=1024)[0]
+                return lexical_read()[0]
+            def dense_read():
+                with RETRIEVAL_INFERENCE_LOCK:
+                    embedding = get_embedding_model()
+                    return embedding.encode([query], query=True, batch_size=1, max_length=1024)[0]
+            if os.getenv('RAG_PARALLEL_RECALL', '1') == '1':
+                from backend.sales.parallel_reads import parallel_reads
+                reads, recall_audit = parallel_reads({'bm25': lexical_read, 'embedding': dense_read})
+                if reads['bm25']['error'] is not None:
+                    raise reads['bm25']['error']
+                lexical, lexical_for_candidates = reads['bm25']['value']
+                if reads['embedding']['error'] is not None:
+                    raise reads['embedding']['error']
+                query_vector = reads['embedding']['value']
+            else:
+                lexical, lexical_for_candidates = lexical_read()
+                query_vector = dense_read()
 
-            dense_scores = vectors @ query_vector.astype(np.float32)
-            dense_order = np.argsort(-dense_scores)[:48]
             document_by_id = {str(document.get("id")): document for document in self.documents}
-            dense_ranked_ids = [ids[int(index)] for index in dense_order]
+            allowed_dense_ids = set(ids) if candidate_ids is None else set(ids) & candidate_ids
+            if getattr(self, '_vector_store', None) is not None:
+                matches = self._vector_store.search(query_vector,
+                    fingerprint=self._hybrid_validation['lexical_fingerprint'], allowed_ids=allowed_dense_ids)
+                dense_ranked_ids = [key for key, _ in matches]
+            else:
+                dense_scores = vectors @ query_vector.astype(np.float32)
+                dense_order = [i for i in np.argsort(-dense_scores) if ids[int(i)] in allowed_dense_ids][:48]
+                dense_ranked_ids = [ids[int(index)] for index in dense_order]
             fused = reciprocal_rank_fusion(
                 lexical_for_candidates[:48], dense_ranked_ids, document_by_id
             )
             fused = [item for item in fused if self._document_text(item[1])]
+            if defer_rerank:
+                return [(60.0*score, {**document, '_retrieval_score_mode':'hybrid',
+                    '_recall_execution': recall_audit,
+                    '_reranker_deferred':True, '_fusion_score':score,
+                    '_retrieval_channels': [channel for channel, found in (
+                        ('lexical',str(document['id']) in {str(d['id']) for _,d in lexical_for_candidates[:48]}),
+                        ('dense',str(document['id']) in set(dense_ranked_ids))) if found]}) for score,document in fused]
             # Keep original diagrams/photos in the reranking pool.  Without a
             # quota, many short text chunks can crowd out a relevant node
             # drawing before the visual-selection stage ever sees it.
@@ -1344,6 +1399,7 @@ class LocalRagRetriever:
                 fusion_score = fusion_by_id.get(str(document.get("id")), 0.0)
                 combined_score = 0.85 * float(reranker_score) + 0.15 * fusion_score
                 tagged_document = dict(document)
+                tagged_document['_recall_execution'] = recall_audit
                 tagged_document["_retrieval_score_mode"] = "hybrid"
                 tagged_document["_reranker_score"] = float(reranker_score)
                 tagged_document["_fusion_score"] = float(fusion_score)
@@ -1370,7 +1426,10 @@ class LocalRagRetriever:
                 reverse=True,
             )
             return reranked
-        except Exception:
+        except Exception as exc:
+            from backend.request_budget import RequestBudgetExceeded
+            if isinstance(exc, RequestBudgetExceeded):
+                raise
             # The sales assistant remains available if an optional local
             # retrieval model is updating or temporarily lacks GPU memory.
             return [
@@ -1380,9 +1439,10 @@ class LocalRagRetriever:
                         **document,
                         "_retrieval_score_mode": "lexical",
                         "_hybrid_skip_reason": "hybrid_inference_failed",
+                        '_recall_execution': recall_audit,
                     },
                 )
-                for score, document in lexical
+                for score, document in (lexical if lexical is not None else lexical_read()[0])
             ]
 
     @staticmethod
@@ -1486,8 +1546,10 @@ class LocalRagRetriever:
             or related_case.get("product")
         )
         variant_or_code = document.get("variant_or_code") or matched_variant_or_code
+        from backend.sales.visual_labels import labels_for_asset
         return {
             "asset_id": asset_id,
+            "image_labels": labels_for_asset(asset_id),
             "customer_title": document.get("customer_title")
             or related_case.get("project_name"),
             "asset_type": document.get("asset_type"),
@@ -1663,6 +1725,20 @@ class LocalRagRetriever:
         exact = [
             item for item in eligible if self._product_visual_match(query, item[1])[0]
         ]
+        # A full catalogue variant name is stronger than shared finish words
+        # (e.g. multiple unrelated samples can all have the same surface).
+        # Resolve names from catalogue metadata, never from a product hardcode.
+        compact = re.sub(r"\s+", "", query.lower()).replace("®", "")
+        named_variants = {
+            re.sub(r"\s+", "", str(document.get("variant_or_code") or "").lower()).replace("®", "")
+            for _, document in eligible
+        }
+        named_variants = {name for name in named_variants if len(name) >= 3 and name in compact}
+        if named_variants:
+            exact = [item for item in exact if any(
+                name in re.sub(r"\s+", "", str(item[1].get("variant_or_code") or item[1].get("customer_title") or "").lower()).replace("®", "")
+                for name in named_variants
+            )]
         return sorted(exact, key=sort_key, reverse=True)
 
     def _product_gallery_candidates(
@@ -1815,9 +1891,21 @@ class LocalRagRetriever:
         retrieval_mode: str = "factual_lookup",
         *,
         wants_visuals: bool = False,
+        inspect_visuals: bool = False,
         visual_scope: str = "mixed",
         visual_query: str | None = None,
         product_overview_request: bool | None = None,
+        visual_product_family: str = 'unknown',
+        visual_gallery_scope: str = 'unknown',
+        visual_gallery_target: str = '',
+        entity_query: str | None = None,
+        knowledge_categories: list[str] | None = None,
+        company_operation: str = 'unknown',
+        directory_targets: list[str] | None = None,
+        directory_filters: dict | None = None,
+        answer_aspects: list[str] | None = None,
+        retrieval_requests: list[dict] | None = None,
+        defer_rerank: bool = False,
     ) -> dict[str, Any]:
         retrieval_mode = retrieval_mode if retrieval_mode in RETRIEVAL_MODES else "factual_lookup"
         visual_scope = visual_scope if visual_scope in VISUAL_SCOPES else "mixed"
@@ -1876,14 +1964,54 @@ class LocalRagRetriever:
                 ),
             }
 
-        scored = self._hybrid_scored(
-            expanded_query,
-            query_tokens,
-            node_atlas_request=node_atlas_request,
-            standard_request=standard_request,
-            procedure_request=procedure_request,
-            product_overview_request=product_overview_request,
-        )
+        from backend.sales.relation_scope import resolve_relation_scope
+        from backend.sales.catalog_store import CATALOG_DB_PATH
+        relation_scope = resolve_relation_scope(CATALOG_DB_PATH, entity_query or query,
+            categories=knowledge_categories or [], targets=list(dict.fromkeys([*(directory_targets or []),
+                *[t for r in (retrieval_requests or []) for t in r.get('targets', [])]])),
+            filters=directory_filters, operation=company_operation)
+        coverage_task = company_operation in {'summary','comparison'} or retrieval_mode=='comparison'
+        if coverage_task:
+            text_evidence_limit=max(text_evidence_limit,min(24,len(relation_scope['entity_ids'])))
+        from backend.sales.relation_scope import category_candidate_ids
+        from backend.sales.content_taxonomy import canonical_domains
+        category_pools = {cat:category_candidate_ids(CATALOG_DB_PATH,[cat])
+                          for cat in canonical_domains(knowledge_categories or [])}
+        relation_ids = set(relation_scope['candidate_ids'])
+        scoped_ids = relation_ids or (set().union(*category_pools.values()) if category_pools else None)
+        def recall(allowed):
+            return self._hybrid_scored(expanded_query,query_tokens,
+                node_atlas_request=node_atlas_request,standard_request=standard_request,
+                procedure_request=procedure_request,product_overview_request=product_overview_request,
+                candidate_ids=allowed,defer_rerank=defer_rerank)
+        category_recall=[]
+        category_ranked={}
+        if category_pools:
+            for cat, pool in category_pools.items():
+                local = pool & relation_ids if relation_ids else pool
+                ranked = recall(local)
+                expanded_to_category = bool(relation_ids and not any(s>0 and d.get('kind')=='text' for s,d in ranked))
+                if expanded_to_category:
+                    ranked = recall(pool)
+                category_ranked[cat]=ranked
+                category_recall.append({'category':cat,'tier':'category' if expanded_to_category or not relation_ids else 'relation',
+                    'candidate_count':len(pool if expanded_to_category or not relation_ids else local),
+                    'positive_text_candidates':sum(s>0 and d.get('kind')=='text' for s,d in ranked),
+                    'reason':'no_positive_relation_candidate' if expanded_to_category else None})
+            unique={str(d['id']):(s,d) for ranked in category_ranked.values() for s,d in ranked}
+            scored=sorted(unique.values(),key=lambda x:x[0],reverse=True)
+        else:
+            scored=recall(scoped_ids)
+        # Candidate absence, not a fixed two-row quota or uncalibrated score
+        # threshold, permits full-library fallback. Semantic gaps are audited.
+        relation_scope['global_fallback'] = not any(s>0 and d.get('kind')=='text' for s,d in scored)
+        relation_scope['expansion_reason'] = 'no_positive_selected_category_candidate' if relation_scope['global_fallback'] else None
+        if relation_scope['global_fallback']:
+            unique={str(d['id']):(s,d) for s,d in scored}
+            for s,d in recall(None):unique.setdefault(str(d['id']),(s,d))
+            scored=sorted(unique.values(),key=lambda x:x[0],reverse=True)
+        relation_scope['category_recall']=category_recall
+        relation_scope['scoped_candidate_count'] = len(scoped_ids or ())
         scored = self._rank_with_rules(
             query,
             scored,
@@ -1916,10 +2044,18 @@ class LocalRagRetriever:
             chunk_id = str(document.get("id") or "")
             if not chunk_id or chunk_id in selected_text_chunk_ids:
                 return
+            roles = [g['relation'] for g in relation_scope.get('evidence_groups', []) if chunk_id in g['ids']]
+            reference_only = bool(roles and 'entity_source' not in roles)
             text_evidence.append(
                 {
                     "chunk_id": chunk_id,
-                    "text": document["text"],
+                    "document_id": self._primary_document_id(document),
+                    "text": ('资料角色：体系级技术参考，关联不表示本项目实际采用，也不证明具体产品合规。\n' if reference_only else '') + document["text"],
+                    "relation_roles": roles,
+                    "product_form": document.get('product_form'),
+                    "form_annotation_provenance": document.get('form_annotation_provenance'),
+                    "entity_coverage_ids": [g['entity_id'] for g in relation_scope.get('evidence_groups', [])
+                        if g.get('entity_id') and chunk_id in g['ids'] and g['relation'] in {'entity_source','family_reference'}],
                     "score": round(score, 4),
                     "facts_eligible": True,
                     "citations": self._public_sources(document.get("source_refs") or []),
@@ -1940,27 +2076,70 @@ class LocalRagRetriever:
             selected_text_chunk_ids.add(chunk_id)
             selected_text_documents.append(document)
 
-        if procedure_request:
-            for score, document in self._procedure_sequence(query, scored, top_k):
+        relation_reservations = []
+        # Keep candidates for each requested category before global ranking.
+        # Reservation is candidate coverage, never semantic certification.
+        for cat, ranked in category_ranked.items():
+            candidate=next(((s,d) for s,d in ranked if s>0 and d.get('kind')=='text'),None)
+            if candidate:
+                append_text_evidence(*candidate)
+        if scoped_ids:
+            groups = relation_scope.get('evidence_groups', [])
+            priority = {'entity_source':0, 'construction_reference':1, 'node_reference':2, 'standard_reference':3}
+            for group in sorted(groups, key=lambda g:(priority.get(g['relation'],4),g.get('document_key',''))):
+                if group['relation']=='node_reference' and not node_atlas_request:
+                    continue
+                if group['relation']=='standard_reference' and not standard_request:
+                    continue
+                if group['relation']=='construction_reference' and not (procedure_request or project_fit_request or node_atlas_request):
+                    continue
+                candidates=[(s,d) for s,d in scored if d.get('kind')=='text'
+                            and d.get('id') in group['ids'] and d.get('id') not in selected_text_chunk_ids and (s>0 or coverage_task)]
+                if coverage_task and group['relation']=='entity_source' and not candidates:
+                    # Hybrid candidate pruning must not erase a requested object
+                    # before per-object coverage selection. Reuse existing scores.
+                    candidates=[(0.0,d) for d in self.documents if d.get('kind')=='text'
+                        and d.get('id') in group['ids'] and d.get('id') not in selected_text_chunk_ids
+                        and (not category_pools or d.get('id') in set().union(*category_pools.values()))]
+                if candidates and len(text_evidence)<text_evidence_limit:
+                    score, document = candidates[0]
+                    append_text_evidence(score, document)
+                    relation_reservations.append({'relation':group['relation'],'entity_id':group.get('entity_id'),'chunk_id':document['id']})
+                    document_id = self._primary_document_id(document)
+                    if document_id:selected_procedure_document_ids.add(document_id)
+        if procedure_request and len(text_evidence)<text_evidence_limit:
+            for score, document in self._procedure_sequence(query, scored, max(0,top_k-len(text_evidence))):
                 append_text_evidence(score, document)
                 document_id = self._primary_document_id(document)
                 if document_id:
                     selected_procedure_document_ids.add(document_id)
 
+        # Keep the configured current identity available when that exact entity
+        # is queried. Historical catalogue names remain searchable, but cannot
+        # crowd every authoritative identity record out of the candidate pack.
+        from backend.sales.company_identity import load_company_identity
+        legal_name = str(load_company_identity().get('legal_name') or '')
+        if legal_name and legal_name in query and not procedure_request:
+            identity_candidates = [(score, document) for score, document in scored
+                if document.get('kind') == 'text'
+                and document.get('sales_playbook_use') == 'approved_product_master_profile'
+                and legal_name in str(document.get('text') or '')]
+            if identity_candidates:
+                score, document = max(identity_candidates, key=lambda item: item[0])
+                append_text_evidence(score, document)
+
         if product_overview_request and not procedure_request:
-            # The reviewed product dossier is a five-part canonical record.
-            # Hybrid reranking may score a generic catalogue heading above one
-            # of those parts; allowing that heading to consume ``top_k`` made
-            # broad product answers silently omit the finish/style section.
-            # Reserve every approved profile row first, then let ordinary
-            # evidence compete only for any remaining slots.
-            for score, document in scored:
+            # Approved overview sections form a complete dossier, including
+            # manufacturer identity. Hybrid candidate pruning must not remove
+            # a section before this completeness reservation is performed.
+            scores_by_id = {str(document.get("id")): score for score, document in scored}
+            for document in self.documents:
                 if (
                     document.get("kind") == "text"
                     and document.get("sales_playbook_use")
                     == "approved_product_master_profile"
                 ):
-                    append_text_evidence(score, document)
+                    append_text_evidence(scores_by_id.get(str(document.get("id")), 0.0), document)
 
         if not procedure_request and len(text_evidence) < text_evidence_limit:
             selected_candidates, text_selection_audit = self._select_diverse_text_candidates(
@@ -2050,11 +2229,11 @@ class LocalRagRetriever:
 
         visual_assets: list[dict[str, Any]] = []
         effective_case_scope = visual_scope == "case" or retrieval_mode == "case_reference"
-        if effective_case_scope and visual_k and wants_visuals:
+        if effective_case_scope and visual_k and (wants_visuals or inspect_visuals):
             # Case records are the selection source of truth.  Generic visual
             # recall must not consume the budget before their linked photos.
             visual_assets = self.visuals_for_project_cases(project_cases, visual_k=visual_k)
-        elif visual_k and wants_visuals and (visual_candidates or visual_scope == "product"):
+        elif visual_k and (wants_visuals or inspect_visuals) and (visual_candidates or visual_scope == "product"):
             # The cross-encoder reranker emits probability-like values between
             # zero and one, while the original BM25 branch used larger scores.
             # A fixed minimum of 1.0 therefore discarded *every* node drawing
@@ -2083,11 +2262,42 @@ class LocalRagRetriever:
                     visual_query,
                     visual_candidates,
                 )
-                candidate_iterable = self._prioritise_product_visuals(
-                    visual_query,
-                    product_gallery_candidates,
-                    product_overview_request=product_overview_request,
-                )
+                from backend.sales.catalog_store import query_product_gallery
+                gallery_ids = query_product_gallery(family=visual_product_family,
+                    scope=visual_gallery_scope, target=visual_gallery_target,
+                    allowed_access_scopes=getattr(self, 'allowed_access_scopes', {'public'}))
+                # Entity resolution owns identity and set scope, not the legacy
+                # overview/gallery hint. Reuse its SQL edges for the same text
+                # and image targets instead of re-matching the whole sentence.
+                resolved_gallery_ids = query_product_gallery(entity_ids=relation_scope['entity_ids'],
+                    allowed_access_scopes=getattr(self, 'allowed_access_scopes', {'public'})) if relation_scope['entity_ids'] else None
+                # An explicit, ACL-checked gallery condition owns its scope.
+                # A broader directory referent (e.g. a brand) must not replace
+                # an exact variant or family collection, even with zero hits.
+                from backend.sales.catalog_store import choose_gallery_scope_ids
+                gallery_ids = choose_gallery_scope_ids(gallery_ids, resolved_gallery_ids,
+                    scope=visual_gallery_scope, target=visual_gallery_target, resolution=relation_scope)
+                if gallery_ids is not resolved_gallery_ids:
+                    resolved_gallery_ids = None  # Keep trajectory identity consistent with the selected scope.
+                if gallery_ids is not None:
+                    by_id = {str(d.get('asset_id')):(score,d) for score,d in product_gallery_candidates}
+                    from backend.sales.gallery_ranking import rank_gallery_candidates
+                    from backend.sales.visual_labels import labels_for_asset
+                    candidate_iterable = rank_gallery_candidates(
+                        [by_id[key] for key in gallery_ids if key in by_id], labels_for_asset)
+                elif visual_gallery_scope == 'descriptive':
+                    # Appearance descriptions need label relevance, not a literal
+                    # product-name match. Healthy source labels remain required.
+                    from backend.sales.gallery_ranking import rank_gallery_candidates
+                    from backend.sales.visual_labels import labels_for_asset
+                    healthy = [item for item in product_gallery_candidates
+                               if item[0] > 0 and (labels_for_asset(item[1].get('asset_id')) or {}).get('display_ready')
+                               and not (labels_for_asset(item[1].get('asset_id')) or {}).get('label_issues')]
+                    candidate_iterable = rank_gallery_candidates(healthy, labels_for_asset)
+                else:
+                    candidate_iterable = self._prioritise_product_visuals(
+                        visual_query, product_gallery_candidates,
+                        product_overview_request=product_overview_request)
             else:
                 best_visual_score = visual_candidates[0][0]
                 minimum_visual_score = max(1.0, best_visual_score * 0.5)
@@ -2095,6 +2305,10 @@ class LocalRagRetriever:
                     item for item in visual_candidates if item[0] >= minimum_visual_score
                 ]
 
+            if visual_scope == 'product' and visual_product_family in {'decorative_panel', 'insulated_panel'} and not relation_scope['entity_ids']:
+                from backend.sales.visual_labels import labels_for_asset
+                candidate_iterable = [item for item in candidate_iterable
+                    if labels_for_asset(item[1].get('asset_id')).get('product_family_key') == visual_product_family]
             for score, document in candidate_iterable:
                 if len(visual_assets) >= visual_k:
                     break
@@ -2112,6 +2326,10 @@ class LocalRagRetriever:
                         selection_reason = "exact_product_catalog_match"
                     elif product_overview_request:
                         selection_reason = "product_catalog_overview"
+                    if visual_gallery_scope in {'category', 'exact'} and gallery_ids is not None:
+                        selection_reason = 'sql_catalog_'+visual_gallery_scope
+                    if resolved_gallery_ids is not None:
+                        selection_reason = 'sql_entity_relation'
                 visual_assets.append(
                     self._visual_payload(
                         document,
@@ -2167,8 +2385,67 @@ class LocalRagRetriever:
         result_meta["query_retrieval_execution_modes"] = execution_modes
         result_meta["hybrid_query_skip_reasons"] = hybrid_skip_reasons
         result_meta["text_selection_audit"] = text_selection_audit
+        from backend.sales.knowledge_hierarchy import document_sections
+        from backend.sales.catalog_store import CATALOG_DB_PATH
+        hierarchy_navigation = []
+        for document_id in dict.fromkeys(self._primary_document_id(d) for d in selected_text_documents):
+            if document_id:
+                hierarchy_navigation.append({'document_id': document_id,
+                    'sections': document_sections(CATALOG_DB_PATH, document_id,
+                        allowed_access_scopes=getattr(self, 'allowed_access_scopes', {'public'}))})
+        result_meta['relation_scope'] = {k:v for k,v in relation_scope.items() if k not in ('candidate_ids','evidence_groups')}
+        result_meta['relation_scope']['coverage_reservations'] = relation_reservations
+        from backend.sales.requirements import build_requirements, annotate, merge_requirements, coverage, rank_requirement_candidates
+        requirements = build_requirements(relation_scope.get('entity_targets', []), answer_aspects or [entity_query or query],
+            operation=company_operation if company_operation != 'unknown' else ('comparison' if retrieval_mode=='comparison' else 'lookup'),
+            requests=retrieval_requests if company_operation == 'lookup' else ())
+        pools = []
+        for requirement in requirements[:32]:
+            from backend.request_budget import check_budget
+            check_budget()
+            if requirement['target_kind'] == 'unresolved':
+                continue
+            # Requirement recalls reuse CPU BM25 within trusted relation IDs.
+            # Joint reranking remains one downstream pass, not one per cell.
+            scope = scoped_ids
+            if requirement['target_id']:
+                scope = {key for group in relation_scope.get('evidence_groups', [])
+                         if group.get('entity_id') == requirement['target_id'] for key in group['ids']}
+            if category_pools:
+                scope = (scope if scope is not None else set().union(*category_pools.values())) & set().union(*category_pools.values())
+            category_ids=set().union(*category_pools.values()) if category_pools else set()
+            candidates=rank_requirement_candidates(self.documents, requirement,
+                scope=scope, category_ids=category_ids, tokenize=tokenize, score=self._score)
+            if scope is not None and any(d['id'] not in scope for _,d in candidates):
+                relation_scope.setdefault('requirement_expansions',[]).append({
+                    'requirement_id':requirement['requirement_id'],'tier':'selected_categories',
+                    'reason':'facet_ranked_category_complement','semantic_support_verified':False})
+            pools.append((requirement, candidates))
+        # Round-robin prevents one entity/requirement from consuming the pool.
+        for index in range(3):
+            for requirement, pool in pools:
+                if index >= len(pool):continue
+                score, document = pool[index]
+                if str(document['id']) not in selected_text_chunk_ids:
+                    append_text_evidence(score, document)
+                row = next(r for r in text_evidence if r['chunk_id']==str(document['id']))
+                merge_requirements(row, annotate([row],requirement)[0])
+        result_meta['requirement_coverage'] = coverage(requirements,text_evidence)
+        result_meta['relation_scope']['requirement_expansions'] = relation_scope.get('requirement_expansions',[])
+        result_meta['requirement_coverage']['unexecuted_due_to_call_budget'] = [r['requirement_id'] for r in requirements[32:]]
+        result_meta['requirement_coverage']['unexecuted_due_to_scope'] = [r['requirement_id'] for r in requirements[:32]
+            if r['target_kind']=='unresolved']
+        covered_entities={eid for row in text_evidence for eid in row.get('entity_coverage_ids',[])}
+        result_meta['relation_scope']['entity_coverage']={
+            'operation':company_operation,'target_ids':relation_scope['entity_ids'],
+            'represented_ids':sorted(covered_entities),
+            'missing_ids':sorted(set(relation_scope['entity_ids'])-covered_entities),
+            'status':'partial' if coverage_task else 'local_lookup',
+            'boundary':'Representative evidence only; not full-document review or fact support.'}
+        from backend.sales.knowledge_scope_notes import enrich_scope_notes
         return {
-            "text_evidence": text_evidence,
+            "hierarchy_navigation": hierarchy_navigation,
+            "text_evidence": enrich_scope_notes(text_evidence, CATALOG_DB_PATH),
             "visual_assets": visual_assets,
             "project_cases": project_cases,
             "meta": result_meta,

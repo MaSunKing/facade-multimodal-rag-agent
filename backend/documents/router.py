@@ -18,10 +18,18 @@ from backend.documents.customer_sessions import (
 )
 from backend.documents.ownership import optional_attachment_owner, required_attachment_owner
 from backend.document_parsing.ingestion import FinanceIntakeError
+from backend.documents.upload_policy import MAX_SESSION_FILES, public_upload_policy
+from backend.request_budget import RequestBudget, RequestCancelled, budget_scope, check_budget
+from backend.task_cancellation import register_task, unregister_task
 
 
 router = APIRouter(prefix="/api/copilot/documents", tags=["copilot-documents"])
 _upload_admission = threading.BoundedSemaphore(2)
+
+
+@router.get('/limits')
+def upload_limits() -> dict:
+    return public_upload_policy()
 
 
 async def _read_upload_limited(file: UploadFile, *, byte_limit: int) -> bytes:
@@ -44,15 +52,26 @@ async def upload_customer_documents(
     files: list[UploadFile] = File(...),
     session_id: str | None = Form(default=None),
     owner_id: str = Depends(required_attachment_owner),
+    client_task_id: str | None = Form(default=None, pattern=r"^[a-f0-9-]{32,36}$"),
 ) -> dict:
-    if len(files) > 4:
-        raise HTTPException(status_code=400, detail="一次最多上传 4 份文件。")
+    if len(files) > MAX_SESSION_FILES:
+        for file in files:
+            await file.close()
+        raise HTTPException(status_code=400, detail=f"当前附件会话最多 {MAX_SESSION_FILES} 份文件。")
     if not _upload_admission.acquire(blocking=False):
         for file in files:
             await file.close()
         raise HTTPException(status_code=429, detail="本地附件上传繁忙，请稍后重试。")
     payload: list[tuple[str, bytes]] = []
+    budget = RequestBudget.for_answer(has_attachments=True)
+    registered = False
     try:
+        if client_task_id:
+            try:
+                register_task(owner_id, client_task_id, budget)
+                registered = True
+            except ValueError as exc:
+                raise HTTPException(status_code=409, detail="任务标识已在使用。") from exc
         existing = session_summary(session_id, owner_id=owner_id) if session_id else None
         if session_id and existing is None:
             if session_access_status(session_id, owner_id=owner_id) == "foreign":
@@ -70,6 +89,8 @@ async def upload_customer_documents(
         if remaining_session_bytes <= 0:
             raise ValueError("session_files_too_large")
         for file in files:
+            if budget.cancelled.is_set():
+                raise RequestCancelled('request_cancelled')
             content = await _read_upload_limited(
                 file,
                 byte_limit=min(MAX_FILE_BYTES, remaining_session_bytes),
@@ -78,14 +99,27 @@ async def upload_customer_documents(
             remaining_session_bytes -= len(content)
             if remaining_session_bytes < 0:
                 raise ValueError("session_files_too_large")
-        return await run_in_threadpool(add_files, payload, session_id, owner_id=owner_id)
+        def parse():
+            with budget_scope(budget):
+                result = add_files(payload, session_id, owner_id=owner_id)
+                check_budget()
+                return result
+        return await run_in_threadpool(parse)
+    except RequestCancelled as exc:
+        raise HTTPException(status_code=499, detail="附件任务已停止。") from exc
     except AttachmentCapacityError as exc:
         raise HTTPException(status_code=429, detail=str(exc)) from exc
     except PermissionError as exc:
         raise HTTPException(status_code=404, detail="附件会话不存在、已过期或不属于当前用户。") from exc
     except (FinanceIntakeError, ValueError) as exc:
+        if str(exc).startswith('duplicate_attachment_content:'):
+            failure = HTTPException(status_code=409, detail='该文件内容已添加，请勿重复上传。')
+            failure.code = 'DUPLICATE_ATTACHMENT_CONTENT'
+            raise failure from exc
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     finally:
+        if registered:
+            unregister_task(owner_id, client_task_id, budget)
         _upload_admission.release()
         for file in files:
             await file.close()

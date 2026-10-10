@@ -1,6 +1,6 @@
 # 数据目录说明
 
-公开仓库只保留空目录结构，不附带企业或客户资料。
+公开仓库保留配置、100题冻结题库、自造fixture和原料空目录，不附带完整企业原件或客户资料。详见[评测设计](../docs/EVALUATION.md)和[来源声明](../docs/SOURCES.md)。
 
 ```text
 data/sales/raw/product_pdfs/      # 已授权的产品手册、规范、施工方案和图集

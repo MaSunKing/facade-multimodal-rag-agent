@@ -28,7 +28,9 @@ from typing import Any, Literal
 from backend.request_budget import check_budget, reserve_recovery
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qsl, urlencode, urljoin, urlsplit, urlunsplit
-from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
+from urllib.request import HTTPRedirectHandler, Request, ProxyHandler, build_opener, urlopen
+from urllib.robotparser import RobotFileParser
+from backend.sales.web_quality import QUALITY_VERSION, filter_sources, is_time_sensitive
 
 
 BAIDU_WEB_SEARCH_ENDPOINT = "https://qianfan.baidubce.com/v2/ai_search/web_search"
@@ -53,6 +55,7 @@ VALID_PROFILES = {
 }
 _DB_LOCK = threading.RLock()
 _TRACKING_QUERY_KEYS = {"from", "spm", "source", "ref", "referrer"}
+SEARCH_RANKING_VERSION = 2
 
 
 class BaiduSearchError(RuntimeError):
@@ -228,7 +231,7 @@ def _release_api_call(*, usage_date: str) -> dict[str, int]:
 
 
 def _cache_key(query: str, profile: str) -> str:
-    return hashlib.sha256(f"{profile}\n{normalize_query(query).casefold()}".encode("utf-8")).hexdigest()
+    return hashlib.sha256(f"quality-v{QUALITY_VERSION}\nranking-v{SEARCH_RANKING_VERSION}\n{profile}\n{normalize_query(query).casefold()}".encode("utf-8")).hexdigest()
 
 
 def _cache_ttl_seconds(profile: str) -> int:
@@ -272,7 +275,7 @@ def _write_cache(query: str, profile: str, payload: dict[str, Any]) -> None:
             VALUES (?, ?, ?, ?, ?, ?)""",
             (
                 _cache_key(query, profile), normalize_query(query), profile, now,
-                now + _cache_ttl_seconds(profile), json.dumps(payload, ensure_ascii=False),
+                now + (min(_cache_ttl_seconds(profile), 300) if is_time_sensitive(query) else _cache_ttl_seconds(profile)), json.dumps(payload, ensure_ascii=False),
             ),
         )
         connection.commit()
@@ -289,8 +292,13 @@ def _canonical_url(raw_url: str) -> str:
         (key, value) for key, value in parse_qsl(parts.query, keep_blank_values=True)
         if not key.lower().startswith("utm_") and key.lower() not in _TRACKING_QUERY_KEYS
     ]
-    host = parts.hostname.encode("idna").decode("ascii").lower()
-    port = f":{parts.port}" if parts.port and parts.port not in {80, 443} else ""
+    try:
+        if parts.username or parts.password:
+            return ""
+        host = parts.hostname.encode("idna").decode("ascii").lower()
+        port = f":{parts.port}" if parts.port and parts.port not in {80, 443} else ""
+    except (ValueError, UnicodeError):
+        return ""
     path = re.sub(r"/{2,}", "/", parts.path or "/")
     return urlunsplit((parts.scheme.lower(), f"{host}{port}", path, urlencode(query), ""))
 
@@ -304,7 +312,7 @@ def _references_from_response(payload: dict[str, Any]) -> list[dict[str, Any]]:
         return []
     sources: list[dict[str, Any]] = []
     seen_urls: set[str] = set()
-    for item in candidates:
+    for provider_rank, item in enumerate(candidates, start=1):
         if not isinstance(item, dict) or item.get("type") not in {None, "web"}:
             continue
         canonical = _canonical_url(str(item.get("url") or ""))
@@ -315,8 +323,11 @@ def _references_from_response(payload: dict[str, Any]) -> list[dict[str, Any]]:
             r"\s+", " ", html.unescape(str(item.get("content") or item.get("snippet") or ""))
         ).strip()
         sources.append({
-            "source_id": f"W{len(sources) + 1}",
-            "original_rank": len(sources) + 1,
+            "source_id": f"W{provider_rank}",
+            "original_rank": provider_rank,
+            "provider_reference_id": str(item.get("id") or "")[:120],
+            "provider_rerank_score": item.get("rerank_score"),
+            "provider_authority_score": item.get("authority_score"),
             "title": str(item.get("title") or item.get("web_anchor") or item.get("website") or "网页来源").strip()[:200],
             "url": canonical,
             "website": str(item.get("website") or "").strip()[:120],
@@ -326,7 +337,7 @@ def _references_from_response(payload: dict[str, Any]) -> list[dict[str, Any]]:
             "page_fetch_status": "not_attempted",
             "evidence_level": "unavailable" if not search_excerpt else "unverified_search_excerpt",
         })
-        if len(sources) >= 5:
+        if len(sources) >= 50:
             break
     return sources
 
@@ -398,32 +409,39 @@ def _recency_score(date_text: str, profile: str) -> float:
     return max(0.15, math.exp(-age / 3.0))
 
 
-def _rank_sources(query: str, sources: list[dict[str, Any]], profile: str) -> list[dict[str, Any]]:
+def _valid_provider_score(value: Any) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) and 0 <= value <= 1
+
+
+def _rank_sources(query: str, sources: list[dict[str, Any]], profile: str, *, force_original_order: bool = False) -> list[dict[str, Any]]:
+    """Use only provider relevance for order; local metrics remain diagnostics.
+
+    Missing/invalid scores switch the entire admitted set to provider order.
+    Never silently treat a missing score as zero or mix incomparable rankings.
+    """
     policy = _load_policy()
+    complete_scores = bool(sources) and all(_valid_provider_score(source.get('provider_rerank_score')) for source in sources)
+    use_scores = complete_scores and not force_original_order
+    strategy = 'provider_rerank_score_desc_stable' if use_scores else 'provider_original_order_fallback'
     ranked: list[dict[str, Any]] = []
     for source in sources:
         authority, tier = _domain_authority(source, profile, policy)
-        original = max(0.2, 1.0 - (int(source.get("original_rank") or 1) - 1) * 0.16)
         relevance = _relevance_score(query, source)
         recency = _recency_score(str(source.get("date") or ""), profile)
-        evidence_bonus = 1.0 if source.get("evidence_level") == "verified_page_content" else 0.5
-        if profile == "public_project":
-            # 项目检索优先“题目与项目本身是否直接相关”；百度原顺序仅作弱先验，
-            # 避免泛化新闻因原始排名靠前而压过包含项目名、范围和金额的结果。
-            final_score = 0.08 * original + 0.15 * authority + 0.55 * relevance + 0.12 * recency + 0.10 * evidence_bonus
-        else:
-            final_score = 0.35 * original + 0.30 * authority + 0.20 * relevance + 0.10 * recency + 0.05 * evidence_bonus
+        final_score = float(source['provider_rerank_score']) if use_scores else None
         ranked.append({
             **source,
             "authority_score": round(authority, 4),
             "authority_tier": tier,
             "relevance_score": round(relevance, 4),
             "recency_score": round(recency, 4),
-            "final_score": round(final_score, 4),
+            "final_score": final_score,
+            "ranking_strategy": strategy,
         })
-    ranked.sort(key=lambda item: (-float(item["final_score"]), int(item.get("original_rank") or 99)))
+    ranked.sort(key=lambda item: (-float(item['provider_rerank_score']) if use_scores else 0,
+                                 int(item.get("original_rank") or 99)))
     for index, source in enumerate(ranked, start=1):
-        source["source_id"] = f"W{index}"
+        source.setdefault("source_id", f"W{int(source.get('original_rank') or index)}")
         source["reranked_position"] = index
     return ranked
 
@@ -432,13 +450,17 @@ def _source_quality_summary(sources: list[dict[str, Any]]) -> dict[str, Any]:
     verified = sum(1 for item in sources if item.get("evidence_level") == "verified_page_content")
     official_excerpt = sum(1 for item in sources if item.get("evidence_level") == "official_search_excerpt")
     low_authority = sum(1 for item in sources if float(item.get("authority_score") or 0) < 0.55)
+    authoritative_pages = sum(1 for item in sources if item.get('evidence_level') == 'verified_page_content'
+                              and float(item.get('authority_score') or 0) >= 0.85)
     return {
         "source_count": len(sources),
         "verified_page_count": verified,
         "official_excerpt_count": official_excerpt,
         "low_authority_count": low_authority,
-        "reliable_source_count": verified + official_excerpt,
-        "requires_cautious_wording": bool(sources) and verified + official_excerpt == 0,
+        "reliable_source_count": authoritative_pages + official_excerpt,
+        "readable_source_count": verified + official_excerpt,
+        "page_fetch_is_fact_verification": False,
+        "requires_cautious_wording": bool(sources) and authoritative_pages + official_excerpt == 0,
     }
 
 
@@ -447,11 +469,8 @@ def _assert_public_url(raw_url: str) -> str:
     parts = urlsplit(canonical)
     if not canonical or not parts.hostname or parts.port not in {None, 80, 443}:
         raise ValueError("unsupported_url")
-    addresses = socket.getaddrinfo(parts.hostname, parts.port or (443 if parts.scheme == "https" else 80))
-    for address in addresses:
-        ip = ipaddress.ip_address(address[4][0])
-        if not ip.is_global:
-            raise ValueError("non_public_address")
+    from backend.sales.web_network import resolve_public_host
+    resolve_public_host(parts.hostname, parts.port or (443 if parts.scheme == "https" else 80))
     return canonical
 
 
@@ -484,7 +503,13 @@ class _VisibleTextParser(HTMLParser):
 
 def _download_small_public_text(url: str, *, timeout: float, max_bytes: int) -> tuple[str, str, str]:
     safe_url = _assert_public_url(url)
-    opener = build_opener(_SafeRedirectHandler())
+    from backend.sales.web_network import resolve_public_host
+    parts = urlsplit(safe_url)
+    _, proxy = resolve_public_host(parts.hostname, parts.port or (443 if parts.scheme=='https' else 80))
+    # No Fake-IP => normal environment/direct behavior, even when a stale
+    # local proxy setting remains after the VPN has been disabled.
+    opener = (build_opener(ProxyHandler({'http':proxy,'https':proxy}), _SafeRedirectHandler())
+              if proxy else build_opener(_SafeRedirectHandler()))
     request = Request(safe_url, headers={"User-Agent": "FacadeCopilotEvidenceVerifier/1.0"})
     with opener.open(request, timeout=timeout) as response:
         final_url = _assert_public_url(response.geturl())
@@ -494,8 +519,15 @@ def _download_small_public_text(url: str, *, timeout: float, max_bytes: int) -> 
         body = response.read(max_bytes + 1)
         if len(body) > max_bytes:
             raise ValueError("page_too_large")
-        encoding = response.headers.get_content_charset() or "utf-8"
-        return body.decode(encoding, errors="replace"), content_type, final_url
+        encoding = response.headers.get_content_charset()
+        if not encoding:
+            marker = re.search(br'charset\s*=\s*[\"\x27]?([A-Za-z0-9_-]+)', body[:8192], re.I)
+            encoding = marker.group(1).decode('ascii') if marker else 'utf-8'
+        try:
+            decoded = body.decode(encoding, errors='replace')
+        except LookupError:
+            decoded = body.decode('utf-8', errors='replace')
+        return decoded, content_type, final_url
 
 
 def _robots_permission(url: str, *, timeout: float = 3.0) -> tuple[bool, str]:
@@ -507,35 +539,17 @@ def _robots_permission(url: str, *, timeout: float = 3.0) -> tuple[bool, str]:
         return (True, "robots_not_present") if exc.code == 404 else (False, f"robots_http_{exc.code}")
     except Exception as exc:
         return False, f"robots_unavailable:{type(exc).__name__}"
-    rules: list[str] = []
-    applies = False
-    for raw_line in body.splitlines():
-        line = raw_line.split("#", 1)[0].strip()
-        if not line or ":" not in line:
-            continue
-        key, value = [item.strip() for item in line.split(":", 1)]
-        if key.casefold() == "user-agent":
-            applies = value in {"*", "FacadeCopilotEvidenceVerifier"}
-        elif applies and key.casefold() == "disallow":
-            rules.append(value)
-    path = parts.path or "/"
-    if any(rule and path.startswith(rule) for rule in rules):
+    parser = RobotFileParser()
+    parser.parse(body.splitlines())
+    if not parser.can_fetch('FacadeCopilotEvidenceVerifier/1.0', url):
         return False, "robots_disallowed"
     return True, "robots_allowed"
 
 
 def _extract_relevant_excerpt(page_text: str, query: str, limit: int = 1800) -> str:
-    if "<" in page_text and ">" in page_text:
-        parser = _VisibleTextParser()
-        parser.feed(page_text)
-        clean = "\n".join(parser.parts)
-    else:
-        clean = page_text
-    paragraphs = [re.sub(r"\s+", " ", value).strip() for value in re.split(r"[\r\n]+", clean)]
-    paragraphs = [value for value in paragraphs if len(value) >= 20]
-    terms = _query_terms(query)
-    paragraphs.sort(key=lambda value: sum(1 for term in terms if term.casefold() in value.casefold()), reverse=True)
-    return "\n".join(paragraphs[:8]).strip()[:limit]
+    from backend.sales.web_content import extract_page_text, select_page_windows
+    clean, _ = extract_page_text(page_text)
+    return select_page_windows(clean, query, limit)[0]
 
 
 def _verify_source_page(source: dict[str, Any], query: str) -> dict[str, Any]:
@@ -550,13 +564,19 @@ def _verify_source_page(source: dict[str, Any], query: str) -> dict[str, Any]:
             timeout=float(os.getenv("WEB_PAGE_FETCH_TIMEOUT_SECONDS", "6")),
             max_bytes=int(os.getenv("WEB_PAGE_FETCH_MAX_BYTES", "1500000")),
         )
-        excerpt = _extract_relevant_excerpt(page_text, query)
+        from backend.sales.web_content import extract_page_text, select_page_windows
+        parsed, parser_method = extract_page_text(page_text)
+        excerpt, extraction_audit = select_page_windows(parsed, query)
         if len(excerpt) < 80:
             return {**source, "page_fetch_status": "insufficient_page_text", "verified_url": final_url}
         return {
             **source, "url": final_url, "verified_url": final_url,
             "verified_excerpt": excerpt, "excerpt": excerpt,
+            "parsed_page_text": parsed[:100000],
+            "extraction_audit": {**extraction_audit, 'parser': parser_method,
+                                 'cache_truncated': len(parsed)>100000},
             "page_fetch_status": "verified", "evidence_level": "verified_page_content",
+            "page_fetched_at_china": datetime.now(timezone(timedelta(hours=8))).isoformat(),
         }
     except HTTPError as exc:
         status = f"http_{exc.code}"
@@ -600,8 +620,7 @@ def _call_baidu(full_question: str) -> dict[str, Any]:
     body = {
         "messages": [{"role": "user", "content": full_question}],
         "search_source": "baidu_search_v2",
-        "resource_type_filter": [{"type": "web", "top_k": 5}],
-        "safe_search": True,
+        "resource_type_filter": [{"type": "web", "top_k": max(5, min(50, int(os.getenv('WEB_SEARCH_RECALL_TOP_K', '20'))))}],
     }
     request = Request(
         BAIDU_WEB_SEARCH_ENDPOINT,
@@ -665,14 +684,28 @@ def _call_baidu_with_retry(full_question: str) -> tuple[dict[str, Any], int]:
     raise AssertionError("unreachable")
 
 
-def search_baidu_web(query: str, *, source_profile: str | None = None) -> dict[str, Any]:
-    """Return cached or newly searched, locally re-ranked public evidence."""
+def search_baidu_web(query: str, *, source_profile: str | None = None, bypass_cache: bool = False) -> dict[str, Any]:
+    """Return admitted public evidence in provider-score/original order."""
 
     full_question = normalize_query(query)
     profile = resolve_source_profile(full_question, source_profile)
-    cached = _read_cache(full_question, profile)
+    cached = None if bypass_cache else _read_cache(full_question, profile)
     if cached is not None:
-        reranked = _rank_sources(full_question, list(cached.get("sources") or []), profile)
+        cached_sources = list(cached.get('sources') or [])
+        cached_sources, rejected = filter_sources(full_question, cached_sources, _load_policy())
+        # An inadmissible cached result is never re-published or re-fetched.
+        if not cached_sources:
+            cached = None
+    if cached is not None:
+        # Refresh extraction after a parser/network-policy upgrade without
+        # spending another search API call. Do it once per cached payload.
+        if cached.get('page_extraction_version') != 2:
+            cached_sources.sort(key=lambda s:int(s.get('original_rank') or 99))
+            cached_sources = _verify_top_sources(cached_sources, full_question)
+            cached = {**cached, 'sources':cached_sources, 'page_extraction_version':2}
+            _write_cache(full_question, profile, cached)
+        reranked = _rank_sources(full_question, cached_sources, profile,
+                                force_original_order=cached.get('ranking_strategy') == 'provider_original_order_fallback')
         return {
             **cached,
             "sources": reranked,
@@ -680,6 +713,10 @@ def search_baidu_web(query: str, *, source_profile: str | None = None) -> dict[s
             "cache_hit": True,
             "quota": quota_snapshot(),
             "api_calls_for_query": 0,
+            "quality_version": QUALITY_VERSION,
+            "quality_rejections": [*(cached.get('quality_rejections') or []), *rejected],
+            "status": "ok",
+            "ranking_strategy": reranked[0]['ranking_strategy'] if reranked else 'provider_original_order_fallback',
         }
 
     usage_date = _china_date()
@@ -689,19 +726,37 @@ def search_baidu_web(query: str, *, source_profile: str | None = None) -> dict[s
     except Exception:
         _release_api_call(usage_date=usage_date)
         raise
-    sources = _rank_sources(full_question, _references_from_response(payload), profile)
+    # Preserve Baidu order for deciding which two pages to fetch. Source
+    # quality metadata is still attached; do not gate fetching on authority.
+    candidates = _references_from_response(payload)
+    admitted, rejected = filter_sources(full_question, candidates, _load_policy())
+    sources = _rank_sources(full_question, admitted, profile)
+    # Fetch selected leading candidates in the same provider-based order.
     sources = _verify_top_sources(sources, full_question)
+    sources, post_rejected = filter_sources(full_question, sources, _load_policy())
+    rejected.extend(post_rejected)
     sources = _rank_sources(full_question, sources, profile)
     result = {
         "query": full_question,
+        "status": "ok" if sources else "no_usable_results",
+        "quality_version": QUALITY_VERSION,
+        "quality_rejections": rejected,
+        "provider_request_id": str(payload.get('request_id') or '')[:120],
+        "returned_reference_count": len(payload.get('references') or []),
+        "admitted_reference_count": len(sources),
+        "provider_score_missing_or_invalid_count": sum(not _valid_provider_score(s.get('provider_rerank_score')) for s in sources),
+        "page_extraction_version": 2,
         "source_profile": profile,
         "sources": sources[:5],
         "cache_hit": False,
+        "cache_bypassed": bypass_cache,
         "quota": quota,
-        "ranking_strategy": "baidu_recall_plus_local_authority_relevance_recency_and_evidence_rerank",
+        "ranking_strategy": sources[0]['ranking_strategy'] if sources else 'provider_original_order_fallback',
         "source_quality": _source_quality_summary(sources[:5]),
         "api_calls_for_query": 1,
         "api_attempts_for_query": attempt_count,
     }
-    _write_cache(full_question, profile, result)
+    # Do not let a polluted/empty response survive for a day in the cache.
+    if sources:
+        _write_cache(full_question, profile, result)
     return result

@@ -1,0 +1,42 @@
+{
+  "kind": "illustrative_not_executed",
+  "branch": "task_queue",
+  "purpose": "独立排队不合并",
+  "source": "frontend/app/sales/page.tsx",
+  "not_a_test_result": true,
+  "nodes": [
+    {
+      "stage": "enqueue",
+      "status": "illustrative",
+      "input_tokens": null,
+      "output_tokens": null,
+      "elapsed_ms": null,
+      "model_calls": null
+    },
+    {
+      "stage": "wait_current",
+      "status": "illustrative",
+      "input_tokens": null,
+      "output_tokens": null,
+      "elapsed_ms": null,
+      "model_calls": null
+    },
+    {
+      "stage": "dequeue",
+      "status": "illustrative",
+      "input_tokens": null,
+      "output_tokens": null,
+      "elapsed_ms": null,
+      "model_calls": null
+    },
+    {
+      "stage": "plan_request",
+      "status": "illustrative",
+      "input_tokens": null,
+      "output_tokens": null,
+      "elapsed_ms": null,
+      "model_calls": null
+    }
+  ],
+  "boundary": "Labels are design phases, not a promise that each is a separate LangGraph node. No real answer or metric is fabricated."
+}

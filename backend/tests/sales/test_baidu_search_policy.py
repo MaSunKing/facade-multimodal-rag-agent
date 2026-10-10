@@ -39,7 +39,7 @@ class BaiduSearchPolicyTests(unittest.TestCase):
             "public_project",
         )
 
-    def test_one_api_call_is_cached_and_official_source_is_promoted(self) -> None:
+    def test_missing_scores_preserve_original_order_and_cache(self) -> None:
         response = {
             "references": [
                 {
@@ -68,7 +68,8 @@ class BaiduSearchPolicyTests(unittest.TestCase):
         self.assertEqual(first["api_calls_for_query"], 1)
         self.assertEqual(second["api_calls_for_query"], 0)
         self.assertEqual(first["source_profile"], "construction_standard")
-        self.assertIn("mohurd.gov.cn", first["sources"][0]["url"])
+        self.assertIn("example.com", first["sources"][0]["url"])
+        self.assertEqual(first['ranking_strategy'], 'provider_original_order_fallback')
         self.assertEqual(first["quota"]["used"], 1)
 
     def test_daily_business_limit_stops_before_second_api_call(self) -> None:

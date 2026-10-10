@@ -1,0 +1,42 @@
+{
+  "kind": "illustrative_not_executed",
+  "branch": "visual_failure",
+  "purpose": "识别失败保留未识别状态",
+  "source": "backend/sales/visual_evidence.py",
+  "not_a_test_result": true,
+  "nodes": [
+    {
+      "stage": "visual_selection",
+      "status": "illustrative",
+      "input_tokens": null,
+      "output_tokens": null,
+      "elapsed_ms": null,
+      "model_calls": null
+    },
+    {
+      "stage": "recognition_failure",
+      "status": "illustrative",
+      "input_tokens": null,
+      "output_tokens": null,
+      "elapsed_ms": null,
+      "model_calls": null
+    },
+    {
+      "stage": "visual_status",
+      "status": "illustrative",
+      "input_tokens": null,
+      "output_tokens": null,
+      "elapsed_ms": null,
+      "model_calls": null
+    },
+    {
+      "stage": "limited_or_proved_recovery",
+      "status": "illustrative",
+      "input_tokens": null,
+      "output_tokens": null,
+      "elapsed_ms": null,
+      "model_calls": null
+    }
+  ],
+  "boundary": "Labels are design phases, not a promise that each is a separate LangGraph node. No real answer or metric is fabricated."
+}

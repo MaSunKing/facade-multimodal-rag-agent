@@ -18,10 +18,20 @@ import {
   saveBrowserConversation,
   type BrowserConversation,
 } from "./browser-conversations";
+import AdminTraces from "./admin-traces";
+import SessionAttachments, { FileBadge } from "./session-attachments";
+import MessageAttachments from "./message-attachments";
+import {attachmentSnapshot, type MessageAttachment, type SessionDocument} from "./attachment-snapshot";
+import {contentHash, attachmentDisplayNames} from "./attachment-identity";
 
 // The interface is static and public. Answers and source visuals are served only
 // while the workstation's local RAG service is online.
 const publicModelApiBase = (process.env.NEXT_PUBLIC_MODEL_API_BASE ?? "http://127.0.0.1:8000").replace(/\/$/, "");
+
+type QueuedQuestion = {
+  id: string; question: string; conversationId: string; online: boolean;
+  interruptedQuestion?: string; taskInstructions?: string[]; image: AttachedImage | null; attachments: PendingAttachment[];
+};
 const staticBasePath = (process.env.NEXT_PUBLIC_STATIC_BASE ?? "").replace(/\/$/, "");
 
 type ServiceState = "checking" | "available" | "offline";
@@ -180,6 +190,8 @@ type CopilotAnswer = {
     orchestration?: { tools?: string[] };
     model_used?: boolean;
     latency_ms?: number;
+    request_latency_ms?: number;
+    total_latency_ms?: number;
     wants_visuals?: boolean;
     visual_scope?: string | null;
     explicit_visual_request?: boolean;
@@ -220,16 +232,19 @@ type AttachedImage = {
 type PendingAttachment = {
   id: string;
   file: File;
+  contentHash: string;
   previewUrl?: string;
 };
 
 type ChatMessage = {
+  taskElapsedMs?: number;
   id: string;
   role: "user" | "assistant";
   content: string;
   answer?: CopilotAnswer;
   image?: AttachedImage;
   attachmentNames?: string[];
+  attachments?: MessageAttachment[];
 };
 
 type ConversationContextTurn = {
@@ -241,6 +256,7 @@ const legacyConversationSessionKey = "facade-copilot-conversation-v1";
 const MAX_MESSAGES_PER_CONVERSATION = 30;
 const MAX_ATTACHMENT_COUNT = 4;
 const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
+const DEFAULT_UPLOAD_LIMITS = { max_files: MAX_ATTACHMENT_COUNT, max_file_bytes: MAX_ATTACHMENT_BYTES, max_total_bytes: 50 * 1024 * 1024 };
 const acceptedAttachmentExtensions = new Set([
   ".pdf", ".docx", ".xlsx", ".xls", ".csv", ".txt", ".html", ".htm", ".xml", ".zip",
   ".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tif", ".tiff",
@@ -306,7 +322,7 @@ function persistableMessages(messages: ChatMessage[]): ChatMessage[] {
   return messages.slice(-MAX_MESSAGES_PER_CONVERSATION).map((message) => ({
     ...message,
     image: undefined,
-    attachmentNames: undefined,
+    attachments: message.attachments?.map(({name, displayName, sessionId, documentId, visualId}) => ({name, displayName, sessionId, documentId, visualId})),
   }));
 }
 
@@ -329,7 +345,9 @@ function formatConversationTime(timestamp: number): string {
 function buildConversationContext(messages: ChatMessage[]): ConversationContextTurn[] {
   return messages
     .filter((message) => message.id !== welcomeMessage.id)
-    .slice(-6)
+    // Keep one immediate exchange for pronouns and follow-ups. Older context
+    // is recalled by task memory, not a fixed three-round history window.
+    .slice(-2)
     .map((message) => ({
       role: message.role,
       content: message.content.replace(/\s+/g, " ").trim().slice(0, 800),
@@ -629,19 +647,29 @@ export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [runningTraceTaskId, setRunningTraceTaskId] = useState("");
+  const [isStopping, setIsStopping] = useState(false);
+  const activeRequestRef = useRef<{ controller: AbortController; taskId: string; question: string; instructions: string[]; stopReason: "stop" | "steer"; stopped: boolean; cancelFailed: boolean } | null>(null);
+  const questionQueueRef = useRef<QueuedQuestion[]>([]);
+  const [questionQueue, setQuestionQueue] = useState<QueuedQuestion[]>([]);
+  const queueRunningRef = useRef(false);
+  const queuePausedRef = useRef(false);
+  const [queuePaused, setQueuePaused] = useState(false);
+  const blockedTaskRef = useRef<string | null>(null);
   const [requestStage, setRequestStage] = useState("");
   const [coverageNotice, setCoverageNotice] = useState("");
   const [serviceState, setServiceState] = useState<ServiceState>("checking");
   const [activeImage, setActiveImage] = useState<VisualAsset | null>(null);
   const [attachedImage, setAttachedImage] = useState<AttachedImage | null>(null);
   const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
+  const [uploadLimits, setUploadLimits] = useState(DEFAULT_UPLOAD_LIMITS);
   const [isFileDragging, setIsFileDragging] = useState(false);
   // This is permission, not a command: the local Planner still decides
   // whether a turn genuinely needs the metered public-web tool.  Keeping the
   // permission enabled makes current-fact questions work out of the box,
   // while greetings and local product questions remain offline.
   const [useOnlineSearch, setUseOnlineSearch] = useState(true);
-  const [useTaskMemory, setUseTaskMemory] = useState(false);
+  const useTaskMemory = true;
   const [authToken, setAuthToken] = useState<string | null>(() => (
     typeof window === "undefined" ? null : window.sessionStorage.getItem(authSessionStorageKey)
   ));
@@ -650,6 +678,8 @@ export default function Home() {
   const [bootstrapRequired, setBootstrapRequired] = useState(false);
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
   const [adminPanelOpen, setAdminPanelOpen] = useState(false);
+  const [tracePanelOpen, setTracePanelOpen] = useState(false);
+  const [adminTab, setAdminTab] = useState<"users" | "traces">("users");
   const [managedUsers, setManagedUsers] = useState<ManagedUser[]>([]);
   const [authError, setAuthError] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
@@ -662,7 +692,11 @@ export default function Home() {
       : "anonymous";
   const activeConversation = conversations.find((conversation) => conversation.id === activeConversationId) ?? null;
   const messages = activeConversation?.messages.length ? activeConversation.messages : defaultConversationMessages;
+  const conversationsRef = useRef(conversations);
+  conversationsRef.current = conversations;
   const endOfMessagesRef = useRef<HTMLDivElement | null>(null);
+  const composerWrapRef = useRef<HTMLDivElement | null>(null);
+  const shellRef = useRef<HTMLElement | null>(null);
   const textAreaRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const dragDepthRef = useRef(0);
@@ -687,6 +721,15 @@ export default function Home() {
       .catch(() => setServiceState("offline"))
       .finally(() => window.clearTimeout(timer));
 
+    fetch(`${publicModelApiBase}/api/copilot/documents/limits`, { signal: controller.signal, cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) return;
+        const limits = await response.json();
+        if ([limits.max_files, limits.max_file_bytes, limits.max_total_bytes].every((v) => Number.isSafeInteger(v) && v > 0)) {
+          setUploadLimits(limits);
+        }
+      }).catch(() => undefined);
+
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register(`${staticBasePath}/sw.js`).catch(() => undefined);
     }
@@ -705,6 +748,14 @@ export default function Home() {
     };
     fetch(`${publicModelApiBase}/api/auth/status`, { headers, signal: controller.signal, cache: "no-store" })
       .then(async (response) => {
+        if (response.status === 401) {
+          // Older backends may reject a stale token even on public /status.
+          // Do not keep sending that token and block otherwise-public tasks.
+          window.sessionStorage.removeItem(authSessionStorageKey);
+          setAuthToken(null);
+          setAuthPrincipal(null);
+          return { bootstrap_required: false, authenticated: false, principal: null };
+        }
         if (!response.ok) throw new Error("auth_status_failed");
         return response.json() as Promise<{
           bootstrap_required: boolean;
@@ -728,11 +779,19 @@ export default function Home() {
     return () => controller.abort();
   }, [authToken, browserClientId]);
 
-  function authenticatedFetch(input: string, init: RequestInit = {}) {
+  async function authenticatedFetch(input: string, init: RequestInit = {}) {
     const headers = new Headers(init.headers);
     if (authToken) headers.set("Authorization", `Bearer ${authToken}`);
     headers.set("X-Facade-Client-ID", browserClientId);
-    return fetch(input, { ...init, headers });
+    const response = await fetch(input, { ...init, headers });
+    if (response.status === 401 && authToken) {
+      window.sessionStorage.removeItem(authSessionStorageKey);
+      setAuthToken(null);
+      setAuthPrincipal(null);
+      // Never silently retry a mutation or access an old user-owned session
+      // as a guest. Public requests use browser ownership on their next turn.
+    }
+    return response;
   }
 
   async function submitAuthentication(event: FormEvent<HTMLFormElement>) {
@@ -861,6 +920,8 @@ export default function Home() {
     if (!authStatusResolved) return;
     let cancelled = false;
     setHistoryReady(false);
+    updateQuestionQueue([]);
+    pauseQuestionQueue(true);
     documentSessionByConversation.clear();
     void loadBrowserConversations<ChatMessage>(historyScope).then((savedConversations) => {
       if (cancelled) return;
@@ -883,6 +944,7 @@ export default function Home() {
       setConversations(initialConversations);
       setActiveConversationId(active.id);
       setHistoryReady(true);
+      if (!blockedTaskRef.current) pauseQuestionQueue(false);
     });
     return () => {
       cancelled = true;
@@ -892,6 +954,17 @@ export default function Home() {
   useEffect(() => {
     endOfMessagesRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages, isSending]);
+
+  useEffect(() => {
+    const composer = composerWrapRef.current;
+    const shell = shellRef.current;
+    if (!composer || !shell) return;
+    const measure = () => shell.style.setProperty('--composer-clearance', `${Math.ceil(composer.getBoundingClientRect().height) + 24}px`);
+    const observer = new ResizeObserver(measure);
+    observer.observe(composer);
+    measure();
+    return () => observer.disconnect();
+  }, []);
 
   function updateActiveConversationMessages(
     update: (current: ChatMessage[]) => ChatMessage[],
@@ -942,8 +1015,17 @@ export default function Home() {
     return dot >= 0 ? file.name.slice(dot).toLowerCase() : "";
   }
 
+  const attachmentAdmissionBusy = useRef(false);
   async function queueAttachments(files: File[]) {
-    const selected = files.filter((file) => file.size > 0);
+    if (attachmentAdmissionBusy.current) { window.alert("正在校验附件，请稍后再添加。"); return; }
+    attachmentAdmissionBusy.current = true;
+    try { await admitAttachments(files); }
+    catch { window.alert("附件内容校验失败，请重新添加文件。"); }
+    finally { attachmentAdmissionBusy.current = false; }
+  }
+
+  async function admitAttachments(files: File[]) {
+    let selected = files.filter((file) => file.size > 0);
     if (selected.length === 0) return;
     const unsupported = selected.filter((file) => (
       !acceptedAttachmentExtensions.has(attachmentExtension(file))
@@ -953,22 +1035,51 @@ export default function Home() {
       window.alert(`暂不支持：${unsupported.map((file) => file.name).join("、")}`);
       return;
     }
-    if (pendingAttachments.length + selected.length > MAX_ATTACHMENT_COUNT) {
-      window.alert(`一次最多上传 ${MAX_ATTACHMENT_COUNT} 份文件。请先移除部分附件。`);
+    let existingCount = 0;
+    let existingBytes = 0;
+    const knownHashes = new Set(pendingAttachments.map(item => item.contentHash));
+    if (activeConversation?.documentSessionId) {
+      try {
+        const response = await authenticatedFetch(`${publicModelApiBase}/api/copilot/documents/${encodeURIComponent(activeConversation.documentSessionId)}`);
+        if (response.ok) {
+          const session = await response.json();
+          existingCount = session.documents?.length ?? 0;
+          for (const doc of session.documents ?? []) if (doc.content_sha256) knownHashes.add(doc.content_sha256);
+          existingBytes = (session.documents ?? []).reduce((sum: number, doc: { size_bytes?: number }) => sum + (doc.size_bytes ?? 0), 0);
+        }
+      } catch { /* The backend always validates the authoritative cumulative quota. */ }
+    }
+    if (selected.some(file => file.size > uploadLimits.max_file_bytes)) {
+      window.alert(`单个文件请控制在 ${uploadLimits.max_file_bytes / 1024 / 1024} MB 以内。`); return;
+    }
+    const hashes = new Map<File, string>();
+    const unique: File[] = [];
+    const duplicates: string[] = [];
+    for (const file of selected) {
+      const hash = await contentHash(file);
+      if (knownHashes.has(hash)) { duplicates.push(file.name); continue; }
+      knownHashes.add(hash); hashes.set(file, hash); unique.push(file);
+    }
+    if (duplicates.length) window.alert(`文件内容已添加，请勿重复上传：${duplicates.join("、")}`);
+    selected = unique;
+    if (!selected.length) return;
+    if (existingCount + pendingAttachments.length + selected.length > uploadLimits.max_files) {
+      window.alert(`当前附件会话最多 ${uploadLimits.max_files} 份文件。请先移除部分附件。`);
       return;
     }
-    if (selected.some((file) => file.size > MAX_ATTACHMENT_BYTES)) {
-      window.alert("单个文件请控制在 25 MB 以内。");
+    if (selected.some((file) => file.size > uploadLimits.max_file_bytes)) {
+      window.alert(`单个文件请控制在 ${uploadLimits.max_file_bytes / 1024 / 1024} MB 以内。`);
       return;
     }
-    const existingKeys = new Set(
-      pendingAttachments.map(({ file }) => `${file.name}:${file.size}:${file.lastModified}`),
-    );
+    if (existingBytes + [...pendingAttachments.map((item) => item.file), ...selected].reduce((sum, file) => sum + file.size, 0) > uploadLimits.max_total_bytes) {
+      window.alert(`附件合计请控制在 ${uploadLimits.max_total_bytes / 1024 / 1024} MB 以内；已关联文件也计入后端会话额度。`);
+      return;
+    }
     const additions = selected
-      .filter((file) => !existingKeys.has(`${file.name}:${file.size}:${file.lastModified}`))
       .map((file) => ({
       id: makeId(),
       file,
+      contentHash: hashes.get(file)!,
       previewUrl: file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined,
       }));
     if (additions.length === 0) return;
@@ -1038,12 +1149,117 @@ export default function Home() {
     });
   }
 
-  async function sendQuestion(question: string) {
-    const cleanQuestion = question.trim();
-    const imageForRequest = attachedImage;
-    const attachmentsForRequest = [...pendingAttachments];
-    if ((!cleanQuestion && attachmentsForRequest.length === 0) || isSending || !historyReady || !activeConversationId) return;
-    const requestConversationId = activeConversationId;
+  function pauseQuestionQueue(paused: boolean) {
+    queuePausedRef.current = paused;
+    setQueuePaused(paused);
+  }
+
+  function updateQuestionQueue(queue: QueuedQuestion[]) {
+    questionQueueRef.current = queue;
+    setQuestionQueue([...queue]);
+  }
+
+  async function waitForTaskExit(taskId: string) {
+    try {
+      while (true) {
+        const response = await authenticatedFetch(`${publicModelApiBase}/api/copilot/tasks/${encodeURIComponent(taskId)}/status`,
+          {cache: "no-store", signal: AbortSignal.timeout(5000)});
+        if (!response.ok) return false;
+        const status = await response.json() as {active: boolean};
+        if (status.active === false) return true;
+        setRequestStage("等待上一任务释放执行槽位…");
+        await new Promise(resolve => window.setTimeout(resolve, 400));
+      }
+    } catch { return false; }
+  }
+
+  async function drainQuestionQueue() {
+    if (queueRunningRef.current || queuePausedRef.current || blockedTaskRef.current) return;
+    queueRunningRef.current = true;
+    try {
+      while (questionQueueRef.current.length && !queuePausedRef.current) {
+        const job = questionQueueRef.current[0];
+        updateQuestionQueue(questionQueueRef.current.slice(1));
+        await sendQuestion(job);
+      }
+    } finally { queueRunningRef.current = false; }
+  }
+
+  function enqueueQuestion(question: string, interruptedQuestion?: string) {
+    if (!historyReady || !activeConversationId || (!question.trim() && !pendingAttachments.length)) return;
+    if (questionQueueRef.current.length >= 10) {
+      setCoverageNotice("本页面最多排队10条问题，请先处理或移除待发送问题。");
+      return;
+    }
+    const job: QueuedQuestion = {id: makeId(), question: question.trim(), conversationId: activeConversationId,
+      online: useOnlineSearch, interruptedQuestion, image: attachedImage, attachments: [...pendingAttachments]};
+    updateQuestionQueue(interruptedQuestion ? [job, ...questionQueueRef.current] : [...questionQueueRef.current, job]);
+    setDraft(""); setAttachedImage(null); setPendingAttachments([]);
+    if (interruptedQuestion) {
+      pauseQuestionQueue(false);
+      void stopQuestion(false);
+    }
+    void drainQuestionQueue();
+  }
+
+  async function resumeQuestionQueue() {
+    if (blockedTaskRef.current) {
+      if (!await waitForTaskExit(blockedTaskRef.current)) {
+        setCoverageNotice("尚未确认上一任务停止，队列仍暂停。请检查服务连接后重试。");
+        return;
+      }
+      blockedTaskRef.current = null;
+    }
+    pauseQuestionQueue(false);
+    void drainQuestionQueue();
+  }
+
+  function steerQueuedQuestion(job: QueuedQuestion) {
+    const active = activeRequestRef.current;
+    if (!active || active.stopped || job.conversationId !== activeConversationId) return;
+    if (active.instructions.length >= 20 || [...active.instructions, job.question].reduce((n, text) => n + text.length, 0) > 12000) {
+      setCoverageNotice("当前任务要求已达到上下文上限，请结束该任务后单独提问；已有要求不会被截断。");
+      return;
+    }
+    updateQuestionQueue([{...job, interruptedQuestion: active.question, taskInstructions: [...active.instructions]},
+      ...questionQueueRef.current.filter(item => item.id !== job.id)]);
+    pauseQuestionQueue(false);
+    void stopQuestion(false);
+  }
+
+  async function stopQuestion(pauseQueue = true) {
+    if (pauseQueue) pauseQuestionQueue(true);
+    const active = activeRequestRef.current;
+    if (!active || active.stopped) return;
+    active.stopped = true;
+    active.stopReason = pauseQueue ? "stop" : "steer";
+    setIsStopping(true);
+    setRequestStage(pauseQueue ? "正在停止任务…" : "正在更新任务要求…");
+    // Explicit cancellation also works when a proxy keeps the answer HTTP
+    // connection alive. Abort is a fallback, not the only server signal.
+    try {
+      const response = await authenticatedFetch(`${publicModelApiBase}/api/copilot/tasks/cancel`, {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ client_task_id: active.taskId }),
+        signal: AbortSignal.timeout(5000),
+      });
+      active.cancelFailed = !response.ok;
+    } catch {
+      active.cancelFailed = true;
+    } finally {
+      active.controller.abort();
+    }
+  }
+
+  async function sendQuestion(job: QueuedQuestion) {
+    const taskStarted = performance.now();
+    const cleanQuestion = job.question;
+    const imageForRequest = job.image;
+    const attachmentsForRequest = job.attachments;
+    const requestConversationId = job.conversationId;
+    const requestConversation = conversationsRef.current.find(item => item.id === requestConversationId);
+    if (!requestConversation || activeRequestRef.current) return;
+    const requestHistory = job.interruptedQuestion ? [] : buildConversationContext(requestConversation.messages);
     const customerQuestion = cleanQuestion || "请阅读并概括我刚上传的附件，说明文件结构、主要内容和可核验信息。";
 
     const userMessage: ChatMessage = {
@@ -1051,26 +1267,34 @@ export default function Home() {
       role: "user",
       content: cleanQuestion || "请阅读并概括我刚上传的附件。",
       image: imageForRequest ?? undefined,
-      attachmentNames: attachmentsForRequest.map((item) => item.file.name),
+      attachments: attachmentSnapshot(null, [], [
+        ...(requestConversation.attachmentNames ?? []),
+        ...attachmentsForRequest.map((item) => item.file.name),
+      ]),
     };
     updateActiveConversationMessages((current) => [...current, userMessage], requestConversationId);
-    setDraft("");
-    setAttachedImage(null);
     attachmentsForRequest.forEach((item) => item.previewUrl && URL.revokeObjectURL(item.previewUrl));
-    setPendingAttachments([]);
     setIsSending(true);
     const requestController = new AbortController();
+    const activeRequest = { controller: requestController, taskId: crypto.randomUUID(),
+      question: job.interruptedQuestion ? `${job.interruptedQuestion}\n最新修改要求：${customerQuestion}` : customerQuestion,
+      instructions: [...(job.taskInstructions ?? (job.interruptedQuestion ? [job.interruptedQuestion] : [])), customerQuestion],
+      stopReason: "stop" as "stop" | "steer",
+      stopped: false, cancelFailed: false };
+    activeRequestRef.current = activeRequest;
+    setRunningTraceTaskId(activeRequest.taskId);
+    setIsStopping(false);
     setRequestStage(attachmentsForRequest.length ? "正在上传并解析附件…" : "正在检查附件并准备回答…");
     setCoverageNotice("");
-    let requestTimer = window.setTimeout(() => requestController.abort(), 300_000);
 
     try {
       let documentSessionId: string | null = null;
       const persistedSessionId = documentSessionByConversation.get(requestConversationId)
-        ?? (activeConversation?.id === requestConversationId ? activeConversation.documentSessionId ?? null : null);
+        ?? requestConversation.documentSessionId ?? null;
       if (attachmentsForRequest.length > 0) {
         const form = new FormData();
         attachmentsForRequest.forEach((item) => form.append("files", item.file));
+        form.append("client_task_id", activeRequest.taskId);
         if (persistedSessionId) form.append("session_id", persistedSessionId);
         const uploadResponse = await authenticatedFetch(`${publicModelApiBase}/api/copilot/documents`, {
           method: "POST",
@@ -1085,9 +1309,12 @@ export default function Home() {
         }
         const uploaded = (await uploadResponse.json()) as {
           session_id: string;
-          documents?: Array<{ file_name?: string; visual_coverage?: { coverage_complete?: boolean; page_count?: number; rendered_page_numbers?: number[] } }>;
+          documents?: Array<SessionDocument & { visual_coverage?: { coverage_complete?: boolean; page_count?: number; rendered_page_numbers?: number[] } }>;
         };
         documentSessionId = uploaded.session_id;
+        updateActiveConversationMessages(current => current.map(message => message.id === userMessage.id
+          ? {...message, attachments: attachmentSnapshot(uploaded.session_id, uploaded.documents ?? [], userMessage.attachments?.map(item => item.name))}
+          : message), requestConversationId);
         const incomplete = (uploaded.documents ?? []).filter((doc) => doc.visual_coverage?.coverage_complete === false);
         if (incomplete.length) {
           setCoverageNotice(incomplete.map((doc) => `${doc.file_name ?? "附件"}：视觉页面尚未全部处理，后续回答仅基于已解析部分。`).join(" "));
@@ -1101,7 +1328,7 @@ export default function Home() {
           uploadedNames.length > 0
             ? uploadedNames
             : Array.from(new Set([
-                ...(activeConversation?.attachmentNames ?? []),
+                ...(requestConversation.attachmentNames ?? []),
                 ...attachmentsForRequest.map((item) => item.file.name),
               ])),
         );
@@ -1116,23 +1343,29 @@ export default function Home() {
             updateConversationDocumentSession(requestConversationId, null);
             throw new Error("该对话的附件临时会话已过期或后端已重启。请重新上传附件后再继续提问。");
           }
+          const session = await sessionResponse.json() as {documents?: SessionDocument[]};
+          updateActiveConversationMessages(current => current.map(message => message.id === userMessage.id
+            ? {...message, attachments: attachmentSnapshot(documentSessionId, session.documents ?? [], userMessage.attachments?.map(item => item.name))}
+            : message), requestConversationId);
         }
       }
-      window.clearTimeout(requestTimer);
-      requestTimer = window.setTimeout(() => requestController.abort(), 115_000);
+      // Upload and QA wait for completion or the user's explicit stop action.
       setRequestStage("正在检索证据并生成回答…");
       const response = await authenticatedFetch(`${publicModelApiBase}/api/copilot/answer`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
+          client_task_id: activeRequest.taskId,
           customer_question: customerQuestion,
+          interrupted_question: job.interruptedQuestion ?? null,
+          task_instructions: job.taskInstructions ?? [],
           image_data_url: imageForRequest?.dataUrl ?? null,
           document_session_id: documentSessionId,
           project_context: { customer_type: "客户/销售" },
-          conversation_context: buildConversationContext(messages),
-          conversation_id: activeConversationId,
-          memory_enabled: useTaskMemory && Boolean(activeConversationId),
-          use_online_search: useOnlineSearch,
+          conversation_context: requestHistory,
+          conversation_id: requestConversationId,
+          memory_enabled: !job.interruptedQuestion && useTaskMemory,
+          use_online_search: job.online,
         }),
         signal: requestController.signal,
       });
@@ -1145,6 +1378,7 @@ export default function Home() {
       }
 
       const answer = normalizeAnswerForDisplay((await response.json()) as CopilotAnswer);
+      if (activeRequest.stopped) throw new DOMException("Stopped", "AbortError");
       setServiceState("available");
       updateActiveConversationMessages((current) => [
         ...current,
@@ -1153,26 +1387,49 @@ export default function Home() {
           role: "assistant",
           content: answer.customer_reply,
           answer,
+          taskElapsedMs: Math.round(performance.now() - taskStarted),
         },
       ], requestConversationId);
     } catch (error) {
-      const isTimeout = error instanceof DOMException && error.name === "AbortError";
+      const isAborted = error instanceof DOMException && error.name === "AbortError";
       const isNetworkFailure = error instanceof TypeError;
-      setServiceState(isNetworkFailure && !isTimeout ? "offline" : "available");
+      if (isNetworkFailure) {
+        blockedTaskRef.current = activeRequest.taskId;
+        pauseQuestionQueue(true);
+      }
+      setServiceState(isNetworkFailure && !isAborted ? "offline" : "available");
       updateActiveConversationMessages((current) => [
         ...current,
         {
           id: makeId(),
           role: "assistant",
-          content: isTimeout
-            ? "本次等待已超时。若附件已解析成功，可在当前临时会话中缩小问题范围后重试；上传未完成时请重新上传。"
+          content: activeRequest.stopped
+            ? activeRequest.cancelFailed
+              ? activeRequest.stopReason === "steer"
+                ? "已收到调整要求，但尚未确认旧任务退出；确认后将结合此前要求继续处理。"
+                : "已停止页面等待，但未确认后端收到取消信号。后台可能仍在处理。"
+              : activeRequest.stopReason === "steer"
+              ? "已收到补充或调整要求，将结合此前要求重新规划并继续处理。"
+              : "已停止当前任务。"
+            : isAborted
+            ? "本次等待已中断。已解析的附件可继续使用。"
             : isNetworkFailure
             ? "本地模型服务暂时没有连接。请确认电脑已开机，并启动本地知识库服务后再重试。"
             : `本次请求未完成：${error instanceof Error ? error.message : "未知错误"}`,
+          taskElapsedMs: Math.round(performance.now() - taskStarted),
         },
       ], requestConversationId);
     } finally {
-      window.clearTimeout(requestTimer);
+      if (activeRequest.stopped && !await waitForTaskExit(activeRequest.taskId)) {
+        blockedTaskRef.current = activeRequest.taskId;
+        pauseQuestionQueue(true);
+        setCoverageNotice("未确认上一任务停止，队列已暂停；不会并发启动后续任务。");
+      }
+      if (activeRequestRef.current === activeRequest) {
+        activeRequestRef.current = null;
+        setRunningTraceTaskId("");
+      }
+      setIsStopping(false);
       setIsSending(false);
       setRequestStage("");
       window.setTimeout(() => textAreaRef.current?.focus(), 0);
@@ -1181,13 +1438,13 @@ export default function Home() {
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    void sendQuestion(draft);
+    enqueueQuestion(draft);
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
-      void sendQuestion(draft);
+      enqueueQuestion(draft);
     }
   }
 
@@ -1197,6 +1454,7 @@ export default function Home() {
     setConversations((current) => [conversation, ...current].slice(0, 24));
     setActiveConversationId(conversation.id);
     setDraft("");
+    setCoverageNotice("");
     setAttachedImage(null);
     setPendingAttachments([]);
     setSidebarOpen(false);
@@ -1208,6 +1466,7 @@ export default function Home() {
     if (isSending) return;
     setActiveConversationId(conversation.id);
     setDraft("");
+    setCoverageNotice("");
     setAttachedImage(null);
     setPendingAttachments([]);
     setSidebarOpen(false);
@@ -1245,7 +1504,6 @@ export default function Home() {
       setCoverageNotice("服务器任务记忆未能全部清除。为保留重试入口，暂未删除浏览器聊天记录，请连接恢复后重试。");
       return;
     }
-    setUseTaskMemory(false);
     const replacement = makeConversation();
     documentSessionByConversation.clear();
     setConversations([replacement]);
@@ -1263,7 +1521,7 @@ export default function Home() {
   }[serviceState];
 
   return (
-    <main className="copilot-shell">
+    <main className="copilot-shell" ref={shellRef}>
       <aside className={`conversation-sidebar ${sidebarOpen ? "open" : ""}`} aria-label="本地对话记录">
         <nav className="agent-switcher" aria-label="选择助手">
           <a className="agent-choice active" href="#top" aria-current="page">
@@ -1332,6 +1590,7 @@ export default function Home() {
         </div>
 
         <div className="topbar-actions">
+          <button className="reset-button" type="button" onClick={() => setTracePanelOpen(true)}>我的轨迹</button>
           {authPrincipal ? (
             <>
               <button className="access-button" type="button" onClick={() => authPrincipal.role === "admin" ? void openAdminPanel() : undefined}>
@@ -1359,7 +1618,7 @@ export default function Home() {
               <p>可询问产品、施工安装、节点图集或项目案例。回答会附上检索到的原始资料图片。</p>
               <div className="starter-list">
                 {starterQuestions.map((question) => (
-                  <button key={question} type="button" onClick={() => void sendQuestion(question)}>
+                  <button key={question} type="button" onClick={() => enqueueQuestion(question)}>
                     <span>{question}</span>
                     <b aria-hidden="true">↗</b>
                   </button>
@@ -1372,9 +1631,12 @@ export default function Home() {
             <article className={`message ${message.role}`} key={message.id}>
               {message.role === "assistant" && <div className="avatar assistant-avatar">材</div>}
               <div className="message-body">
-                {message.role === "assistant" && message.answer?.meta?.model_used && (
+                {message.role === "assistant" && (message.answer || message.taskElapsedMs !== undefined) && (
                   <div className="answer-meta">
-                    {answerSourceLabel(message.answer)}{message.answer.meta.latency_ms ? ` · ${Math.round(message.answer.meta.latency_ms / 100) / 10}s` : ""}
+                    {message.answer ? answerSourceLabel(message.answer) : "请求未完成"}
+                    {(message.taskElapsedMs ?? message.answer?.meta?.total_latency_ms ?? message.answer?.meta?.request_latency_ms) !== undefined
+                      ? ` · 总耗时 ${((message.taskElapsedMs ?? message.answer?.meta?.total_latency_ms ?? message.answer?.meta?.request_latency_ms ?? 0) / 1000).toFixed(1)}秒`
+                      : ""}
                   </div>
                 )}
                 {message.role === "assistant" ? (
@@ -1384,9 +1646,9 @@ export default function Home() {
                     {message.image && (
                       <img className="customer-upload-preview" src={message.image.dataUrl} alt={`客户上传：${message.image.name}`} />
                     )}
-                    {message.attachmentNames && message.attachmentNames.length > 0 && (
-                      <small className="customer-attachment-names">附件：{message.attachmentNames.join("、")}</small>
-                    )}
+                    {(message.attachments?.length || message.attachmentNames?.length) ? <MessageAttachments
+                      items={message.attachments?.length ? message.attachments : attachmentSnapshot(null, [], message.attachmentNames)}
+                      baseUrl={publicModelApiBase} authenticatedFetch={authenticatedFetch}/> : null}
                     <p>{message.content}</p>
                   </>
                 )}
@@ -1422,7 +1684,29 @@ export default function Home() {
         </div>
       </section>
 
-      <div className="composer-wrap">
+      <div className="composer-wrap" ref={composerWrapRef}>
+        {questionQueue.length > 0 && <section className="question-queue" aria-label="待发送问题队列">
+          <div className="question-queue-header">
+            <span>{queuePaused ? "队列已暂停" : "待发送"} · {questionQueue.length} 条</span>
+            {queuePaused && <button type="button" disabled={isSending} onClick={() => void resumeQuestionQueue()}>继续队列</button>}
+          </div>
+          <ol>{questionQueue.map(job => <li key={job.id}>
+            <span>{job.question || "概括附件"}{job.interruptedQuestion ? "（补充／调整当前任务）" : ""}</span>
+            <button type="button" className="queue-steer-button"
+              disabled={!isSending || isStopping || job.conversationId !== activeConversationId}
+              aria-label={`立即引导：${job.question}`} title="停止当前任务，立即按这条要求重新规划"
+              onClick={() => steerQueuedQuestion(job)}>↑</button>
+            <button type="button" aria-label={`编辑排队问题：${job.question}`} onClick={() => {
+              updateQuestionQueue(questionQueueRef.current.filter(item => item.id !== job.id));
+              setDraft(job.question); setAttachedImage(job.image); setPendingAttachments(job.attachments);
+              textAreaRef.current?.focus();
+            }}>编辑</button>
+            <button type="button" aria-label={`移除排队问题：${job.question}`} onClick={() => {
+              job.attachments.forEach(item => item.previewUrl && URL.revokeObjectURL(item.previewUrl));
+              updateQuestionQueue(questionQueueRef.current.filter(item => item.id !== job.id));
+            }}>移除</button>
+          </li>)}</ol>
+        </section>}
         <form className="composer" onSubmit={handleSubmit}>
           <input
             ref={fileInputRef}
@@ -1433,10 +1717,10 @@ export default function Home() {
             onChange={handleAttachmentSelection}
           />
           <div className="composer-input-area" title="可点击＋、拖入文件，或从剪贴板粘贴文件和图片">
-            {pendingAttachments.map((attachment) => (
+            {pendingAttachments.map((attachment, index) => (
               <div className="pending-image" key={attachment.id} aria-label={`待发送附件：${attachment.file.name}`}>
-                {attachment.previewUrl ? <img src={attachment.previewUrl} alt="附件预览" /> : <strong>文件</strong>}
-                <span>{attachment.file.name}</span>
+                <FileBadge name={attachment.file.name} preview={attachment.previewUrl}/>
+                <span>{attachmentDisplayNames(pendingAttachments.map(item => item.file.name))[index]}</span>
                 <button type="button" onClick={() => removePendingAttachment(attachment.id)} aria-label="移除附件">×</button>
               </div>
             ))}
@@ -1454,7 +1738,7 @@ export default function Home() {
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isSending}
                 aria-label="上传文件或图片"
-                title="点击选择文件，也可直接拖入或粘贴"
+                title={`点击选择、拖入或粘贴；会话最多 ${uploadLimits.max_files} 份，单份 ${uploadLimits.max_file_bytes / 1024 / 1024} MB，合计 ${uploadLimits.max_total_bytes / 1024 / 1024} MB`}
               >
                 <span aria-hidden="true">＋</span>
               </button>
@@ -1469,28 +1753,21 @@ export default function Home() {
               />
             </div>
             {activeConversation?.documentSessionId && activeConversation.attachmentNames && activeConversation.attachmentNames.length > 0 && (
-              <div className="active-document-session">
-                <span>当前对话已关联附件</span>
-                <small>{activeConversation.attachmentNames.join("、")}</small>
-              </div>
+              <SessionAttachments key={`${activeConversation.id}:${activeConversation.documentSessionId}`}
+                sessionId={activeConversation.documentSessionId} baseUrl={publicModelApiBase} authenticatedFetch={authenticatedFetch}
+                onExpired={() => { updateConversationDocumentSession(activeConversation.id, null); setCoverageNotice("此对话的历史附件已过期或后端已重启，请重新上传。聊天记录仍保留。"); }}
+                onDetach={() => updateConversationDocumentSession(activeConversation.id, null)} />
             )}
-            <label className="online-search-toggle">
-              <input type="checkbox" checked={useTaskMemory} disabled={isSending}
-                onChange={(event) => setUseTaskMemory(event.target.checked)} />
-              <span>任务记忆</span>
-              <small>开启后将本会话问答与条件保存在本地服务器，7天后失效并在后续访问时清理；不作为技术证据。不同项目请新建对话。</small>
-            </label>
             <button type="button" disabled={isSending || !activeConversationId} onClick={async () => {
               if (!activeConversationId) return;
               try {
                 const result = await authenticatedFetch(`${publicModelApiBase}/api/copilot/memory/${encodeURIComponent(activeConversationId)}`, { method: "DELETE" });
                 if (!result.ok) throw new Error("delete_failed");
-                setUseTaskMemory(false);
-                setCoverageNotice("已清除此会话的服务器任务记忆。聊天记录保留，近期消息仍可用于当前对话；如需完全重新开始，请新建对话。");
+                setCoverageNotice("已清除此会话的服务器任务记忆。后续新问答仍会保存任务记忆。聊天记录保留，近期消息仍可用于当前对话；如需完全重新开始，请新建对话。");
               } catch {
                 setCoverageNotice("任务记忆清除失败，请检查连接后重试。");
               }
-            }}>清除此会话任务记忆</button>
+              }} className="memory-clear-button" title="清除此会话的服务器任务记忆，保留聊天记录">清除任务记忆</button>
             <label className="online-search-toggle">
               <input
                 type="checkbox"
@@ -1502,8 +1779,12 @@ export default function Home() {
               <small>完整发送当前问题；本地资料、图片和历史对话不会上传。具体项目名称会自动检索公开资料。</small>
             </label>
           </div>
-          <button type="submit" disabled={(!draft.trim() && pendingAttachments.length === 0) || isSending} aria-label="发送问题">
-            <span aria-hidden="true">↑</span>
+          <button type={isSending && !draft.trim() && pendingAttachments.length === 0 ? "button" : "submit"}
+            disabled={isStopping || (!isSending && !draft.trim() && pendingAttachments.length === 0)}
+            onClick={isSending && !draft.trim() && pendingAttachments.length === 0 ? () => { void stopQuestion(); } : undefined}
+            aria-label={isStopping ? "正在停止任务" : isSending ? (draft.trim() || pendingAttachments.length ? "加入队列" : "停止任务") : "发送问题"}
+            title={isSending ? (draft.trim() || pendingAttachments.length ? "加入队列；待发送项旁的箭头可立即引导" : "停止当前任务并暂停队列") : "发送问题"}>
+            <span aria-hidden="true" className={isSending && !draft.trim() && pendingAttachments.length === 0 ? "task-stop-square" : undefined}>{isSending && !draft.trim() && pendingAttachments.length === 0 ? null : "↑"}</span>
           </button>
         </form>
         <p className="composer-note">上传图片仅发送至本机模型并在处理后删除；技术结论仍以本地资料页与项目条件为准。</p>
@@ -1533,7 +1814,7 @@ export default function Home() {
         <div className="access-modal" role="dialog" aria-modal="true" aria-label={bootstrapRequired ? "初始化管理员" : "内部登录"}>
           <form className="access-card" onSubmit={submitAuthentication}>
             <div className="access-card-heading">
-              <div><strong>{bootstrapRequired ? "初始化管理员" : "内部人员登录"}</strong><small>匿名访客始终只能查询公开资料</small></div>
+              <div><strong>{bootstrapRequired ? "初始化管理员" : "内部人员登录"}</strong><small>公开问答和附件分析无需登录；登录仅用于内部权限。</small></div>
               <button type="button" onClick={() => setAuthDialogOpen(false)} aria-label="关闭">×</button>
             </div>
             {bootstrapRequired && (
@@ -1551,13 +1832,31 @@ export default function Home() {
         </div>
       )}
 
-      {adminPanelOpen && authPrincipal?.role === "admin" && (
-        <div className="access-modal" role="dialog" aria-modal="true" aria-label="内部权限管理">
+      {tracePanelOpen && (
+        <div className="access-modal" role="dialog" aria-modal="true" aria-label="我的请求轨迹">
           <section className="access-card admin-access-card">
             <div className="access-card-heading">
-              <div><strong>内部权限管理</strong><small>当前内部知识库为空；现有资料均为公开资料</small></div>
+              <div><strong>我的请求轨迹</strong><small>规划、检索、审核、生成与具体错误</small></div>
+              <button type="button" onClick={() => setTracePanelOpen(false)} aria-label="关闭">×</button>
+            </div>
+            <AdminTraces key={`${authPrincipal?.user_id || "anonymous"}:${activeConversationId}`} publicView baseUrl={publicModelApiBase} authenticatedFetch={authenticatedFetch}
+              activeRequestId={runningTraceTaskId}
+              initialRequestId={[...(activeConversation?.messages ?? [])].reverse().find(m => m.answer?.meta?.execution?.request_id)?.answer?.meta?.execution?.request_id} />
+          </section>
+        </div>
+      )}
+      {adminPanelOpen && authPrincipal?.role === "admin" && (
+        <div className="access-modal" role="dialog" aria-modal="true" aria-label="管理员面板">
+          <section className="access-card admin-access-card">
+            <div className="access-card-heading">
+              <div><strong>管理员面板</strong><small>权限管理与请求链路</small></div>
               <button type="button" onClick={() => setAdminPanelOpen(false)} aria-label="关闭">×</button>
             </div>
+            <div className="admin-tabs" role="tablist" aria-label="管理员功能">
+              <button type="button" role="tab" aria-selected={adminTab === "users"} onClick={() => setAdminTab("users")}>内部权限</button>
+              <button type="button" role="tab" aria-selected={adminTab === "traces"} onClick={() => setAdminTab("traces")}>请求链路</button>
+            </div>
+            {adminTab === "traces" ? <AdminTraces baseUrl={publicModelApiBase} authenticatedFetch={authenticatedFetch} /> : <>
             <form className="new-user-form" onSubmit={createManagedUser}>
               <input value={newUserForm.username} onChange={(event) => setNewUserForm({ ...newUserForm, username: event.target.value })} placeholder="用户名" required />
               <input value={newUserForm.displayName} onChange={(event) => setNewUserForm({ ...newUserForm, displayName: event.target.value })} placeholder="姓名" />
@@ -1575,6 +1874,7 @@ export default function Home() {
                 </div>
               ))}
             </div>
+            </>}
           </section>
         </div>
       )}

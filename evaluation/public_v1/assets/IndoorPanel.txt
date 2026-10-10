@@ -1,1 +1,0 @@
-IndoorPanel: only indoor use; must not use on exterior walls.

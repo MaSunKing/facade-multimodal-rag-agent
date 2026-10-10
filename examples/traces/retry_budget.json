@@ -1,0 +1,42 @@
+{
+  "kind": "illustrative_not_executed",
+  "branch": "retry_budget",
+  "purpose": "重试实际输入仍超限则停止",
+  "source": "backend/sales/model_contract.py",
+  "not_a_test_result": true,
+  "nodes": [
+    {
+      "stage": "retry_input_count",
+      "status": "illustrative",
+      "input_tokens": null,
+      "output_tokens": null,
+      "elapsed_ms": null,
+      "model_calls": null
+    },
+    {
+      "stage": "compact_retry_metadata",
+      "status": "illustrative",
+      "input_tokens": null,
+      "output_tokens": null,
+      "elapsed_ms": null,
+      "model_calls": null
+    },
+    {
+      "stage": "count_again",
+      "status": "illustrative",
+      "input_tokens": null,
+      "output_tokens": null,
+      "elapsed_ms": null,
+      "model_calls": null
+    },
+    {
+      "stage": "CONTRACT_RETRY_BUDGET_EXCEEDED",
+      "status": "illustrative",
+      "input_tokens": null,
+      "output_tokens": null,
+      "elapsed_ms": null,
+      "model_calls": null
+    }
+  ],
+  "boundary": "Labels are design phases, not a promise that each is a separate LangGraph node. No real answer or metric is fabricated."
+}

@@ -50,7 +50,8 @@ outputs/
 data/documents/
 data/document_qa/
 data/finance/
-data/sales/evaluation/
+data/sales/evaluation/*
+!data/sales/evaluation/agent_eval_100_v1/
 data/sales/raw/product_pdfs/*
 !data/sales/raw/product_pdfs/.gitkeep
 data/sales/raw/sales_playbooks/*
@@ -68,7 +69,6 @@ frontend/.wrangler/
 frontend/build/
 frontend/worker/
 frontend/scripts/
-frontend/tests/
 frontend/.openai/
 frontend/vite.config.ts
 

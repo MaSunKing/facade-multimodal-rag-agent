@@ -13,12 +13,25 @@ from backend.documents.customer_sessions import (
     get_session,
     get_visual_asset,
     issue_customer_visual_ticket,
+    session_summary,
     retrieve,
     temporary_visual_files,
 )
 
 
 class CustomerDocumentSessionTests(unittest.TestCase):
+    def test_exact_bytes_duplicate_rejected_but_same_name_distinct_content_preserved(self):
+        result=add_files([('same.txt',b'first content'),('same.txt',b'second content')])
+        self.sessions=[result['session_id']]
+        self.assertEqual(len(result['documents']),2)
+        self.assertEqual([d['display_name'] for d in result['documents']],['same.txt（1）','same.txt（2）'])
+        with patch('backend.documents.customer_sessions.ingest_uploaded_file') as parse:
+            with self.assertRaisesRegex(ValueError,'duplicate_attachment_content'):
+                add_files([('renamed.txt',b'first content')],result['session_id'])
+            parse.assert_not_called()
+        with self.assertRaisesRegex(ValueError,'duplicate_attachment_content'):
+            add_files([('a.txt',b'same'),('b.txt',b'same')])
+
     def test_owner_bound_session_cannot_be_read_appended_or_deleted_by_another_owner(self) -> None:
         owner_a = "browser:" + "a" * 64
         owner_b = "browser:" + "b" * 64
@@ -48,7 +61,10 @@ class CustomerDocumentSessionTests(unittest.TestCase):
         stream = BytesIO()
         Image.new("RGB", (80, 60), color=(210, 220, 230)).save(stream, format="PNG")
         result = add_files([("private.png", stream.getvalue())], owner_id=owner)
+        self.assertEqual(result['documents'][0]['preview_visual_id'], 'image:document:1')
+        self.assertNotIn('image_bytes', result['documents'][0])
         session_id = result["session_id"]
+        self.assertIsNone(session_summary(session_id, owner_id='browser:' + 'd' * 64))
         self.sessions = [session_id]
         with bind_session_owner(owner):
             session = get_session(session_id)
@@ -160,7 +176,7 @@ class CustomerDocumentSessionTests(unittest.TestCase):
         )
 
     def test_more_than_four_files_are_rejected(self) -> None:
-        with self.assertRaisesRegex(ValueError, "maximum_four_files"):
+        with self.assertRaisesRegex(ValueError, "maximum_files_per_session"):
             add_files([(f"{index}.txt", b"test") for index in range(5)])
 
     def test_existing_session_bytes_count_toward_total_limit(self) -> None:

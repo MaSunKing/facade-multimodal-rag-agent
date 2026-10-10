@@ -61,7 +61,7 @@ class RetrievalQueryBoundaryTests(unittest.TestCase):
 
     def test_long_attachment_request_reaches_semantic_planner_before_fallback(self):
         question='请结合附件分析：'+'需要综合核对相关约束和实施条件。'*40+'不得忽略最后的2027年度限制。'
-        session=SimpleNamespace(documents=[SimpleNamespace(file_name='notes.docx', visuals=[],
+        session=SimpleNamespace(documents=[SimpleNamespace(file_name='notes.docx', document_id='doc_test', visuals=[],
             source_type='docx', chunks=[])])
         request=app.DraftRequest(customer_question=question,document_session_id='test',memory_enabled=False)
         with patch.object(app,'get_session',return_value=session), \
@@ -88,13 +88,14 @@ class RetrievalQueryBoundaryTests(unittest.TestCase):
             def __call__(self,prompt,**kwargs):
                 return Batch(input_ids=torch.zeros((1,2),dtype=torch.long))
             def decode(self,ids,**kwargs):
-                return json.dumps({'tools':['customer_documents'],'task_type':'procedure',
-                    'document_scope':'whole_document','document_visual_required':False,
-                    'retrieval_query':'scheduling capacity 2027 storage restriction',
-                    'search_targets':['scheduling','capacity','2027','storage restriction'],
-                    'answer_goals':['What capacity and storage restrictions apply in 2027?']})
+                return json.dumps({'sources':['customer_documents'],'operation':'lookup',
+                    'document_visual_required':False,'wants_images':False,
+                    'categories':[], 'targets':[],
+                    'queries':[{'source':'customer_documents','query':'scheduling capacity 2027 storage restriction','targets':[]}],
+                    'aspects':['What capacity and storage restrictions apply in 2027?']})
         model=SimpleNamespace(device='cpu',generate=lambda **kwargs:torch.zeros((1,3),dtype=torch.long))
-        document=SimpleNamespace(file_name='notes.docx',visuals=[],source_type='docx',
+        document=SimpleNamespace(file_name='notes.docx',document_id='doc_test',visuals=[],source_type='docx',
+            parse_quality={'text_available': True, 'warnings': ['ocr_pages_pending']},
             chunks=[{'kind':'paragraph','text':'The uploaded scheduling plan explains capacity, staffing, storage restrictions and annual limits.'}])
         request=app.DraftRequest(customer_question=question,document_session_id='test',memory_enabled=False)
         with patch.object(app,'get_session',return_value=SimpleNamespace(documents=[document])), \
@@ -103,9 +104,12 @@ class RetrievalQueryBoundaryTests(unittest.TestCase):
              patch.object(app,'save_question_router_debug'):
             plan=app.plan_customer_tools(request)
         planner_input=json.loads(captured[0][1]['content'])
-        self.assertEqual(planner_input['question'],question)
+        self.assertEqual(planner_input['current_question'],question)
+        self.assertNotIn('conversation_context', planner_input)
+        self.assertEqual(planner_input['untrusted_document_previews'][0]['parse_quality'],
+                         document.parse_quality)
         self.assertEqual(planner_input['retrieval_query_contract']['max_characters'],300)
-        self.assertEqual(plan.retrieval_query,'scheduling capacity 2027 storage restriction')
+        self.assertEqual(plan.document_retrieval_queries,['scheduling capacity 2027 storage restriction'])
         self.assertEqual(plan.tools,['customer_documents'])
         self.assertEqual(request.customer_question,question)
 

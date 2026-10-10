@@ -25,6 +25,33 @@ from backend.app import (
 
 
 class ToolPlannerPolicyTests(unittest.TestCase):
+    def test_same_named_files_with_document_local_visual_ids_stay_distinct(self):
+        budget = ContextBudget(candidate_text_tokens=6000, max_prompt_tokens=5200,
+                               max_images=2, max_output_tokens=620, components={})
+        first = {'document_id':'a', 'document_name':'image.png', 'visual_id':'image:document:1'}
+        second = {**first, 'document_id':'b'}
+        selected = _select_customer_visual_inputs(
+            {'selected_visuals':[first, first, second],
+             'input_snapshot':{'global_document_question':True}}, budget)
+        self.assertEqual(selected, [first, second])
+
+    def test_fill_remaining_slots_uses_composite_visual_identity(self):
+        budget = ContextBudget(candidate_text_tokens=6000, max_prompt_tokens=5200,
+                               max_images=4, max_output_tokens=620, components={})
+        rows = [{'document_id':d, 'document_name':'same.pdf', 'visual_id':p}
+                for d in ('a', 'b') for p in ('page1', 'page2')]
+        selected = _select_customer_visual_inputs(
+            {'selected_visuals':rows, 'input_snapshot':{'global_document_question':True}}, budget)
+        self.assertEqual([(r['document_id'],r['visual_id']) for r in selected],
+                         [('a','page1'),('b','page1'),('a','page2'),('b','page2')])
+
+    def test_zero_visual_allowance_does_not_select_one_image(self):
+        budget = ContextBudget(candidate_text_tokens=6000, max_prompt_tokens=5200,
+                               max_images=0, max_output_tokens=620, components={})
+        self.assertEqual(_select_customer_visual_inputs(
+            {'selected_visuals':[{'document_id':'a','visual_id':'p'}],
+             'input_snapshot':{'global_document_question':True}}, budget), [])
+
     def test_global_multi_image_question_respects_configured_two_image_limit(self) -> None:
         budget = ContextBudget(
             candidate_text_tokens=6000,

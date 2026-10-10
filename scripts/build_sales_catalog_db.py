@@ -12,12 +12,16 @@ import json
 import os
 import re
 import sqlite3
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from company_catalog_extensions import populate_extensions
 READY = ROOT / "data" / "sales" / "processed" / "rag_ready"
 DEFAULT_OUTPUT = ROOT / "data" / "sales" / "processed" / "catalog" / "sales_catalog.sqlite3"
 DEFAULT_AUDIT = ROOT / "output" / "sales_catalog" / "audit.json"
@@ -40,6 +44,7 @@ CATEGORY_MARKERS = (
 LOCATION_RULES = (
     ("武汉", "湖北省", "武汉市"), ("随县", "湖北省", "随县"),
     ("济南", "山东省", "济南市"), ("德州", "山东省", "德州市"), ("东营", "山东省", "东营市"),
+    ("青岛", "山东省", "青岛市"),
     ("保定", "河北省", "保定市"), ("邢台", "河北省", "邢台市"), ("唐山", "河北省", "唐山市"),
     ("石家庄", "河北省", "石家庄市"), ("沧州", "河北省", "沧州市"), ("廊坊", "河北省", "廊坊市"),
     ("张家口", "河北省", "张家口市"), ("涿州", "河北省", "涿州市"), ("定州", "河北省", "定州市"),
@@ -61,6 +66,7 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
 
 
 def normalise_name(value: str) -> str:
+    value = re.split(r"建筑高度\s*[:：]|建成时间\s*[:：]|使用面积\s*[:：]", value)[0]
     value = re.sub(r"真岩®?无机仿石材案例", "", value)
     value = re.sub(r"项目$", "", value)
     return re.sub(r"[^0-9A-Za-z\u4e00-\u9fff]", "", value).lower()
@@ -104,12 +110,39 @@ def catalogue_match(case_name: str, catalogue_cases: list[dict[str, Any]]) -> di
     return candidates[0] if len(candidates) == 1 else None
 
 
+def consolidate_catalogue_cases(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    grouped: dict[str, dict[str, Any]] = {}
+    for item in records:
+        key = normalise_name(str(item.get("project_name") or ""))
+        if not key:
+            key = str(item.get("case_id"))
+        if key not in grouped:
+            grouped[key] = {**item, "_source_records": [item]}
+        else:
+            target = grouped[key]
+            target["_source_records"].append(item)
+            for field in ["source_pages", "visual_asset_ids"]:
+                target[field] = list(dict.fromkeys([*(target.get(field) or []), *(item.get(field) or [])]))
+            # Preserve disagreements instead of silently overwriting facts.
+            for field in ["product", "area_m2", "completion_year", "installation_method"]:
+                if target.get(field) and item.get(field) and target[field] != item[field]:
+                    target.setdefault("field_disagreements", {}).setdefault(field, [target[field]])
+                    if item[field] not in target["field_disagreements"][field]:
+                        target["field_disagreements"][field].append(item[field])
+        grouped[key]["project_name"] = re.split(r"建筑高度\s*[:：]|建成时间\s*[:：]|使用面积\s*[:：]", str(item.get("project_name") or ""))[0].strip()
+    for target in grouped.values():
+        for field in target.get("field_disagreements", {}):
+            target[field] = None
+    return list(grouped.values())
+
+
 def build(output: Path, audit_path: Path) -> dict[str, Any]:
     website_text = read_jsonl(READY / "website_text_evidence_tagged.jsonl")
     website_visuals = read_jsonl(READY / "website_visual_assets_tagged.jsonl")
     website_catalog = read_jsonl(READY / "website_visual_catalog.jsonl")
     website_cases = read_jsonl(READY / "website_project_cases_tagged.jsonl")
-    catalogue_cases = read_jsonl(READY / "project_cases_tagged.jsonl")
+    raw_catalogue_cases = read_jsonl(READY / "project_cases_tagged.jsonl")
+    catalogue_cases = consolidate_catalogue_cases(raw_catalogue_cases)
     visual_by_url = {
         str(item.get("source_url")): item
         for item in website_catalog
@@ -146,12 +179,15 @@ def build(output: Path, audit_path: Path) -> dict[str, Any]:
 
     case_rows: list[dict[str, Any]] = []
     case_visual_rows: list[tuple[str, str, int]] = []
+    matched_catalogue_ids: set[str] = set()
     for item in website_cases:
         case_id = str(item["case_id"])
         name = str(item.get("project_name") or "")
         source_text = str(item.get("source_text") or "")
         province, city = location_for(name)
         matched = catalogue_match(name, catalogue_cases)
+        if matched:
+            matched_catalogue_ids.add(str(matched.get("case_id")))
         title_product = "真岩®岩棉保温装饰一体板" if "岩棉保温装饰一体板" in name else None
         product = str((matched or {}).get("product") or title_product or item.get("product") or "真岩®无机仿石材")
         case_rows.append(
@@ -170,10 +206,35 @@ def build(output: Path, audit_path: Path) -> dict[str, Any]:
                 "source_url": item.get("source_url"),
                 "source_text": source_text,
                 "access_scope": "public",
+                "_provenance": [{"kind": "website", "id": case_id, "record": item}]
+                + ([{"kind": "enterprise_catalogue", "id": str(r.get("case_id")), "record": r} for r in matched["_source_records"]] if matched else []),
+                "_disagreements": (matched or {}).get("field_disagreements", {}),
             }
         )
-        for position, asset_id in enumerate(item.get("visual_asset_ids") or [], start=1):
+        linked_ids = list(dict.fromkeys([*(item.get("visual_asset_ids") or []), *((matched or {}).get("visual_asset_ids") or [])]))
+        case_rows[-1]["image_count"] = len(linked_ids)
+        for position, asset_id in enumerate(linked_ids, start=1):
             case_visual_rows.append((case_id, str(asset_id), position))
+
+    # Exact/uniquely-contained names are matched above; ambiguous names stay separate.
+    # Preserve catalogue-only cases rather than silently omitting them from SQL.
+    for item in catalogue_cases:
+        case_id = str(item.get("case_id") or "")
+        if not case_id or case_id in matched_catalogue_ids or not item.get("customer_shareable", True):
+            continue
+        name = str(item.get("project_name") or "")
+        province, city = location_for(name)
+        visual_ids = list(dict.fromkeys(item.get("visual_asset_ids") or []))
+        case_rows.append({"case_id": case_id, "project_name": name, "province": province, "city": city,
+            "project_category": item.get("project_type"), "product_name": item.get("product") or "真岩®无机仿石材",
+            "product_specificity": "catalogue_explicit" if item.get("product") else "generic_website_product",
+            "installation_method": item.get("installation_method"), "area_m2": item.get("area_m2"),
+            "completion_year": item.get("completion_year"), "image_count":len(visual_ids),
+            "source_url":item.get("source_url") or "", "source_text":str(item.get("source_text") or name),
+            "access_scope":item.get("access_scope","public"),
+            "_provenance":[{"kind":"enterprise_catalogue","id":str(r.get("case_id")),"record":r} for r in item["_source_records"]],
+            "_disagreements":item.get("field_disagreements",{})})
+        case_visual_rows.extend((case_id,str(asset),position) for position,asset in enumerate(visual_ids,1))
 
     output.parent.mkdir(parents=True, exist_ok=True)
     temporary = output.with_suffix(".tmp.sqlite3")
@@ -229,26 +290,48 @@ def build(output: Path, audit_path: Path) -> dict[str, Any]:
                 (row["case_id"], row["project_name"], row["province"], row["city"], row["project_category"], row["product_name"], row["source_text"]),
             )
         connection.executemany("INSERT INTO project_case_visuals VALUES(?,?,?)", case_visual_rows)
+        extension_audit = populate_extensions(connection, ROOT, READY, product_rows, case_rows, read_jsonl)
+        orphan_images = connection.execute("SELECT asset_id FROM project_case_visuals WHERE asset_id NOT IN (SELECT asset_id FROM visual_assets)").fetchall()
+        if orphan_images or extension_audit["missing_visual_assets"]:
+            raise ValueError("Catalogue references missing original images")
         generated = datetime.now(timezone.utc).isoformat()
         connection.executemany(
             "INSERT INTO metadata VALUES(?,?)",
-            (("schema_version", "sales_catalog_v1"), ("generated_at_utc", generated), ("source", "official_website_plus_enterprise_catalogue")),
+            (("schema_version", "sales_catalog_v2"), ("generated_at_utc", generated), ("source", "official_website_plus_enterprise_catalogue")),
         )
+        # Retain audited locations and mirror the active index on catalogue rebuild.
+        from sync_knowledge_directory import INDEX, sync_directory, apply_city_corrections
+        if INDEX.exists():
+            sync_directory(connection, INDEX)
+            apply_city_corrections(connection)
+            from backend.sales.knowledge_directory import classify_directory
+            classify_directory(connection)
+            registry = ROOT / 'data/sales/processed/restored_source_registry'
+            if (registry / 'project_facts.json').exists():
+                from scripts.publish_restored_company_sources import publish
+                extension_audit['source_restoration'] = publish(connection, registry, INDEX)
+        from backend.sales.catalog_repairs import apply_catalog_choices
+        apply_catalog_choices(connection)
         connection.commit()
         integrity = connection.execute("PRAGMA integrity_check").fetchone()[0]
+        city_count = connection.execute("SELECT COUNT(*) FROM project_cases WHERE city IS NOT NULL AND trim(city)<>''").fetchone()[0]
+        case_count = connection.execute('SELECT COUNT(*) FROM project_cases').fetchone()[0]
     finally:
         connection.close()
     os.replace(temporary, output)
 
     audit = {
-        "schema_version": "sales_catalog_v1",
+        "schema_version": "sales_catalog_v2",
+        "catalogue_duplicate_records_consolidated": len(raw_catalogue_cases)-len(catalogue_cases),
+        "catalogue_field_disagreements": [{"project_name":r["project_name"],"fields":r["field_disagreements"]} for r in catalogue_cases if r.get("field_disagreements")],
+        **extension_audit,
         "database": str(output),
         "integrity_check": integrity,
         "product_count": len(product_rows),
         "product_with_main_image_count": sum(bool(item["main_visual_asset_id"]) for item in product_rows),
-        "project_case_count": len(case_rows),
+        "project_case_count": case_count,
         "case_visual_link_count": len(case_visual_rows),
-        "case_with_city_count": sum(bool(item["city"]) for item in case_rows),
+        "case_with_city_count": city_count,
         "case_with_category_count": sum(bool(item["project_category"]) for item in case_rows),
         "case_with_specific_product_count": sum(item["product_specificity"] != "generic_website_product" for item in case_rows),
         "generic_product_case_count": sum(item["product_specificity"] == "generic_website_product" for item in case_rows),
@@ -263,7 +346,12 @@ def main() -> int:
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--audit", type=Path, default=DEFAULT_AUDIT)
     args = parser.parse_args()
-    print(json.dumps(build(args.output.resolve(), args.audit.resolve()), ensure_ascii=False, indent=2))
+    audit = build(args.output.resolve(), args.audit.resolve())
+    index = ROOT / 'data/sales/processed/rag_index/lexical_index.json'
+    if index.exists():
+        from backend.sales.knowledge_hierarchy import rebuild_hierarchy
+        audit['knowledge_hierarchy'] = rebuild_hierarchy(index, args.output.resolve())
+    print(json.dumps(audit, ensure_ascii=False, indent=2))
     return 0
 
 

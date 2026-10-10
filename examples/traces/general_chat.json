@@ -1,0 +1,34 @@
+{
+  "kind": "illustrative_not_executed",
+  "branch": "general_chat",
+  "purpose": "无需外部取证的交流",
+  "source": "backend/sales/planning_spec.py",
+  "not_a_test_result": true,
+  "nodes": [
+    {
+      "stage": "guard_tools",
+      "status": "illustrative",
+      "input_tokens": null,
+      "output_tokens": null,
+      "elapsed_ms": null,
+      "model_calls": null
+    },
+    {
+      "stage": "generate_answer",
+      "status": "illustrative",
+      "input_tokens": null,
+      "output_tokens": null,
+      "elapsed_ms": null,
+      "model_calls": null
+    },
+    {
+      "stage": "answer_audit",
+      "status": "illustrative",
+      "input_tokens": null,
+      "output_tokens": null,
+      "elapsed_ms": null,
+      "model_calls": null
+    }
+  ],
+  "boundary": "Labels are design phases, not a promise that each is a separate LangGraph node. No real answer or metric is fabricated."
+}

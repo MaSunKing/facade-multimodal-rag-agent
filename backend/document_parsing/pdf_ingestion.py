@@ -50,7 +50,7 @@ MAX_TEXT_PDF_TABLE_PAGES = 12
 # optional enhancement, not part of the request path for ordinary text PDFs.
 # Keeping the cap finite also prevents one upload from holding the web UI for
 # several minutes when the local runtime is unhealthy.
-MINERU_TIMEOUT_SECONDS = 90
+MINERU_TIMEOUT_SECONDS = None  # Parsing has no wall-clock cutoff.
 DEFAULT_MINERU = Path(r"C:\Anaconda\envs\mineru_local\Scripts\mineru.exe")
 
 StatementType = Literal["income_statement", "balance_sheet", "cash_flow_statement"]

@@ -92,26 +92,20 @@ class ProductOverviewAnswerTests(unittest.TestCase):
         )
         self.assertFalse(resolve_product_overview_request(unrelated_latest))
 
-    def test_direct_compatibility_call_keeps_deterministic_overview_renderer(self) -> None:
-        requests = (
-            DraftRequest(customer_question="我想了解一下你们的产品 给我图片"),
-            DraftRequest(
-                customer_question="详细介绍一下",
-                conversation_context=[
-                    {"role": "user", "content": "我想了解一下你们的产品"},
-                    {"role": "assistant", "content": "已简要介绍产品体系。"},
-                ],
-            ),
-        )
-        for request in requests:
-            with self.subTest(question=request.customer_question):
-                with patch("backend.app.understand_customer_question") as planner:
-                    response = _run_facade_rag_answer(request, allow_public_web=False)
-                planner.assert_not_called()
-                self.assertTrue(response.answerable)
-                self.assertFalse(response.meta["model_used"])
-                self.assertEqual(response.meta["mode"], "deterministic_product_master_overview")
-                self.assertEqual(response.meta["profile_section_count"], 5)
+    def test_overview_reaches_generation_instead_of_dossier_return(self) -> None:
+        from backend.sales.staged_execution import WorkflowCursor
+        request = DraftRequest(customer_question="只回答你们有哪些产品")
+        cursor = WorkflowCursor(_run_facade_rag_answer.steps(request, allow_public_web=False))
+        with patch("backend.app.load_model", side_effect=AssertionError("no GPU inference")):
+            try:
+                cursor.advance()
+                while not cursor.done and cursor.pending.node != "generate_answer":
+                    cursor.execute()
+                self.assertFalse(cursor.done, "overview must not return the full dossier")
+                self.assertEqual(cursor.pending.node, "generate_answer")
+            finally:
+                cursor.close()
+
 
     def test_overview_retrieval_keeps_every_approved_profile_section(self) -> None:
         result = LocalRagRetriever().retrieve(
@@ -136,9 +130,15 @@ class ProductOverviewAnswerTests(unittest.TestCase):
                 "材料构成与形成方式",
                 "产品特点与维护",
                 "应用范围与配套施工资料",
+                "厂家身份与品牌",
+                "工厂所在地",
+                "产品体系",
+                "饰面种类",
+                "保温一体板种类",
+                "应用场景及事实边界",
             },
         )
-        self.assertEqual(len(approved), 5)
+        self.assertEqual(len(approved), 11)
         self.assertTrue(result["meta"]["knowledge_domain_routing"]["product_overview_priority"])
 
     def test_generic_heading_cannot_consume_an_approved_overview_slot(self) -> None:
@@ -211,7 +211,7 @@ class ProductOverviewAnswerTests(unittest.TestCase):
         self.assertTrue(response["answerable"])
         self.assertFalse(response["meta"]["model_used"])
         self.assertEqual(response["meta"]["mode"], "deterministic_product_master_overview")
-        self.assertEqual(response["meta"]["profile_section_count"], 5)
+        self.assertEqual(response["meta"]["profile_section_count"], 11)
         self.assertTrue(response["meta"]["wants_visuals"])
         self.assertEqual(response["meta"]["visual_scope"], "product")
         self.assertEqual(response["visual_assets"], retrieval["visual_assets"])
@@ -242,7 +242,7 @@ class ProductOverviewAnswerTests(unittest.TestCase):
                 "应用范围与配套施工资料",
             }.issubset(cited_headings)
         )
-        self.assertEqual(response["retrieval"]["result_count"], 5)
+        self.assertEqual(response["retrieval"]["result_count"], 11)
 
 
 if __name__ == "__main__":

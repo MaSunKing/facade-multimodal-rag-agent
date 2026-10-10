@@ -87,7 +87,11 @@ def ensure_schema() -> None:
         if _SCHEMA_READY:
             return
         with _connect() as connection:
-            connection.execute("PRAGMA journal_mode=WAL")
+            from backend.sqlite_storage import state_journal_mode
+            desired = state_journal_mode(STATE_DB_PATH)
+            actual = connection.execute(f"PRAGMA journal_mode={desired}").fetchone()[0]
+            if actual.upper() != desired:
+                raise sqlite3.OperationalError('state database journal policy could not be applied')
             connection.executescript(
                 """
                 CREATE TABLE IF NOT EXISTS users (
@@ -352,6 +356,20 @@ def optional_principal(authorization: str | None = Header(default=None)) -> Prin
     return principal
 
 
+def public_principal(authorization: str | None = Header(default=None)) -> Principal | None:
+    """Public endpoints tolerate stale credentials without granting privileges.
+
+    Admin and internal-only endpoints must keep require_principal/require_admin.
+    Falling back to None means public ACLs and browser-owned attachments only.
+    """
+    try:
+        return optional_principal(authorization)
+    except HTTPException as exc:
+        if exc.status_code != 401:
+            raise
+        return None
+
+
 def require_principal(authorization: str | None = Header(default=None)) -> Principal:
     principal = optional_principal(authorization)
     if principal is None:
@@ -472,7 +490,16 @@ def finish_agent_request(
     ensure_schema()
     finished = _utc_now()
     latency_ms = max(0, round((finished.timestamp() - started_timestamp) * 1000))
-    status = "failed" if error_type else "completed"
+    status = "cancelled" if error_type == "request_cancelled" else "failed" if error_type else "completed"
+    meta = (response or {}).get('meta') or {}
+    execution = meta.get('execution') or {}
+    if not error_type and execution.get('state') in {'completed','degraded','failed','cancelled'}:
+        status = execution['state']
+    if meta.get('mode') == 'evidence_audit_failed':
+        status = 'failed'
+        error_type = error_type or (meta.get('evidence_gate') or meta.get('task_support_audit') or {}).get('error_code') or 'AUDIT_FAILED'
+    elif status == 'failed' and not error_type:
+        error_type = next((e.get('code') for e in execution.get('errors', []) if e.get('code')), 'INTERNAL_ERROR')
     with _connect() as connection:
         connection.execute(
             "UPDATE agent_requests SET status=?, finished_at=?, total_latency_ms=?, error_type=? WHERE request_id=?",
@@ -480,6 +507,9 @@ def finish_agent_request(
         )
     if response is None:
         return
+
+    from backend.sales.admin_traces import save_summary
+    save_summary(request_id, response)
 
     meta = response.get("meta") if isinstance(response.get("meta"), dict) else {}
     orchestration = meta.get("orchestration") if isinstance(meta, dict) else {}
@@ -590,6 +620,12 @@ def finish_agent_request(
     snapshot_payload = {
         "snapshot_version": "answer_evidence_v2",
         "request_id": request_id,
+        "task_support_audit": meta.get("task_support_audit") or {},
+        "replanning": meta.get("replanning") or {},
+        "evidence_gate": meta.get("evidence_gate") or {},
+        "orchestration": {key:(meta.get("orchestration") or {}).get(key) for key in (
+            "tool_plan_details", "node_trace", "tool_rounds", "planning_rounds",
+            "retry_reason", "recovery_actions")},
         "access_scopes": (meta.get("access_control") or {}).get("access_scopes", ["public"])
         if isinstance(meta, dict)
         else ["public"],

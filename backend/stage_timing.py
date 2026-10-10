@@ -17,6 +17,10 @@ def stage_timer(audit: dict, stage: str):
     finally:
         ms = round((time.perf_counter() - start) * 1000, 3)
         audit[stage] = round(float(audit.get(stage, 0)) + ms, 3)
+        from backend.sales.runtime_status import current_execution
+        journal = current_execution.get()
+        if journal is not None:
+            journal.timings.append({'phase':stage, 'stage':journal.stage, 'elapsed_ms':ms})
         if os.getenv('FACADE_RAG_DEBUG') == '1':
             event = {'stage':stage, 'elapsed_ms':ms, 'monotonic_time':time.monotonic(), 'thread_id':threading.get_ident()}
             print('FACADE_STAGE_TIMING ' + json.dumps(event), flush=True)

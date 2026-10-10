@@ -6,12 +6,46 @@ from contextvars import ContextVar
 from dataclasses import dataclass, field
 import json
 import time
+from contextlib import contextmanager
+from functools import wraps
 import uuid
 from pathlib import Path
 
 # code: user message, next action, retry allowed, model recovery action
 ERRORS = {
+    'RECOVERY_GAP_IDS_MISSING': ('恢复规划未指定要补充的缺口，补取证未执行。','当前回答仅使用已有支持内容；请根据请求编号排查恢复规划字段。',False,'return_supported_partial_without_tool_execution'),
+    'RECOVERY_GAP_ID_UNKNOWN': ('恢复规划填写了不属于本轮的缺口ID，补取证未执行。','当前回答仅使用已有支持内容；这不是最终答案的引用错误。',False,'return_supported_partial_without_tool_execution'),
+    'ATTACHMENT_SESSION_UNAVAILABLE': ('关联附件会话不可用，未开始模型处理。','会话可能已过期、服务已重启或不属于当前客户端；请重新上传附件。',False,'require_available_owned_attachment_no_model_retry'),
+    'WORKFLOW_NODE_UNREGISTERED': ('工作流节点尚未注册，本次操作未完成。','请提供请求编号排查节点配置；重新上传或重复提问不能修复此问题。',False,'fix_workflow_registration_no_model_retry'),
+    'MODEL_CALL_TIMEOUT': ('单次模型处理超过阶段安全时限。','请根据请求编号查看卡住的模型阶段；本次未继续格式重试。',False,'stop_model_stage'),
+    'OUTPUT_INCOMPLETE': ('模型输出在完成前停止。','请根据请求编号查看对应阶段的停止原因。',False,'report_stage_interruption'),
+    'CONTRACT_RETRY_BUDGET_EXCEEDED': ('模型输出修复需要的输入超过本轮预算。','请减少输入范围或重新提交；未继续调用模型。',False,'stop_format_retries'),
+    'OUTPUT_NOT_OBJECT': ('回答输出不是JSON对象。','请重新提交；系统未自动调用模型修复。',False,'return_specific_error'),
+    'OUTPUT_FIELD_MISSING': ('回答缺少必要字段。','请重新提交；系统不会猜测缺失内容。',False,'return_specific_error'),
+    'OUTPUT_FIELD_UNEXPECTED': ('回答包含协议不允许的字段。','请重新提交或提供请求编号排查。',False,'return_specific_error'),
+    'OUTPUT_FIELD_TYPE_INVALID': ('回答字段的数据类型不正确。','请重新提交或提供请求编号排查。',False,'return_specific_error'),
+    'OUTPUT_FIELD_VALUE_INVALID': ('回答字段的取值不符合协议。','请重新提交或提供请求编号排查。',False,'return_specific_error'),
+    'OUTPUT_REPLY_EMPTY': ('模型未生成有效回答正文。','请重新提交。',False,'return_specific_error'),
+    'OUTPUT_CITATION_FORMAT_INVALID': ('回答引用格式不正确，无法确定对应来源。','请重新提交；系统不会猜测引用来源。',False,'return_specific_error'),
+    'OUTPUT_CITATION_UNKNOWN': ('回答引用了不存在或未进入本轮模型输入的证据ID。','请重新提交；系统未替换为其他来源。',False,'return_specific_error'),
+    'OUTPUT_CITATION_MISSING': ('回答缺少必要的来源引用。','请重新提交；系统不会自动添加猜测的来源。',False,'return_specific_error'),
+    'OUTPUT_STATE_INCONSISTENT': ('回答状态与引用或要点字段相互矛盾。','请重新提交；系统未改变答案含义。',False,'return_specific_error'),
+    'DOCUMENT_SUMMARY_FAILED': ('文件内容概括未完成。','原始附件仍保留，请缩小范围或重试；不把失败的摘要当作文件事实。',False,'report_summary_failure_preserve_original_sources'),
+    'PLAN_DOCUMENT_SCOPE_INVALID': ('规划指定了当前会话不存在的文件。','请重试；未读取其他用户或不存在的文件。',False,'select_only_backend_provided_document_ids'),
+    'REPLAN_INVALID_PLAN': ('恢复计划格式或权限校验失败，未执行补充工具。','请查看首轮证据与具体缺口；格式错误不是资料不足。',False,'report_plan_contract_failure'),
+    'AUDIT_OUTPUT_TRUNCATED': ('证据审核输出达到长度上限，审核未完成。','请重试；这不代表资料不足。',True,'repair_audit_format_once_with_shared_budget'),
+    'AUDIT_INVALID_JSON': ('证据审核未返回完整有效的JSON。','请重试；尚不能判断证据是否足够。',True,'repair_audit_format_once_with_shared_budget'),
+    'AUDIT_SCHEMA_INVALID': ('证据审核字段或类型不符合约定。','请重试；不采用未验证的审核结论。',True,'repair_audit_format_once_with_shared_budget'),
+    'AUDIT_INVALID_REFERENCE': ('证据审核引用了本轮不存在的证据或图片。','请核对来源；不采用该审核结论。',False,'discard_invalid_audit_reference'),
+    'AUDIT_INPUT_BUDGET_EXCEEDED': ('证据审核输入超过安全预算。','请缩小资料范围；尚不能判断证据是否足够。',False,'reduce_context_preserving_required_evidence'),
+    'AUDIT_BUDGET_EXHAUSTED': ('剩余处理时间不足以完成证据审核。','请重试；这不代表资料不足。',False,'stop_without_asserting_evidence_absence'),
+    'AUDIT_FAILED': ('证据审核执行异常，审核未完成。','请提供请求编号排查；不采用未验证结论。',False,'report_audit_failure_not_evidence_gap'),
+    'AUDIT_INPUT_INVALID': ('证据审核输入准备失败，尚未调用审核模型。','请提供请求编号排查；这不代表模型输出格式错误或资料不足。',False,'repair_audit_input_not_model_output'),
+    'REPLAN_INPUT_BUDGET_EXCEEDED': ('恢复规划输入超过安全预算，尚未生成恢复计划。','已保留有效证据；请根据请求编号排查输入包装。',False,'reduce_replan_metadata_not_task'),
+    'REPLAN_INPUT_INVALID': ('恢复规划输入准备失败，未执行补取证。','请根据请求编号排查；这不代表原始资料不足。',False,'repair_replan_input'),
+    'CONTEXT_INTEGRITY_FAILED': ('上下文证据完整性检查未通过。','请提供请求编号排查；不会使用损坏或不完整的证据组合。',False,'repair_context_ids_hashes_or_protected_groups'),
     'REQUEST_INVALID': ('请求参数或文件格式不符合要求。','请检查输入和文件格式。',False,'ask_for_valid_input'),
+    'DUPLICATE_ATTACHMENT_CONTENT': ('该文件内容已添加，请勿重复上传。','请移除重复文件；同名但内容不同的文件可以上传。',False,'remove_duplicate_attachment'),
     'AUTH_REQUIRED': ('需要登录后执行此操作。','请先登录。',False,'request_authentication'),
     'ACCESS_DENIED': ('当前账号无权访问该资料或工具。','请联系管理员授权。',False,'do_not_bypass_permissions'),
     'NOT_FOUND': ('请求的资源不存在。','请检查资源或重新上传。',False,'request_available_resource'),
@@ -60,6 +94,36 @@ def error_info(code, stage='request', exception_type=None):
 
 def classify(exc, stage='request'):
     kind=type(exc).__name__; value=str(exc).lower()
+    if value == 'unregistered_workflow_node':
+        return error_info('WORKFLOW_NODE_UNREGISTERED',stage,kind)
+    if getattr(exc, 'code', None) in ERRORS:
+        info = error_info(exc.code, stage, kind)
+        field = getattr(exc, 'field', None)
+        if field in {'intent','answerable','customer_reply','citations','next_action','key_points',
+                     'normalized_terms','missing_information','risk_warnings','image_observations',
+                     'tools','status','supported_evidence_ids','target_document_ids','gap_ids',
+                     'revised_plan','action','used_source_ids','plan','audit','text',
+                     'reason','retain_source_tools','candidate_asset_ids','visual_need','source_constraint',
+                     'gap_type','visual_purpose','visual_reason','web_can_resolve','schema','tables','sections',
+                     'table_id','section_id','mappings','label','target','confidence','scope','source_codes',
+                     'target_code','case_reference','retrieval_query','search_targets','task_type','period_year',
+                     'document_type','title','text_blocks','findings','chart_type','recovery_need'}:
+            info['field'] = field
+            info['message'] += ' 字段：' + field + '。'
+        if getattr(exc,'role',None):
+            info['role']=exc.role
+            info['attempts']=getattr(exc,'attempts',None)
+            info['message'] += ' 阶段：' + exc.role + '；已尝试' + str(info['attempts']) + '次。'
+        return info
+    if kind == 'ModelCallTimeout' or value == 'model_call_timeout':
+        return error_info('MODEL_CALL_TIMEOUT',stage,kind)
+    if kind == 'RequestCancelled' or value == 'request_cancelled':
+        return error_info('REQUEST_CANCELLED', stage, kind)
+    if 'unknown_target_document_id' in value:
+        return error_info('PLAN_DOCUMENT_SCOPE_INVALID', stage, kind)
+    if (stage == 'document_summary' and kind not in {'RequestBudgetExceeded', 'RequestCancelled'}
+            and 'outofmemory' not in kind.lower() and 'out of memory' not in value and 'cancel' not in value):
+        return error_info('DOCUMENT_SUMMARY_FAILED', stage, kind)
     if stage == 'public_web_search':
         status = getattr(exc, 'http_status', None)
         provider_code = getattr(exc, 'error_code', None)
@@ -73,9 +137,24 @@ def classify(exc, stage='request'):
     if 'outofmemory' in kind.lower() or 'out of memory' in value: code='MODEL_OOM'
     elif kind=='RequestBudgetExceeded': code='REQUEST_TIMEOUT'
     elif 'timeout' in kind.lower(): code='WEB_TIMEOUT' if stage=='public_web_search' else 'REQUEST_TIMEOUT'
+    elif stage in {'evidence_evaluation','replan_request'} and 'audit_input_budget_exceeded' in value:
+        code='REPLAN_INPUT_BUDGET_EXCEEDED' if stage=='replan_request' else 'AUDIT_INPUT_BUDGET_EXCEEDED'
+    elif 'answer_review_actual_input_budget_exceeded' in value: code='CONTEXT_BUDGET_EXCEEDED'
+    elif 'answer_review_admission_budget_exceeded' in value: code='CONTEXT_BUDGET_EXCEEDED'
+    elif 'answer_review_admission_invariant_failed' in value: code='AUDIT_INPUT_BUDGET_EXCEEDED'
+    elif 'answer_review_admission_budget_exceeded' in value: code='CONTEXT_BUDGET_EXCEEDED'
+    elif 'answer_review_admission_invariant_failed' in value: code='AUDIT_INPUT_BUDGET_EXCEEDED'
+    elif 'prompt_budget' in value or 'context_budget' in value: code='CONTEXT_BUDGET_EXCEEDED'
+    elif stage=='evidence_evaluation' and ('reference' in value or 'evidence_id' in value): code='AUDIT_INVALID_REFERENCE'
+    elif stage=='evidence_evaluation' and kind=='JSONDecodeError': code='AUDIT_INVALID_JSON'
+    elif stage=='evidence_evaluation' and kind=='ValueError':
+        journal = current_execution.get()
+        code = 'AUDIT_INPUT_INVALID' if journal is not None and not journal.audit_invoked else 'AUDIT_SCHEMA_INVALID'
+    elif stage=='evidence_evaluation': code='AUDIT_FAILED'
+    elif stage=='replan_request' and kind=='ValueError': code='REPLAN_INPUT_INVALID'
     elif kind=='JSONDecodeError': code='OUTPUT_INVALID_JSON'
     elif kind=='ValueError' and str(exc) in {'模型输出中没有 JSON 对象','模型输出不是 JSON 对象','模型输出中没有可恢复的 JSON 对象','截断 JSON 尚未完整输出回答与引用'}: code='OUTPUT_INVALID_JSON'
-    elif 'prompt_budget' in value or 'context_budget' in value: code='CONTEXT_BUDGET_EXCEEDED'
+    elif 'context_integrity_failed' in value: code='CONTEXT_INTEGRITY_FAILED'
     elif 'grounded_output' in value or 'unsupported_numeric' in value or 'unsupported_promotional' in value: code='GROUNDING_FAILED'
     elif 'general_chat_output_invalid' in value: code='OUTPUT_SCHEMA_INVALID'
     elif 'unplanned_tool' in value or 'not_authorised' in value or isinstance(exc,PermissionError): code='ACCESS_DENIED'
@@ -97,9 +176,26 @@ class ExecutionStatus:
     stage: str = 'request'
     history: list = field(default_factory=list)
     errors: list = field(default_factory=list)
+    timings: list = field(default_factory=list)
+    stage_details: list = field(default_factory=list)
+    # Content-bearing parsed drafts are separate from content-free live summaries.
+    answer_versions: list = field(default_factory=list)
+    # Owner/admin-only parsed visual text, not part of status/list summaries.
+    visual_label_versions: list = field(default_factory=list)
+    summary_progress: dict = field(default_factory=dict)
+    model_contracts: list = field(default_factory=list)
+    audit_invoked: bool = False
+    final_generation_invoked: bool = False
+    agent_request_id: str | None = None
+    _stage_started: float = field(default_factory=time.perf_counter)
+    _request_started: float = field(default_factory=time.perf_counter)
+    _finished_at: float | None = None
 
     def enter(self, stage):
         if self.state in {'completed','degraded','failed','cancelled'}: return
+        now = time.perf_counter()
+        self.timings.append({'stage':self.stage,'elapsed_ms':round((now-self._stage_started)*1000,2)})
+        self._stage_started = now
         self.stage=stage
         self.state={'plan_request':'planning','guard_tools':'checking','compose_evidence':'composing',
                     'generate_answer':'generating','validate_answer':'validating'}.get(stage,'executing')
@@ -108,21 +204,75 @@ class ExecutionStatus:
 
     def finish(self, success):
         if self.state in {'completed','degraded','failed','cancelled'}: return
+        self._finished_at = time.perf_counter()
+        self.timings.append({'stage':self.stage,'elapsed_ms':round((self._finished_at-self._stage_started)*1000,2)})
         self.state='cancelled' if any(e['code']=='REQUEST_CANCELLED' for e in self.errors) else (
             'degraded' if success and self.errors else 'completed' if success else 'failed')
 
     def snapshot(self):
+        from backend.sales.token_usage import usage
+        contracts=[]
+        for contract in list(self.model_contracts):
+            copied=dict(contract,attempts=[dict(a) for a in contract.get('attempts',[])])
+            for attempt in copied['attempts']:
+                if attempt.get('status')=='running' and attempt.get('started_unix_seconds'):
+                    attempt['elapsed_seconds']=round(max(0,time.time()-attempt['started_unix_seconds']),3)
+            contracts.append(copied)
         return {'request_id':self.request_id,'state':self.state,'stage':self.stage,
-                'transitions':self.history,'errors':self.errors}
+                'transitions':self.history,'errors':self.errors,
+                'stage_details':[{**{k:v for k,v in row.items() if not k.startswith('_')},
+                    'output':{**row.get('output',{}),'token_usage':usage(self.model_contracts[row.get('_contract_start',len(self.model_contracts)):])}
+                        if row.get('status')=='running' else row.get('output',{}),
+                    'token_usage':usage(self.model_contracts[row.get('_contract_start',len(self.model_contracts)):])
+                        if row.get('status')=='running' else row.get('token_usage')}
+                    for row in self.stage_details],
+                'token_usage': usage(self.model_contracts),
+                'summary_progress': dict(self.summary_progress),
+                'model_contracts': contracts,
+                'audit_invoked':self.audit_invoked,
+                'final_generation_invoked':self.final_generation_invoked,
+                'elapsed_ms':round(((self._finished_at or time.perf_counter())-self._request_started)*1000,2),
+                'stage_timings':list(self.timings) if self._finished_at is not None else [*self.timings, {'stage':self.stage,
+                    'elapsed_ms':round((time.perf_counter()-self._stage_started)*1000,2),'in_progress':True}]}
 
 
 current_execution = ContextVar('execution_status',default=None)
 
 
-def report_error(exc=None, *, code=None, stage=None):
+@contextmanager
+def timed_phase(name):
+    started = time.perf_counter()
+    try:
+        yield
+    finally:
+        journal = current_execution.get()
+        if journal:
+            journal.timings.append({'phase':name,'stage':journal.stage,
+                                   'elapsed_ms':round((time.perf_counter()-started)*1000,2)})
+
+
+def timed_function(name):
+    def decorate(function):
+        @wraps(function)
+        def measured(*args, **kwargs):
+            with timed_phase(name):
+                return function(*args, **kwargs)
+        return measured
+    return decorate
+
+
+def report_error(exc=None, *, code=None, stage=None, details=None):
     journal=current_execution.get()
     stage=stage or (journal.stage if journal else 'request')
-    info=error_info(code,stage) if code else classify(exc,stage)
+    info=error_info(code,stage,type(exc).__name__ if exc else None) if code else classify(exc,stage)
+    if details is not None:
+        info['details'] = details
+    if journal and info['code'] == 'CONTEXT_INTEGRITY_FAILED':
+        existing = next((e for e in journal.errors if e['code'] == info['code']), None)
+        if existing is not None:
+            if details is not None:
+                existing['details'] = details
+            return existing
     if journal and info not in journal.errors: journal.errors.append(info)
     return info
 
@@ -134,7 +284,7 @@ def enter_stage(stage):
 
 def model_tool_errors():
     journal=current_execution.get()
-    return [{k:e[k] for k in ('code','stage','retryable','model_action')} for e in (journal.errors if journal else [])]
+    return [{k:e[k] for k in ('code','stage','message','retryable','model_action')} for e in (journal.errors if journal else [])]
 
 
 def install_error_protocol(app, log_path: Path):
@@ -157,6 +307,8 @@ def install_error_protocol(app, log_path: Path):
                  413:'FILE_TOO_LARGE',415:'UNSUPPORTED_FORMAT',422:'REQUEST_INVALID',
                  429:'SERVICE_BUSY',499:'REQUEST_CANCELLED',504:'REQUEST_TIMEOUT'}
         code=mapping.get(exc.status_code,'REQUEST_INVALID' if exc.status_code<500 else 'INTERNAL_ERROR')
+        if getattr(exc, 'code', None) in ERRORS:
+            code = exc.code
         detail=str(exc.detail).lower()
         if exc.status_code==400:
             if 'expired' in detail or '过期' in detail: code='ATTACHMENT_EXPIRED'
@@ -174,6 +326,10 @@ def install_error_protocol(app, log_path: Path):
     async def execution_scope(request,call_next):
         journal=ExecutionStatus(); request.state.execution=journal
         token=current_execution.set(journal)
+        tracked = request.method == 'POST' and request.url.path == '/api/copilot/answer'
+        if tracked:
+            from backend.sales.admin_traces import register_live
+            register_live(journal)
         try:
             try: response=await call_next(request)
             except Exception as exc:
@@ -182,6 +338,9 @@ def install_error_protocol(app, log_path: Path):
             response.headers['X-Request-ID']=journal.request_id
             return response
         finally:
+            if tracked:
+                from backend.sales.admin_traces import unregister_live
+                unregister_live(journal.request_id)
             if journal.errors:
                 try:
                     log_path.parent.mkdir(parents=True,exist_ok=True)

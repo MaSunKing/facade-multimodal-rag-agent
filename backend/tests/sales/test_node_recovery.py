@@ -86,7 +86,9 @@ class NodeRecoveryTests(unittest.TestCase):
         result={'answerable':False,'meta':{'model_used':False,'mode':'customer_document_index_only'}}
         with patch.object(app,'get_session',return_value=Mock(documents=[Mock()])):
             revised=app._CustomerAnswerWorkflowCallbacks.plan_retry(request,plan,result)
-        self.assertEqual(revised.document_scope,'whole_document')
+        # Index-only metadata is not an Answer Audit proof and may not force
+        # a whole-document recovery merely because a draft was unavailable.
+        self.assertIsNone(revised)
         result['answerable']=True
         self.assertIsNone(app._CustomerAnswerWorkflowCallbacks.plan_retry(request,plan,result))
 
@@ -104,9 +106,9 @@ class NodeRecoveryTests(unittest.TestCase):
         budget=RequestBudget(time.monotonic()+90)
         with budget_scope(budget), patch.object(app,'get_session',return_value=Mock(documents=[Mock()])):
             result=build_customer_answer_graph(Callbacks()).invoke({'request':request})['response']
-        self.assertTrue(result['answerable'])
-        self.assertEqual(result['meta']['orchestration']['tool_rounds'],2)
-        self.assertEqual(len(budget.recoveries),1)
+        self.assertFalse(result['answerable'])
+        self.assertEqual(result['meta']['orchestration']['tool_rounds'],1)
+        self.assertEqual(len(budget.recoveries),0)
         self.assertNotEqual(result['meta']['orchestration']['retry_reason'],'retry_policy_failed_closed')
 
     def test_retry_failure_is_observable_without_losing_first_answer(self):

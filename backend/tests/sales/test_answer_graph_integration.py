@@ -41,7 +41,7 @@ class AnswerGraphIntegrationTests(unittest.TestCase):
             response = facade_app.grounded_answer(request)
 
         general.assert_called_once_with(request, allow_public_web=False, web_source_profile="auto",
-                                        tool_plan=ToolPlan(tools=['general_chat'], reason='test'))
+                                        tool_plan=ToolPlan(tools=['general_chat'], reason='test', answer_language='Chinese'))
         self.assertEqual(response.customer_reply, original["customer_reply"])
         self.assertEqual(response.meta["mode"], "fake_general")
         self.assertEqual(response.meta["orchestration"]["engine"], "langgraph")
@@ -105,7 +105,7 @@ class AnswerGraphIntegrationTests(unittest.TestCase):
             response = facade_app.grounded_answer(request)
 
         company_rag.assert_called_once_with(
-            request, allow_public_web=False, web_source_profile="auto", tool_plan=plan
+            request, allow_public_web=False, web_source_profile="auto", tool_plan=plan.model_copy(update={'answer_language':'Chinese'})
         )
         self.assertTrue(response.answerable)
         self.assertEqual(response.meta["mode"], "fake_company_rag")

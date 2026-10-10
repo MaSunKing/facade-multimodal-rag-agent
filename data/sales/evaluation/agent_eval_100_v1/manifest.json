@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "case_count": 100,
+  "question_sha256": "fa56bb54df6e6cc79d06b436dcfd61b381b300d03898fed4ba8bf3114b032ad0",
+  "fixture_sha256": {
+    "a.txt": "5790d9adfd387bcc67fbf4ba4752580593c2672ac30ec42912604f3297c77baf",
+    "b.txt": "722b20eefe287bce7a88a2dea605ac46a00b4fd67271144f69dd22836a1b8cd1",
+    "long.txt": "871bece0612cf53469ab83befc734d64580ddbdb37776d9e870afdd76e9994b1",
+    "records.csv": "edcec29b34ed355f90da774be085292e1688f4a6cb1c639953194aa50918fb66",
+    "shapes.png": "91ca97ea5d95fa298db012c338739206b549e42132829863dd65b901af681f1e"
+  },
+  "semantic_gold": "company/web/multiturn require independent review; lexical checks are diagnostics"
+}

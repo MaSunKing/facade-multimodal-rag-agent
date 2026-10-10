@@ -8,7 +8,7 @@ from collections.abc import AsyncIterator
 
 from fastapi import Depends, Header, HTTPException
 
-from backend.access_control import Principal, optional_principal
+from backend.access_control import Principal, public_principal
 from backend.documents.customer_sessions import bind_session_owner
 
 
@@ -38,7 +38,7 @@ def attachment_owner_id(
 
 
 def required_attachment_owner(
-    principal: Principal | None = Depends(optional_principal),
+    principal: Principal | None = Depends(public_principal),
     x_facade_client_id: str | None = Header(default=None),
 ) -> str:
     owner_id = attachment_owner_id(principal, x_facade_client_id, required=True)
@@ -47,7 +47,7 @@ def required_attachment_owner(
 
 
 def optional_attachment_owner(
-    principal: Principal | None = Depends(optional_principal),
+    principal: Principal | None = Depends(public_principal),
     x_facade_client_id: str | None = Header(default=None),
 ) -> str | None:
     return attachment_owner_id(principal, x_facade_client_id, required=False)

@@ -302,6 +302,15 @@ def get_embedding_model() -> LocalQwenEmbedding:
         return _embedding_model
 
 
+def loaded_reranker_model() -> LocalQwenReranker | None:
+    """Borrow a resident scorer without loading another GPU model.
+
+    Callers must hold RETRIEVAL_INFERENCE_LOCK for the complete scoring pass.
+    """
+    with RETRIEVAL_INFERENCE_LOCK:
+        return _reranker_model
+
+
 def get_reranker_model() -> LocalQwenReranker:
     global _reranker_model
     with RETRIEVAL_INFERENCE_LOCK:

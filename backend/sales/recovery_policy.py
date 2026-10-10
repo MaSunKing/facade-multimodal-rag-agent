@@ -73,6 +73,8 @@ def assess_source_gaps(plan: Any, statuses: dict[str, dict[str, Any]], *,
         if state == 'ready':
             continue
         gap = {'tool': tool, 'reason': state}
+        if status.get('error_code'):
+            gap['error_code'] = status['error_code']
         gaps.append(gap)
         if state in {'unavailable', 'invalid_input', 'permission_denied', 'quota_exhausted',
                      'confirmed_no_support', 'authentication_failed'}:
@@ -98,26 +100,54 @@ def source_diagnostics(results: dict[str, Any], *, visual_required: bool = False
     statuses = {}
     if 'customer_documents' in results:
         documents = results['customer_documents']
+        if not isinstance(documents, dict):
+            statuses['customer_documents'] = {'state':'invalid_input','error_code':'OUTPUT_SCHEMA_INVALID'}
+            documents = {}
         evidence = documents.get('evidence', [])
+        if not isinstance(evidence, list) or any(not isinstance(item, dict) for item in evidence):
+            statuses['customer_documents'] = {'state':'invalid_input','error_code':'OUTPUT_SCHEMA_INVALID'}
+            evidence = []
         state = ('unavailable' if documents.get('status') == 'session_not_found' else
                  'empty' if not evidence else
                  'invalid_input' if not isinstance(evidence, list) or any(not isinstance(item, dict) for item in evidence) else
                  'index_only' if all(item.get('evidence_scope') == 'document_index' for item in evidence) else 'ready')
-        statuses['customer_documents'] = {'state': state}
+        selected_visuals = documents.get('selected_visuals', [])
+        if not isinstance(selected_visuals, list) or any(not isinstance(row,dict) for row in selected_visuals):
+            statuses['customer_documents'] = {'state':'invalid_input','error_code':'OUTPUT_SCHEMA_INVALID'}
+            selected_visuals = []
+        if state in {'empty', 'index_only'} and selected_visuals:
+            # Pixel candidates are usable tool output even without OCR. Their
+            # semantic support is decided by the existing evidence audit.
+            state = 'ready'
+        statuses.setdefault('customer_documents', {'state': state})
         if documents.get('error'):
-            statuses['customer_documents'] = {'state': _source_error_state(documents['error'])}
+            statuses['customer_documents'] = {'state': _source_error_state(documents['error']),
+                                             'error_code':documents['error'].get('code')}
         if visual_required and not documents.get('selected_visuals'):
             statuses['customer_visual'] = {'state': 'missing_visual_input' if documents.get('input_snapshot', {}).get('available_visual_count') else 'unavailable'}
     if 'company_rag' in results:
-        statuses['company_rag'] = {'state': 'ready' if results['company_rag'].get('text_evidence') else 'empty'}
-        if results['company_rag'].get('error'):
-            statuses['company_rag'] = {'state': _source_error_state(results['company_rag']['error'])}
+        company = results['company_rag']
+        if not isinstance(company, dict) or any(not isinstance(company.get(key, []), list) or
+                any(not isinstance(row, dict) for row in company.get(key, [])) for key in ('text_evidence','visual_assets')):
+            statuses['company_rag'] = {'state':'invalid_input','error_code':'OUTPUT_SCHEMA_INVALID'}
+        else:
+            statuses['company_rag'] = {'state': 'ready' if company.get('text_evidence') or company.get('visual_assets') else 'empty'}
+            if company.get('error'):
+                statuses['company_rag'] = {'state': _source_error_state(company['error']), 'error_code':company['error'].get('code')}
     if 'public_web_search' in results:
-        sources, meta = results['public_web_search']
+        bundle = results['public_web_search']
+        if not isinstance(bundle, (tuple,list)) or len(bundle)!=2 or not isinstance(bundle[0],list) or not isinstance(bundle[1],dict) or any(not isinstance(row,dict) for row in bundle[0]):
+            statuses['public_web_search'] = {'state':'invalid_input','error_code':'WEB_RESPONSE_INVALID'}
+            return statuses
+        sources, meta = bundle
         state = ('ready' if sources else
                  {'not_configured': 'unavailable', 'quota_exhausted': 'quota_exhausted',
                   'not_requested': 'permission_denied', 'failed': 'unavailable'}.get(meta.get('status'), 'current_fact_missing'))
         statuses['public_web_search'] = {'state': state}
+        if not sources and meta.get('error_code'):
+            code = {'timeout':'WEB_TIMEOUT','network_error':'WEB_NETWORK_FAILED',
+                    'invalid_json':'WEB_RESPONSE_INVALID'}.get(meta['error_code'], meta['error_code'])
+            statuses['public_web_search'].update(state=_source_error_state({'code':code}),error_code=code)
     return statuses
 
 
@@ -129,6 +159,8 @@ def _source_error_state(info: dict[str, Any]) -> str:
         return 'quota_exhausted'
     if code in {'NOT_FOUND', 'ATTACHMENT_EXPIRED'}:
         return 'unavailable'
+    if code in {'WEB_TIMEOUT', 'WEB_NETWORK_FAILED'}:
+        return 'transient_error'
     if info.get('retryable') and info.get('exception_type') in {'TimeoutError', 'ConnectionError'}:
         return 'transient_error'
     return 'invalid_input'

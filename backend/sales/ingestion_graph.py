@@ -55,10 +55,10 @@ DOMAIN_DEFAULTS: dict[str, dict[str, str]] = {
         "source_authority": "enterprise_catalogue",
         "customer_fact_policy": "enterprise_catalogue_case_reference",
     },
-    "06_sales_playbook": {
-        "document_category": "internal_sales_playbook",
-        "source_authority": "internal_sales_enablement",
-        "customer_fact_policy": "supplementary_product_reference_with_validation",
+    "06_enterprise_information": {
+        "document_category": "enterprise_information",
+        "source_authority": "enterprise_source",
+        "customer_fact_policy": "enterprise_reference_with_original_provenance",
     },
 }
 
@@ -197,10 +197,6 @@ class LocalIntakeOperations:
                 "customer_fact_policy": str(known.get("customer_fact_policy") or "review_before_use"),
             }
             source = "existing_taxonomy"
-        elif str(run["source_format"]) == "docx":
-            domain = "06_sales_playbook"
-            defaults = DOMAIN_DEFAULTS[domain]
-            source = "safe_docx_default"
         else:
             domain = _propose_domain_from_name(document_name)
             defaults = DOMAIN_DEFAULTS.get(domain or "", {})

@@ -30,9 +30,7 @@ from backend.document_parsing.file_ingestion import ingest_uploaded_file
 from backend.document_parsing.pdf_ingestion import ingest_scanned_pdf_vision_batch
 
 
-MAX_SESSION_FILES = 4
-MAX_FILE_BYTES = 25 * 1024 * 1024
-MAX_SESSION_BYTES = 50 * 1024 * 1024
+from backend.documents.upload_policy import MAX_SESSION_FILES, MAX_FILE_BYTES, MAX_SESSION_BYTES
 SESSION_TTL_SECONDS = 60 * 60
 MAX_CUSTOMER_PDF_VISUAL_PAGES = 40
 MAX_CUSTOMER_PDF_VISION_BATCHES = 10
@@ -88,7 +86,11 @@ class CustomerDocument:
     stage_timings_ms: dict[str, Any] = field(default_factory=dict)
     window_cache: dict[tuple, list[dict]] = field(default_factory=dict, repr=False)
     window_cache_bytes: int = 0
+    summary_cache: dict[str, list[dict]] = field(default_factory=dict, repr=False)
+    summary_cache_bytes: int = 0
     language_candidates: list[dict[str, Any]] = field(default_factory=list)
+    parse_quality: dict[str, Any] = field(default_factory=dict)
+    content_sha256: str = ''
 
 
 @dataclass
@@ -147,19 +149,38 @@ def _purge_expired(now: float | None = None) -> None:
         del _sessions[key]
 
 
+def document_display_names(documents):
+    from collections import Counter
+    counts = Counter(d.file_name for d in documents)
+    seen = Counter()
+    result = {}
+    for d in documents:
+        seen[d.file_name] += 1
+        result[d.document_id] = f'{d.file_name}（{seen[d.file_name]}）' if counts[d.file_name] > 1 else d.file_name
+    return result
+
+
+def _public_documents(documents):
+    names = document_display_names(documents)
+    return [{**_public_document(d), 'display_name':names[d.document_id]} for d in documents]
+
+
 def _public_document(document: CustomerDocument) -> dict[str, Any]:
     return {
         "document_id": document.document_id,
         "file_name": document.file_name,
+        "content_sha256": document.content_sha256,
         "size_bytes": document.size_bytes,
         "source_type": document.source_type,
         "parser": document.parser,
         "chunk_count": len(document.chunks),
         "visual_count": len(document.visuals),
         "ready_visual_count": sum(1 for visual in document.visuals if visual.image_bytes),
+        "preview_visual_id": next((visual.visual_id for visual in document.visuals if visual.image_bytes), None),
         "visual_coverage": document.visual_coverage,
         "stage_timings_ms": document.stage_timings_ms,
         "language_candidates": document.language_candidates,
+        "parse_quality": document.parse_quality,
     }
 
 
@@ -259,7 +280,7 @@ def estimated_session_bytes(session: CustomerDocumentSession) -> int:
     # Includes Python Unicode/object overhead and original upload allowance.
     return sum(doc.size_bytes + 4 * len(json.dumps(doc.chunks, ensure_ascii=False))
                + 4 * len(json.dumps(doc.source_locations, ensure_ascii=False))
-               + doc.window_cache_bytes
+               + doc.window_cache_bytes + doc.summary_cache_bytes
                + sum(len(v.image_bytes or b"") + 4 * len(v.searchable_text) + 1024 for v in doc.visuals)
                for doc in session.documents)
 
@@ -273,7 +294,7 @@ def _add_files_serial(
     if not files:
         raise ValueError("at_least_one_file_required")
     if len(files) > MAX_SESSION_FILES:
-        raise ValueError("maximum_four_files_per_session")
+        raise ValueError(f"maximum_files_per_session:{MAX_SESSION_FILES}")
     if any(len(content) > MAX_FILE_BYTES for _, content in files):
         raise ValueError("single_file_too_large")
     if sum(len(content) for _, content in files) > MAX_SESSION_BYTES:
@@ -298,21 +319,36 @@ def _add_files_serial(
         if existing_size + sum(len(content) for _, content in files) > MAX_SESSION_BYTES:
             raise ValueError("session_files_too_large")
 
+    # Content identity is independent of filename, MIME and modality. Check
+    # before OCR/parser work; never reveal hashes from another owner's session.
+    with _lock:
+        prior = _sessions.get(session_id) if session_id else None
+        seen_hashes = {d.content_sha256 for d in prior.documents if d.content_sha256} if prior else set()
+    for file_name, content in files:
+        digest = hashlib.sha256(content).hexdigest()
+        if digest in seen_hashes:
+            raise ValueError('duplicate_attachment_content: 该文件内容已添加，请勿重复上传。')
+        seen_hashes.add(digest)
     parsed: list[CustomerDocument] = []
     # One upload shares this CPU indexing budget across files and batches.
     # Native parsing/original images are retained after the budget expires.
-    index_deadline = time.monotonic() + 90
+    index_deadline = None  # No elapsed-time cap on attachment OCR indexing.
+    from backend.request_budget import check_budget
     for file_name, content in files:
+        check_budget()
         from backend.stage_timing import timed_call
         timings: dict[str, float] = {}
         result = timed_call(timings, 'native_ingestion', ingest_uploaded_file, file_name, content)
+        check_budget()
         result = timed_call(timings, 'ocr_text_index', _with_optional_document_ocr, result, deadline=index_deadline)
+        check_budget()
         batches = [result]
         coverage_stop_reason: str | None = None
         if file_name.lower().endswith(".pdf") and hasattr(result, "pdf"):
             next_page_start = result.pdf.vision_next_page_start
             rendered_pages = set(result.pdf.vision_rendered_page_numbers)
             while next_page_start is not None:
+                check_budget()
                 if len(rendered_pages) + CUSTOMER_PDF_VISUAL_BATCH_PAGES > MAX_CUSTOMER_PDF_VISUAL_PAGES:
                     coverage_stop_reason = "visual_page_safety_limit"
                     break
@@ -431,6 +467,7 @@ def _add_files_serial(
                 document_id=intermediate.document_id or f"doc_{uuid.uuid4().hex[:16]}",
                 file_name=file_name,
                 size_bytes=len(content),
+                content_sha256=hashlib.sha256(content).hexdigest(),
                 source_type=intermediate.source_type,
                 parser=intermediate.parser,
                 chunks=chunks,
@@ -443,6 +480,11 @@ def _add_files_serial(
             )
         )
 
+    from backend.documents.parse_quality import summarize_parse_quality
+    check_budget()
+    for document in parsed:
+        document.parse_quality = summarize_parse_quality(document)
+
     with _lock:
         _purge_expired()
         key = session_id or f"upload_{uuid.uuid4().hex}"
@@ -454,7 +496,7 @@ def _add_files_serial(
         for document in parsed:
             by_id[document.document_id] = document
         if len(by_id) > MAX_SESSION_FILES:
-            raise ValueError("maximum_four_files_per_session")
+            raise ValueError(f"maximum_files_per_session:{MAX_SESSION_FILES}")
         if sum(document.size_bytes for document in by_id.values()) > MAX_SESSION_BYTES:
             raise ValueError("session_files_too_large")
         session = CustomerDocumentSession(
@@ -472,7 +514,7 @@ def _add_files_serial(
         return {
             "session_id": key,
             "expires_in_seconds": SESSION_TTL_SECONDS,
-            "documents": [_public_document(document) for document in session.documents],
+            "documents": _public_documents(session.documents),
             "privacy": "process_memory_only_not_added_to_company_rag",
         }
 
@@ -494,7 +536,7 @@ def session_summary(session_id: str, *, owner_id: str | None = None) -> dict[str
     return {
         "session_id": session.session_id,
         "expires_in_seconds": SESSION_TTL_SECONDS,
-        "documents": [_public_document(document) for document in session.documents],
+        "documents": _public_documents(session.documents),
         "privacy": "process_memory_only_not_added_to_company_rag",
     }
 
@@ -1152,12 +1194,15 @@ def retrieve(
     question: str,
     *,
     document_scope: str = "unknown",
+    document_operation: str = "unknown",
+    target_document_ids: list[str] | None = None,
     max_chunks: int | None = None,
     max_characters: int | None = None,
     max_text_tokens: int | None = None,
     visual_required: bool | None = None,
     search_targets: list[str] | None = None,
     retrieval_queries: list[str] | None = None,
+    retrieval_requests: list[dict] | None = None,
     enable_semantic_rerank: bool = True,
 ) -> dict[str, Any]:
     """Select source-linked windows across all uploaded files.
@@ -1168,14 +1213,24 @@ def retrieve(
     the formal budget and audit are token estimates.
     """
 
-    if search_targets or retrieval_queries:
+    if search_targets or retrieval_queries or retrieval_requests:
         return retrieve_goal_candidates(session_id, question, search_targets=search_targets or [],
             retrieval_queries=retrieval_queries or [],
+            retrieval_requests=retrieval_requests or [],
+            target_document_ids=target_document_ids,
             document_scope=document_scope, max_text_tokens=max_text_tokens, visual_required=visual_required,
+            document_operation=document_operation,
             max_chunks=max_chunks, max_characters=max_characters)
     session = get_session(session_id)
     if not session:
         return {"status": "session_not_found", "evidence": [], "documents": []}
+
+    if target_document_ids:
+        from dataclasses import replace
+        from backend.documents.document_tasks import resolve_documents
+        documents, _ = resolve_documents(session.documents, target_document_ids,
+                                         scope=document_scope, operation='unknown')
+        session = replace(session, documents=documents)
 
     safety_token_limit = _environment_integer(
         "CUSTOMER_ATTACHMENT_TEXT_TOKEN_SAFETY_MAX",
@@ -1250,7 +1305,7 @@ def retrieve(
     # Treating cross-document analysis as a narrow lexical lookup caused broad
     # prompts such as "compare these files and give recommendations" to fall
     # back to document indexes because those words do not occur in data rows.
-    global_document_question = normalized_document_scope in {
+    global_document_question = document_operation not in {'lookup','comparison'} and normalized_document_scope in {
         "whole_document",
         "cross_document",
     }
@@ -1606,17 +1661,19 @@ def retrieve(
         # that fits.  This prevents early sheets from consuming the whole
         # overview budget and hiding later sheets such as a final summary.
         represented_chunks: set[tuple[str, str]] = set()
+        per_file = {d.document_id: [] for d in session.documents}
         for candidate in positive_candidates:
-            if candidate["is_document_index"]:
-                continue
-            key = (
-                candidate["document"].document_id,
-                str(candidate["original_chunk_id"]),
-            )
-            if key in represented_chunks:
-                continue
-            if add_candidate(candidate):
-                represented_chunks.add(key)
+            if not candidate['is_document_index']:
+                key = (candidate['document'].document_id, str(candidate['original_chunk_id']))
+                if key not in represented_chunks:
+                    represented_chunks.add(key)
+                    per_file[key[0]].append(candidate)
+        # Rotate actual files, not only chunks: large file A cannot consume
+        # all slots before any content of file B has been considered.
+        for index in range(max((len(v) for v in per_file.values()), default=0)):
+            for bucket in per_file.values():
+                if index < len(bucket):
+                    add_candidate(bucket[index])
 
     # Phase 1 reserves a modest minimum only for files with actual lexical
     # evidence.  A zero-relevance upload therefore consumes neither a slot nor
@@ -1735,7 +1792,7 @@ def retrieve(
             document_id=c['document'].document_id, document_name=c['document'].file_name,
             source_refs=list(c['chunk'].get('source_refs') or []),
             text=c['text'], window_id=c['window_id']) for i, c in enumerate(navigation_candidates[:4])],
-        "documents": [_public_document(document) for document in session.documents],
+        "documents": _public_documents(session.documents),
         "selected_visuals": selected_visuals,
         "input_snapshot": {
             "selected_chunk_count": len(selected),
@@ -1814,7 +1871,9 @@ def retrieve(
 def retrieve_goal_candidates(session_id: str, question: str, *, search_targets: list[str],
                              document_scope: str, max_text_tokens: int | None,
                              visual_required: bool | None, max_chunks: int | None,
-                             max_characters: int | None, retrieval_queries: list[str] | None = None) -> dict[str, Any]:
+                             max_characters: int | None, retrieval_queries: list[str] | None = None,
+                             target_document_ids: list[str] | None = None, document_operation: str = 'unknown',
+                             retrieval_requests: list[dict] | None = None) -> dict[str, Any]:
     """Normal candidate retrieval: overview + <=4 semantic factual subqueries.
 
     This is a single CPU tool invocation, not a recovery or model call. Each
@@ -1826,17 +1885,38 @@ def retrieve_goal_candidates(session_id: str, question: str, *, search_targets: 
     from backend.sales.recovery_policy import content_search_anchor
     goals = list(dict.fromkeys(content_search_anchor(goal) for goal in [*search_targets, *(retrieval_queries or [])]
                               if content_search_anchor(goal)))[:10]
+    if not goals and document_operation in {'lookup','comparison'}:
+        goals=[question]
     main = retrieve(session_id, question, document_scope=document_scope,
+                    document_operation=document_operation,
+                    target_document_ids=target_document_ids,
                     max_text_tokens=max_text_tokens, visual_required=visual_required,
                     max_chunks=max_chunks, max_characters=max_characters, enable_semantic_rerank=False)
-    if main.get('status') == 'session_not_found' or not goals:
+    if main.get('status') == 'session_not_found' or not (goals or retrieval_requests):
         return main
+    if document_operation not in {'lookup','comparison'} and document_scope in {'whole_document', 'cross_document'}:
+        # Generic actions like "summarise" are not retrieval facts. Keep the
+        # structure-first result; local goal pools must not evict whole files.
+        return main
+    from backend.sales.requirements import build_requirements, annotate, merge_requirements, coverage
+    session = get_session(session_id)
+    documents = [d for d in session.documents if not target_document_ids or d.document_id in target_document_ids] if session else []
+    requirements = build_requirements(
+        [{'id':d.document_id,'name':d.file_name,'kind':'document'} for d in documents], goals,
+        operation=document_operation, requests=retrieval_requests if document_operation == 'lookup' else ())
     goal_results = []
-    for goal in goals:
+    executed_requirements = []
+    for requirement in requirements[:32]:
         check_budget()
+        if requirement['target_kind'] == 'unresolved':
+            continue
+        goal = requirement['aspect']
         result = retrieve(session_id, goal, document_scope='local_lookup', max_chunks=6,
+                          target_document_ids=[requirement['target_id']] if requirement['target_kind']=='document' else target_document_ids,
                           max_text_tokens=min(max_text_tokens or 5000, 3500), visual_required=False,
                           enable_semantic_rerank=False)
+        result['evidence'] = annotate(result.get('evidence', []), requirement)
+        executed_requirements.append(requirement['requirement_id'])
         goal_results.append((goal, result))
     # Round-robin prevents the first goal from consuming the whole shared
     # token budget before subsequent requested dimensions are represented.
@@ -1851,6 +1931,7 @@ def retrieve_goal_candidates(session_id: str, question: str, *, search_targets: 
         identity = (raw.get('document_id'), raw.get('original_chunk_id'), raw.get('text'))
         if identity in seen:
             previous = selected[seen[identity]]
+            merge_requirements(previous, raw)
             previous['retrieval_aspects'] = list(dict.fromkeys([*previous.get('retrieval_aspects', []),
                 *([raw['retrieval_aspect']] if raw.get('retrieval_aspect') else [])]))
             continue
@@ -1874,11 +1955,16 @@ def retrieve_goal_candidates(session_id: str, question: str, *, search_targets: 
         selected_document_index_window_count=sum(item.get('evidence_scope') == 'document_index' for item in selected),
         selected_content_window_count=sum(item.get('evidence_scope') == 'content' for item in selected),
         goal_candidate_expansion={'policy': 'normal_semantic_goal_subqueries_not_retries',
-            'queries': goals, 'subquery_count': len(goals), 'candidate_count_before_budget': len(candidates),
+            'queries': goals, 'subquery_count': len(goal_results), 'candidate_count_before_budget': len(candidates),
             'shared_token_budget': token_budget, 'gold_labels_used': False,
             'base_generated_window_count': main.get('input_snapshot', {}).get('generated_window_count'),
             'subquery_generated_window_count': sum(result.get('input_snapshot', {}).get('generated_window_count', 0)
                                                   for _, result in goal_results)})
+    snapshot['requirement_coverage'] = coverage(requirements, selected)
+    snapshot['requirement_coverage']['executed_ids'] = executed_requirements
+    snapshot['requirement_coverage']['unexecuted_due_to_call_budget'] = [r['requirement_id'] for r in requirements[32:]]
+    snapshot['requirement_coverage']['unexecuted_due_to_scope'] = [r['requirement_id'] for r in requirements[:32]
+        if r['target_kind']=='unresolved']
     for quota in snapshot.get('per_document_quotas', []):
         items = [item for item in selected if item.get('document_id') == quota.get('document_id')]
         quota['selected_estimated_tokens'] = sum(_estimate_text_tokens(item.get('text', '')) for item in items)
